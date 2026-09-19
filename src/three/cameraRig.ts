@@ -56,6 +56,11 @@ export function applyCamera(camera: THREE.PerspectiveCamera, state: CameraState,
 
   camera.position.set(state.panX, effectiveHeight, state.panZ);
   camera.lookAt(state.panX, 0, state.panZ - lookAhead);
+  // When looking straight down, lookAt leaves the screen orientation ambiguous
+  // (up is degenerate), which rotated the map and shifted (0,0) off-center.
+  // Pin "up" so world -z (north) is always toward the top of the screen.
+  camera.up.set(0, 0, -1);
+  camera.lookAt(state.panX, 0, state.panZ - lookAhead);
 
   camera.updateMatrixWorld();
 }
