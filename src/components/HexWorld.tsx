@@ -72,7 +72,7 @@ export default function HexWorld() {
     const resize = () => {
       const w = container.clientWidth;
       const h = container.clientHeight;
-      renderer.setSize(w, h, false);
+      renderer.setSize(w, h);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
     };
@@ -100,12 +100,22 @@ export default function HexWorld() {
 
     const pickHex = (clientX: number, clientY: number): string | null => {
       const ground = groundPointFromScreen(clientX, clientY);
-      // Use the existing 2D hex math for picking: ground (x, z) maps to the 2D
-      // hex pixel layout directly (x, y).
+      // Ground (x, z) maps to the 2D hex pixel layout directly (x, y).
       const axial = pixelToAxial(ground.x, ground.y, HEX_SIZE);
       const coord = axialToRingIdx(axial);
       const key = hexKey(coord);
       return lineMap.has(key) ? key : null;
+    };
+
+    // Change zoom while keeping the world point under (clientX, clientY) fixed
+    // on screen — the pinch midpoint or the mouse cursor.
+    const setZoomAnchored = (newZoom: number, clientX: number, clientY: number) => {
+      const before = groundPointFromScreen(clientX, clientY);
+      stateRef.current.zoom = clamp(newZoom, 0, 1);
+      applyCamera(camera, stateRef.current, camera.aspect);
+      const after = groundPointFromScreen(clientX, clientY);
+      stateRef.current.panX += before.x - after.x;
+      stateRef.current.panZ += before.y - after.y;
     };
 
     const dom = renderer.domElement;
@@ -137,8 +147,10 @@ export default function HexWorld() {
         const [a, b] = [...activePointers.values()];
         const dist = Math.hypot(a.x - b.x, a.y - b.y);
         if (pinchStartDist > 0) {
+          const midX = (a.x + b.x) / 2;
+          const midY = (a.y + b.y) / 2;
           const ratio = dist / pinchStartDist;
-          stateRef.current.zoom = clamp(pinchStartZoom + Math.log2(ratio) / 4, 0, 1);
+          setZoomAnchored(pinchStartZoom + Math.log2(ratio) / 4, midX, midY);
         }
       }
     };
@@ -163,7 +175,7 @@ export default function HexWorld() {
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       const delta = -e.deltaY * 0.0012;
-      stateRef.current.zoom = clamp(stateRef.current.zoom + delta, 0, 1);
+      setZoomAnchored(stateRef.current.zoom + delta, e.clientX, e.clientY);
     };
 
     dom.addEventListener("pointerdown", onPointerDown);
