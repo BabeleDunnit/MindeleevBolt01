@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { useEffect, useRef } from "react";
 import { axialToRingIdx, pixelToAxial } from "@/hex/hexGrid";
-import { HEX_SIZE, hexKey, hexesInWorld, keyToCoord } from "@/hex/hexWorld";
+import { HEX_SIZE, hexKey, hexesInWorld } from "@/hex/hexWorld";
 import { COLORS, HEX_OUTLINE_GEOMETRY, makeTextSprite } from "@/three/hexFactory";
 import {
   applyCamera,
@@ -10,6 +10,7 @@ import {
   screenToGroundRay,
   type CameraState,
 } from "@/three/cameraRig";
+import { mulberry32, generateRandomDNA, polytronGeometry } from "@/polytron/polytron";
 import { clamp } from "@/utils/math";
 
 export default function HexWorld() {
@@ -48,13 +49,40 @@ export default function HexWorld() {
     }
     scene.add(gridGroup, labelGroup);
 
+    // --- Polytrons: one floating pawn per hex ---------------------------------
+    // Deterministic sequence; same seed always yields the same Mutatron.
+    const polytronRand = mulberry32(20260923);
+
+    const polytronGroup = new THREE.Group();
+    const shapeCache = new Map<string, { solid: THREE.BufferGeometry; edges: THREE.BufferGeometry }>();
+    const sharedMaterial = new THREE.MeshBasicMaterial({ vertexColors: true });
+    const sharedEdgeMaterial = new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35 });
+
+    for (const { coord, pos } of hexesInWorld()) {
+      const dna = generateRandomDNA(polytronRand);
+      let geos = shapeCache.get(dna);
+      if (!geos) {
+        geos = polytronGeometry(dna);
+        shapeCache.set(dna, geos);
+      }
+      const group = new THREE.Group();
+      const mesh = new THREE.Mesh(geos.solid, sharedMaterial);
+      const outline = new THREE.LineSegments(geos.edges, sharedEdgeMaterial);
+      group.add(mesh, outline);
+      // Float a tiny amount above the grid; scale to fit inside one hex.
+      group.position.set(pos.x, 3.5, pos.y);
+      group.scale.setScalar(HEX_SIZE * 0.62);
+      polytronGroup.add(group);
+    }
+    scene.add(polytronGroup);
+
     const refreshSelectionVisuals = () => {
       for (const [key, line] of lineMap) {
         const sel = selectedRef.current.has(key);
         line.material = sel ? selectedMaterial : idleMaterial;
         if (sel && !labelMap.has(key)) {
-          const coord = keyToCoord(key);
-          const sprite = makeTextSprite(`(${coord.ring},${coord.idx})`, 7);
+          const [ring, idx] = key.split(":").map(Number);
+          const sprite = makeTextSprite(`(${ring},${idx})`, 7);
           sprite.position.set(line.position.x, 1, line.position.z);
           labelGroup.add(sprite);
           labelMap.set(key, sprite);
@@ -187,7 +215,13 @@ export default function HexWorld() {
 
     // --- Render loop ----------------------------------------------------------
     let raf = 0;
+    const clock = new THREE.Clock();
     const animate = () => {
+      const t = clock.getElapsedTime();
+      // Gentle hover bob for the floating Polytrons.
+      polytronGroup.children.forEach((child, i) => {
+        child.position.y = 3.5 + Math.sin(t * 1.5 + i * 0.7) * 0.4;
+      });
       applyCamera(camera, stateRef.current, camera.aspect);
       renderer.render(scene, camera);
       raf = requestAnimationFrame(animate);
@@ -202,6 +236,12 @@ export default function HexWorld() {
       dom.removeEventListener("pointerup", onPointerUp);
       dom.removeEventListener("pointercancel", onPointerUp);
       dom.removeEventListener("wheel", onWheel);
+      shapeCache.forEach((g) => {
+        g.solid.dispose();
+        g.edges.dispose();
+      });
+      sharedMaterial.dispose();
+      sharedEdgeMaterial.dispose();
       renderer.dispose();
       container.removeChild(dom);
     };
