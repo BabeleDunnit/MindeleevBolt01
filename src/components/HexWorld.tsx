@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { useEffect, useRef } from "react";
 import { axialToRingIdx, pixelToAxial } from "@/hex/hexGrid";
 import { HEX_SIZE, hexKey, hexesInWorld } from "@/hex/hexWorld";
-import { COLORS, HEX_OUTLINE_GEOMETRY, makeTextSprite } from "@/three/hexFactory";
+import { COLORS, HEX_OUTLINE_GEOMETRY, makeTextSprite, PLACEHOLDER_GEOMETRY } from "@/three/hexFactory";
 import {
   applyCamera,
   createDefaultCameraState,
@@ -10,7 +10,8 @@ import {
   screenToGroundRay,
   type CameraState,
 } from "@/three/cameraRig";
-import { mulberry32, generateRandomDNA, polytronGeometry } from "@/polytron/polytron";
+import { polytronGeometry } from "@/polytron/polytron";
+import { intToRecipe, cellCode, FACE_BUDGET } from "@/polytron/mapping";
 import { clamp } from "@/utils/math";
 
 export default function HexWorld() {
@@ -50,8 +51,7 @@ export default function HexWorld() {
     scene.add(gridGroup, labelGroup);
 
     // --- Polytrons: one floating pawn per hex ---------------------------------
-    // Deterministic sequence; same seed always yields the same Mutatron.
-    const polytronRand = mulberry32(20260923);
+    // Deterministic: each cell's integer (ring-major order) picks its recipe.
 
     const polytronGroup = new THREE.Group();
     const shapeCache = new Map<string, { solid: THREE.BufferGeometry; edges: THREE.BufferGeometry }>();
@@ -60,11 +60,18 @@ export default function HexWorld() {
     const sharedEdgeMaterial = new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35 });
 
     for (const { coord, pos } of hexesInWorld()) {
-      const dna = generateRandomDNA(polytronRand);
+      const dna = intToRecipe(cellCode(coord));
       dnaByCell.set(hexKey(coord), dna);
       let geos = shapeCache.get(dna);
       if (!geos) {
-        geos = polytronGeometry(dna);
+        const built = polytronGeometry(dna);
+        const triCount = built.solid.getAttribute("position").count / 3;
+        // Face-budget valve: recipes whose meshes get huge render as a flat
+        // hexagon outline instead, so no cell can stall the world.
+        geos =
+          triCount > FACE_BUDGET * 2
+            ? { solid: PLACEHOLDER_GEOMETRY, edges: PLACEHOLDER_GEOMETRY }
+            : built;
         shapeCache.set(dna, geos);
       }
       const group = new THREE.Group();
