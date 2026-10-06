@@ -8,7 +8,6 @@ export const COLORS = {
   text: 0xffffff,
 };
 
-// Flat-top hexagon outline on the ground plane (y=0), in local space.
 export const HEX_OUTLINE_GEOMETRY = (() => {
   const h = (HEX_SIZE * Math.sqrt(3)) / 2;
   const pts = [
@@ -21,6 +20,9 @@ export const HEX_OUTLINE_GEOMETRY = (() => {
   ];
   return new THREE.BufferGeometry().setFromPoints(pts);
 })();
+
+// Flat hexagon outline reused as the over-budget placeholder shape.
+export const PLACEHOLDER_GEOMETRY = HEX_OUTLINE_GEOMETRY;
 
 export function makeTextSprite(text: string, scale = 6): THREE.Sprite {
   const canvas = document.createElement("canvas");

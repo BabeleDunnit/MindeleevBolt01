@@ -529,12 +529,6 @@ const extrudeN = (poly: Poly, n: number): OpPoly => {
   return { ...np, name: `x${n === 0 ? "" : n}${poly.name}` };
 };
 
-// loft: inset without popout
-const loft = (poly: Poly, n: number, alpha: number): OpPoly => {
-  const np = insetN(poly, n, alpha, 0.0);
-  return { ...np, name: `l${n === 0 ? "" : n}${poly.name}` };
-};
-
 // perspectiva1: stellation from Perspectiva Corporum Regularium
 const perspectiva1 = (poly: Poly): OpPoly => {
   const centers = faceCenters(poly);
@@ -566,7 +560,7 @@ const perspectiva1 = (poly: Poly): OpPoly => {
     }
   }
   const { vertices, faces } = flag.topoly();
-  return { vertices, faces, name: `P${poly.name}` };
+  return { vertices, faces, name: `l${poly.name}` };
 };
 
 // limited Goldberg-Coxeter u_n for triangular meshes
@@ -795,8 +789,7 @@ function applyOp(poly: Poly, op: string, arg: number | undefined): Poly {
     case "n": return toPoly(insetN(poly, a ?? 0));
     case "n2": return toPoly(insetN(poly, a ?? 0));
     case "x": return toPoly(extrudeN(poly, a ?? 0));
-    case "l": return toPoly(loft(poly, a ?? 0, 0.5));
-    case "P": return toPoly(perspectiva1(poly));
+    case "l": return toPoly(perspectiva1(poly));
     case "u": return toPoly(trisub(poly, a ?? 2));
     case "C": return toPoly(canonicalize(poly, a ?? 100));
     case "A": return toPoly(adjustXYZ(poly, a ?? 100));
