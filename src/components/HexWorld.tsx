@@ -55,11 +55,13 @@ export default function HexWorld() {
 
     const polytronGroup = new THREE.Group();
     const shapeCache = new Map<string, { solid: THREE.BufferGeometry; edges: THREE.BufferGeometry }>();
+    const dnaByCell = new Map<string, string>();
     const sharedMaterial = new THREE.MeshBasicMaterial({ vertexColors: true });
     const sharedEdgeMaterial = new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35 });
 
     for (const { coord, pos } of hexesInWorld()) {
       const dna = generateRandomDNA(polytronRand);
+      dnaByCell.set(hexKey(coord), dna);
       let geos = shapeCache.get(dna);
       if (!geos) {
         geos = polytronGeometry(dna);
@@ -82,7 +84,8 @@ export default function HexWorld() {
         line.material = sel ? selectedMaterial : idleMaterial;
         if (sel && !labelMap.has(key)) {
           const [ring, idx] = key.split(":").map(Number);
-          const sprite = makeTextSprite(`(${ring},${idx})`, 7);
+          const dna = dnaByCell.get(key);
+          const sprite = makeTextSprite(`(${ring},${idx}) ${dna}`, 7);
           sprite.position.set(line.position.x, 1, line.position.z);
           labelGroup.add(sprite);
           labelMap.set(key, sprite);
