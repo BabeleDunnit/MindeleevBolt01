@@ -76,28 +76,6 @@ const planararea = (vs: Vec3[]): number => {
   return Math.abs(dot(normal(vs), vsum) / 2);
 };
 
-const sigfigs = (n: number, nsigs: number): string => {
-  if (n === 0) return "0";
-  const mantissa = n / Math.pow(10, Math.floor(Math.log10(Math.abs(n))));
-  return `${Math.round(mantissa * Math.pow(10, nsigs - 1))}`;
-};
-
-// congruence signature: same shape+size faces share the signature
-const faceSignature = (vs: Vec3[], sensitivity: number): string => {
-  const angles: number[] = [];
-  let [v1, v2] = vs.slice(-2);
-  for (const v3 of vs) {
-    angles.push(mag(cross(sub(v1, v2), sub(v3, v2))));
-    v1 = v2;
-    v2 = v3;
-  }
-  angles.sort((a, b) => a - b);
-  let sig = "";
-  for (const a of angles) sig += sigfigs(a, sensitivity);
-  for (const a of [...angles].reverse()) sig += sigfigs(a, sensitivity);
-  return sig;
-};
-
 // ---------- polyhedron class (from polyhedron.js) ----------
 
 export function faceToEdges(face: number[]): Array<[number, number]> {
@@ -155,19 +133,57 @@ export function rescaleOnly(poly: Poly): Poly {
   return { ...poly, vertices: poly.vertices.map((v) => mult(s, v)) };
 }
 
-// ---------- coloring (paintPolyhedron, "signature" method) ----------
+// ---------- coloring ----------
 
-export function paintPolyhedron(poly: Poly, sensitivity = 3): Poly {
-  const colormemory = new Map<string, number>();
-  poly.faceClasses = poly.faces.map((f) => {
-    const faceVerts = f.map((v) => poly.vertices[v]);
-    const sig = faceSignature(faceVerts, sensitivity);
-    let cls = colormemory.get(sig);
-    if (cls === undefined) {
-      cls = colormemory.size;
-      colormemory.set(sig, cls);
+// Feature vector of a face: sorted edge lengths + sorted corner angles.
+// Congruent faces share the same features up to floating-point noise.
+function faceFeatures(vs: Vec3[]): { edges: number[]; angles: number[] } {
+  const n = vs.length;
+  const edges: number[] = [];
+  const angles: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const a = vs[(i + n - 1) % n];
+    const b = vs[i];
+    const c = vs[(i + 1) % n];
+    edges.push(mag(sub(c, b)));
+    const d1 = unit(sub(b, a));
+    const d2 = unit(sub(c, b));
+    angles.push(Math.acos(Math.max(-1, Math.min(1, dot(d1, d2)))));
+  }
+  edges.sort((x, y) => x - y);
+  angles.sort((x, y) => x - y);
+  return { edges, angles };
+}
+
+// Tolerances sized for the seed imprecision in polyhedronisme's Platonic seeds
+// (the icosahedron seed has ~0.12% edge-length spread) while still separating
+// genuinely different shapes (e.g. the snub cube's equilateral vs scalene
+// triangles differ in edge length by ~13%).
+const FEAT_EPS = 0.02;
+
+function featuresMatch(a: { edges: number[]; angles: number[] }, b: { edges: number[]; angles: number[] }): boolean {
+  if (a.edges.length !== b.edges.length) return false;
+  // relative tolerance for lengths, absolute for angles
+  for (let i = 0; i < a.edges.length; i++) {
+    const scale = Math.max(1, a.edges[i], b.edges[i]);
+    if (Math.abs(a.edges[i] - b.edges[i]) > FEAT_EPS * scale) return false;
+  }
+  for (let i = 0; i < a.angles.length; i++) {
+    if (Math.abs(a.angles[i] - b.angles[i]) > FEAT_EPS * 10) return false;
+  }
+  return true;
+}
+
+// Assign each face a class: same class = congruent face (matching within tolerance).
+export function paintPolyhedron(poly: Poly): Poly {
+  const features = poly.faces.map((f) => faceFeatures(f.map((v) => poly.vertices[v])));
+  const classReps: Array<{ edges: number[]; angles: number[] }> = [];
+  poly.faceClasses = features.map((feat) => {
+    for (let c = 0; c < classReps.length; c++) {
+      if (featuresMatch(feat, classReps[c])) return c;
     }
-    return cls;
+    classReps.push(feat);
+    return classReps.length - 1;
   });
   return poly;
 }
