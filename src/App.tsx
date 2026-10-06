@@ -1,7 +1,7 @@
-import HexGridCanvas from "@/components/HexGridCanvas";
+import HexWorld from "@/components/HexWorld";
 
 function App() {
-  return <HexGridCanvas />;
+  return <HexWorld />;
 }
 
 export default App;
