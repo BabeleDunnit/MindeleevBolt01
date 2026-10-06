@@ -33,6 +33,16 @@ export default function HexWorld() {
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(55, 1, 0.5, 6000);
 
+    // --- Lighting: ambient fill plus key/rim directional lights --------------
+    const ambient = new THREE.HemisphereLight(0xbfd4ff, 0x30281e, 0.55);
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.6);
+    keyLight.position.set(40, 80, 30);
+    const fillLight = new THREE.DirectionalLight(0x88aaff, 0.5);
+    fillLight.position.set(-50, 30, -40);
+    const rimLight = new THREE.DirectionalLight(0xffd9a0, 0.7);
+    rimLight.position.set(0, 20, -80);
+    scene.add(ambient, keyLight, fillLight, rimLight);
+
     // --- Build the hex grid world -------------------------------------------
     const gridGroup = new THREE.Group();
     const labelGroup = new THREE.Group();
@@ -56,7 +66,7 @@ export default function HexWorld() {
     const polytronGroup = new THREE.Group();
     const shapeCache = new Map<string, { solid: THREE.BufferGeometry; edges: THREE.BufferGeometry }>();
     const dnaByCell = new Map<string, string>();
-    const sharedMaterial = new THREE.MeshBasicMaterial({ vertexColors: true });
+    const sharedMaterial = new THREE.MeshLambertMaterial({ vertexColors: true });
     const sharedEdgeMaterial = new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35 });
 
     for (const { coord, pos } of hexesInWorld()) {
