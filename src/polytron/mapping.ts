@@ -10,7 +10,7 @@ export const OPERATORS = [
   "e", "b", "o", "m", "t", "j", "s",
 ] as const;
 
-export const SEEDS = ["T", "O", "C", "I", "D"] as const;
+export const SEEDS = ["T", "C", "O", "D", "I"] as const;
 
 const R = OPERATORS.length; // 20
 const S = SEEDS.length; // 5
@@ -143,7 +143,7 @@ export function runCodecSelfTests(): { passed: number; failed: Array<{ label: st
   // Spot values.
   const spots: Array<[number, string]> = [
     [0, "T"],
-    [4, "D"],
+    [4, "I"],
     [1 * S, "dT"], // first depth-1 chain, seed T
     [((1 + R) * S), "ddT"], // first depth-2 chain ("dd")
   ];
