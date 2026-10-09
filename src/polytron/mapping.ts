@@ -1,6 +1,5 @@
 import { generatePoly } from "@/polyhedronisme/polyhedronisme";
 import { PALETTES, TOTAL_PALETTES } from "@/polytron/palettes";
-
 // ---------- constants ----------
 
 // All-lowercase operator alphabet, no parameters. Stellation is `l`; there is
@@ -19,7 +18,15 @@ const S = SEEDS.length; // 5
 // Depth 0..4 chains; within each depth, lexicographic by operator symbol.
 // Index 0 is the bare seed (empty chain).
 export const TOTAL_CHAINS = 1 + R + R * R + R * R * R + R ** 4; // 168,401
-export const TOTAL_CODES = TOTAL_CHAINS * S * TOTAL_PALETTES; // 84,200,500
+// The number-to-DNA folding only sweeps palettes that actually exist, so
+// cells never render the undefined-palette fallback (which would repeat 00
+// nine times out of ten). Palettes 10-99 remain addressable via explicit DNA.
+const DEFINED_PALETTES: ReadonlyArray<number> = PALETTES.reduce<number[]>(
+  (acc, colors, i) => (colors !== undefined ? [...acc, i] : acc),
+  []
+);
+
+export const TOTAL_CODES = TOTAL_CHAINS * S * DEFINED_PALETTES.length; // 8,420,050
 
 // ---------- chain <-> index ----------
 
@@ -61,15 +68,17 @@ export function indexToChain(index: number): string[] {
 // ---------- code <-> recipe ----------
 
 // A "code" packs chain index, seed, and palette into one integer in
-// [0, TOTAL_CODES): code = chainIdx * (S * P) + seedIdx * P + paletteIdx.
-// Palette is the fastest-varying part, so consecutive cells sweep palettes.
+// [0, TOTAL_CODES): code = chainIdx * (S * P) + seedIdx * P + paletteSlotIdx,
+// where paletteSlotIdx indexes the DEFINED palettes (currently 00-09). Palette
+// is the fastest-varying part, so consecutive cells sweep defined palettes.
 export function codeToRecipeParts(code: number): { chain: string[]; seed: string; palette: number } {
   if (!Number.isInteger(code) || code < 0 || code >= TOTAL_CODES) {
     throw new Error(`Code out of range [0, ${TOTAL_CODES}): ${code}`);
   }
-  const palette = code % TOTAL_PALETTES;
-  const seed = SEEDS[Math.floor(code / TOTAL_PALETTES) % S];
-  const chainIdx = Math.floor(code / (TOTAL_PALETTES * S));
+  const p = DEFINED_PALETTES.length;
+  const palette = DEFINED_PALETTES[code % p];
+  const seed = SEEDS[Math.floor(code / p) % S];
+  const chainIdx = Math.floor(code / (p * S));
   return { chain: indexToChain(chainIdx), seed, palette };
 }
 
@@ -83,7 +92,12 @@ export function recipePartsToCode(
   if (!Number.isInteger(palette) || palette < 0 || palette >= TOTAL_PALETTES) {
     throw new Error(`Palette out of range [0, ${TOTAL_PALETTES}): ${palette}`);
   }
-  return chainToIndex(chain) * (TOTAL_PALETTES * S) + seedIdx * TOTAL_PALETTES + palette;
+  const slot = DEFINED_PALETTES.indexOf(palette);
+  if (slot < 0) {
+    throw new Error(`Palette ${pad2(palette)} is not defined; cannot encode into a cell code`);
+  }
+  const p = DEFINED_PALETTES.length;
+  return chainToIndex(chain) * (p * S) + seedIdx * p + slot;
 }
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
@@ -129,8 +143,9 @@ export function buildPolytron(code: number): {
   overBudget: boolean;
 } {
   const recipe = intToRecipe(code);
+  const p = DEFINED_PALETTES.length;
+  const palette = DEFINED_PALETTES[code % p];
   const poly = generatePoly(recipe);
-  const palette = code % TOTAL_PALETTES;
   return { recipe, poly, palette, overBudget: poly.faces.length > FACE_BUDGET };
 }
 
@@ -146,12 +161,13 @@ export function runCodecSelfTests(): { passed: number; failed: Array<{ label: st
   };
 
   // Roundtrip over a sampled subset (full sweep of the enlarged space is slow):
-  // every chain/seed combo at palettes 0, 1, 55, 99, plus a code sweep at palette 0.
-  const sampleCodes = [0, 1, 55, 99];
+  // every chain/seed combo at every defined palette slot, plus a code sweep.
+  const p = DEFINED_PALETTES.length;
+  const sampleSlots = DEFINED_PALETTES.map((_, i) => i);
   for (let chainIdx = 0; chainIdx < TOTAL_CHAINS; chainIdx += 1) {
     for (let seedIdx = 0; seedIdx < S; seedIdx++) {
-      for (const p of sampleCodes) {
-        const code = chainIdx * (TOTAL_PALETTES * S) + seedIdx * TOTAL_PALETTES + p;
+      for (const slot of sampleSlots) {
+        const code = chainIdx * (p * S) + seedIdx * p + slot;
         const recipe = intToRecipe(code);
         let back: number;
         try {
@@ -180,12 +196,12 @@ export function runCodecSelfTests(): { passed: number; failed: Array<{ label: st
   const spots: Array<[number, string]> = [
     [0, "T"], // palette 00 omitted
     [4, "04T"],
-    [1 * TOTAL_PALETTES, "C"], // seed 1, palette 0
-    [1 * TOTAL_PALETTES + 5, "05C"],
-    [S * TOTAL_PALETTES, "dT"], // first depth-1 chain, seed T, palette 0
-    [S * TOTAL_PALETTES + 9, "d09T"],
-    [(1 + R) * S * TOTAL_PALETTES, "ddT"], // first depth-2 chain ("dd")
-    [(1 + R) * S * TOTAL_PALETTES + 42, "dd42T"],
+    [1 * p, "C"], // seed 1, palette 0
+    [1 * p + 5, "05C"],
+    [S * p, "dT"], // first depth-1 chain, seed T, palette 0
+    [S * p + 9, "d09T"],
+    [(1 + R) * S * p, "ddT"], // first depth-2 chain ("dd")
+    [(1 + R) * S * p + 7, "dd07T"],
   ];
   for (const [code, recipe] of spots) {
     expect(intToRecipe(code) === recipe, `spot(${code})`, `expected ${recipe}, got ${intToRecipe(code)}`);
@@ -202,6 +218,16 @@ export function runCodecSelfTests(): { passed: number; failed: Array<{ label: st
     }
     expect(threw, `reject(${bad})`, "should have thrown");
   }
+
+  // Undefined-palette DNAs are accepted by recipeToInt but cannot fold back
+  // into cell codes (they would collide with the fallback).
+  let threw = false;
+  try {
+    recipePartsToCode([], "T", 42);
+  } catch {
+    threw = true;
+  }
+  expect(threw, "reject-undefined-palette-code", "should have thrown");
 
   // Palette 00 recipes accept both explicit and omitted form.
   expect(recipeToInt("g00D") === recipeToInt("gD"), "palette00-omitted", "g00D should equal gD");
