@@ -1,5 +1,5 @@
 import { useState } from "react";
-import HexWorld from "@/components/HexWorld";
+import HexWorld, { PALETTE_SETS, type PaletteSetId } from "@/components/HexWorld";
 import { runCodecSelfTests } from "@/polytron/mapping";
 
 type TestResult = {
@@ -63,9 +63,17 @@ function TestOverlay() {
 
 function App() {
   const runTestsParam = new URLSearchParams(window.location.search).has("run-tests");
+  const [paletteSetId, setPaletteSetId] = useState<PaletteSetId>("mineral");
+  const next = PALETTE_SETS.find((s) => s.id !== paletteSetId)!;
   return (
     <>
-      <HexWorld />
+      <HexWorld paletteSetId={paletteSetId} />
+      <button
+        className="fixed top-4 right-4 z-10 px-4 py-2 rounded-md border border-white/30 bg-black/60 text-white/90 text-sm font-medium backdrop-blur-sm hover:bg-black/80 hover:border-white/60 transition-colors"
+        onClick={() => setPaletteSetId(next.id)}
+      >
+        {next.label}
+      </button>
       {runTestsParam && <TestOverlay />}
     </>
   );

@@ -14,13 +14,22 @@ import { polytronGeometry } from "@/polytron/polytron";
 import { intToRecipe, cellCode, FACE_BUDGET } from "@/polytron/mapping";
 import { clamp } from "@/utils/math";
 
-export default function HexWorld() {
+// The two palette sets the catalog switches between. Cells keep their recipe
+// (shape) but are colored with palettes from the active set: a recipe with
+// palette slot p renders with the p-th palette of the active set.
+export const PALETTE_SETS = [
+  { id: "mineral", label: "Mineral 00-09" },
+  { id: "neon", label: "Neon 10-19" },
+] as const;
+
+export type PaletteSetId = (typeof PALETTE_SETS)[number]["id"];
+
+export default function HexWorld({ paletteSetId }: { paletteSetId: PaletteSetId }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef<CameraState>(createDefaultCameraState());
   const selectedRef = useRef<Set<string>>(new Set());
 
-  useEffect(() => {
-    const container = containerRef.current;
+  useEffect(() => {    const container = containerRef.current;
     if (!container) return;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -74,9 +83,15 @@ export default function HexWorld() {
     for (const { coord, pos } of hexesInWorld()) {
       const dna = intToRecipe(cellCode(coord));
       dnaByCell.set(hexKey(coord), dna);
-      let geos = shapeCache.get(dna);
+      // Cells sweep palette slots 0-19, alternating between the two banks.
+      // The active set picks which bank colors the cell; the shape (with the
+      // palette digits stripped) stays fixed per cell across toggles.
+      const bare = dna.replace(/(\d{2})([TOCID])$/, "$2");
+      const cacheKey = `${paletteSetId}:${bare}`;
+      let geos = shapeCache.get(cacheKey);
       if (!geos) {
-        const built = polytronGeometry(dna);
+        const bankOffset = paletteSetId === "neon" ? 10 : 0;
+        const built = polytronGeometry(dna, (p) => (p % 10) + bankOffset);
         const triCount = built.solid.getAttribute("position").count / 3;
         // Face-budget valve: recipes whose meshes get huge render as a flat
         // hexagon outline instead, so no cell can stall the world.
@@ -84,7 +99,7 @@ export default function HexWorld() {
           triCount > FACE_BUDGET * 2
             ? { solid: PLACEHOLDER_GEOMETRY, edges: PLACEHOLDER_GEOMETRY }
             : built;
-        shapeCache.set(dna, geos);
+        shapeCache.set(cacheKey, geos);
       }
       const group = new THREE.Group();
       const mesh = new THREE.Mesh(geos.solid, sharedMaterial);
@@ -267,7 +282,7 @@ export default function HexWorld() {
       renderer.dispose();
       container.removeChild(dom);
     };
-  }, []);
+  }, [paletteSetId]);
 
   return <div ref={containerRef} className="fixed inset-0 touch-none select-none" />;
 }

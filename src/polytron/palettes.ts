@@ -22,6 +22,26 @@ export const PALETTES: ReadonlyArray<ReadonlyArray<number> | undefined> = [
   [0x4d8f5f, 0x2f6b44, 0x8fbf9f, 0x1d4a2e, 0xd4e8d8],
   // 09 Citrine — pale golden quartz
   [0xe4c44a, 0xc9a227, 0xf4e0a0, 0x9c7d1d, 0xfaf0cc],
+  // 10 Neon Rose — hot pink / magenta glow
+  [0xff2d78, 0xff5ca8, 0xc9105a, 0xff8ecb, 0x8a0a3d],
+  // 11 Neon Lime — acid green glow
+  [0xaaff00, 0x7cff2d, 0xd4ff7c, 0x5cc90a, 0xe6ffb8],
+  // 12 Neon Cyan — electric ice blue
+  [0x00fff0, 0x5cfff5, 0x00c4b8, 0xa8fbff, 0x008a80],
+  // 13 Neon Tangerine — blazing orange
+  [0xff7a00, 0xffa53d, 0xd45c00, 0xffc98e, 0x8a3d00],
+  // 14 Neon Violet — UV purple glow
+  [0xc44aff, 0xdd7cff, 0x9a2dd4, 0xedb8ff, 0x6b0a8a],
+  // 15 Neon Chartreuse — yellow-green laser
+  [0xd4ff00, 0xe8ff5c, 0xa8c900, 0xf2ffb8, 0x7c8a00],
+  // 16 Neon Azure — deep electric blue
+  [0x2d7cff, 0x5ca8ff, 0x0a4fc9, 0x8ecbff, 0x00308a],
+  // 17 Neon Coral — glowing salmon red
+  [0xff5040, 0xff8a7c, 0xd42d1d, 0xffb8b0, 0x8a150a],
+  // 18 Neon Mint — glowing spearmint
+  [0x40ffa8, 0x7cffc4, 0x1dd482, 0xb0ffe0, 0x0a8a56],
+  // 19 Neon Gold — radiant yellow
+  [0xffd400, 0xffe85c, 0xd4ab00, 0xfff2b0, 0x8a7000],
 ];
 
 export const TOTAL_PALETTES = 100;

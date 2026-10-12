@@ -19,11 +19,14 @@ export function dnaPalette(dna: PolytronDNA): number {
 }
 
 // Triangulate faces as fans into a flat-shaded, vertex-colored solid plus edge lines.
+// paletteRemap lets a caller swap the palette set (e.g. mineral <-> neon)
+// without rebuilding the underlying shape.
 export function polytronGeometry(
-  dna: PolytronDNA
+  dna: PolytronDNA,
+  paletteRemap?: (p: number) => number
 ): { solid: THREE.BufferGeometry; edges: THREE.BufferGeometry } {
   const poly = dnaToPoly(dna);
-  const palette = dnaPalette(dna);
+  const palette = paletteRemap ? paletteRemap(dnaPalette(dna)) : dnaPalette(dna);
   const positions: number[] = [];
   const colors: number[] = [];
   const edgePositions: number[] = [];
