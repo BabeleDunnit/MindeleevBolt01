@@ -10,7 +10,7 @@ import {
   screenToGroundRay,
   type CameraState,
 } from "@/three/cameraRig";
-import { polytronGeometry } from "@/polytron/polytron";
+import { polytronGeometry, dnaPalette } from "@/polytron/polytron";
 import { intToRecipe, cellCode, FACE_BUDGET } from "@/polytron/mapping";
 import { clamp } from "@/utils/math";
 
@@ -83,15 +83,17 @@ export default function HexWorld({ paletteSetId }: { paletteSetId: PaletteSetId 
     for (const { coord, pos } of hexesInWorld()) {
       const dna = intToRecipe(cellCode(coord));
       dnaByCell.set(hexKey(coord), dna);
-      // Cells sweep palette slots 0-19, alternating between the two banks.
-      // The active set picks which bank colors the cell; the shape (with the
-      // palette digits stripped) stays fixed per cell across toggles.
+      // Cells sweep palette slots 0-9; the active set picks which bank colors
+      // the cell. Vertex colors are baked per geometry, so the cache is keyed
+      // by shape AND resolved palette — keying by shape alone would give every
+      // palette variant of a shape the first variant's colors.
       const bare = dna.replace(/(\d{2})([TOCID])$/, "$2");
-      const cacheKey = `${paletteSetId}:${bare}`;
+      const bankOffset = paletteSetId === "neon" ? 10 : 0;
+      const effectivePalette = (dnaPalette(dna) % 10) + bankOffset;
+      const cacheKey = `${paletteSetId}:${bare}:${effectivePalette}`;
       let geos = shapeCache.get(cacheKey);
       if (!geos) {
-        const bankOffset = paletteSetId === "neon" ? 10 : 0;
-        const built = polytronGeometry(dna, (p) => (p % 10) + bankOffset);
+        const built = polytronGeometry(dna, () => effectivePalette);
         const triCount = built.solid.getAttribute("position").count / 3;
         // Face-budget valve: recipes whose meshes get huge render as a flat
         // hexagon outline instead, so no cell can stall the world.
