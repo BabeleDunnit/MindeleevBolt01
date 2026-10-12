@@ -1,6 +1,10 @@
+import { hueShiftPalette, analogousPalette, wavePalette, splitComplementPalette } from "@/polytron/proceduralPalettes";
+
 // Palettes 00-99. A palette is a sequence of 6-digit hex colors; each
 // congruence class of a polyhedron takes the next color, wrapping around.
-// Only 00-09 are defined; anything else falls back to palette 00.
+// Defined here: 00-09 mineral, 10-19 neon. 20-59 are procedural sets
+// (see proceduralPalettes.ts) exposed as static arrays below so the codec,
+// tests and the catalog all see one uniform table.
 export const PALETTES: ReadonlyArray<ReadonlyArray<number> | undefined> = [
   // 00 Amethyst — violet-quartz banded tones
   [0xb57edc, 0x7a4fa3, 0xe6d0f2, 0x9966cc, 0x4a2c6b],
@@ -42,6 +46,14 @@ export const PALETTES: ReadonlyArray<ReadonlyArray<number> | undefined> = [
   [0x40ffa8, 0x7cffc4, 0x1dd482, 0xb0ffe0, 0x0a8a56],
   // 19 Neon Gold — radiant yellow
   [0xffd400, 0xffe85c, 0xd4ab00, 0xfff2b0, 0x8a7000],
+  // 20-29 Procedural "Hue Shift" — cool shadows, warm highlights
+  ...Array.from({ length: 10 }, (_, i) => hueShiftPalette(i)),
+  // 30-39 Procedural "Analogous" — dominant hue with harmonic neighbors
+  ...Array.from({ length: 10 }, (_, i) => analogousPalette(i)),
+  // 40-49 Procedural "Wave" — trigonometric hue curves
+  ...Array.from({ length: 10 }, (_, i) => wavePalette(i)),
+  // 50-59 Procedural "Split Complement" — dominant hue + rare contrasting pops
+  ...Array.from({ length: 10 }, (_, i) => splitComplementPalette(i)),
 ];
 
 export const TOTAL_PALETTES = 100;
