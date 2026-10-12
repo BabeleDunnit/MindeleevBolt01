@@ -63,16 +63,16 @@ function TestOverlay() {
 
 function App() {
   const runTestsParam = new URLSearchParams(window.location.search).has("run-tests");
-  const [paletteSetId, setPaletteSetId] = useState<PaletteSetId>("mineral");
-  const next = PALETTE_SETS.find((s) => s.id !== paletteSetId)!;
+  const [paletteIdx, setPaletteIdx] = useState(0);
+  const current = PALETTE_SETS[paletteIdx];
   return (
     <>
-      <HexWorld paletteSetId={paletteSetId} />
+      <HexWorld paletteSetId={current.id} />
       <button
         className="fixed top-4 right-4 z-10 px-4 py-2 rounded-md border border-white/30 bg-black/60 text-white/90 text-sm font-medium backdrop-blur-sm hover:bg-black/80 hover:border-white/60 transition-colors"
-        onClick={() => setPaletteSetId(next.id)}
+        onClick={() => setPaletteIdx((paletteIdx + 1) % PALETTE_SETS.length)}
       >
-        {next.label}
+        {current.label}
       </button>
       {runTestsParam && <TestOverlay />}
     </>

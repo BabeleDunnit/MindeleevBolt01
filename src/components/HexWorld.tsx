@@ -14,17 +14,21 @@ import { polytronGeometry, dnaPalette } from "@/polytron/polytron";
 import { intToRecipe, cellCode, FACE_BUDGET } from "@/polytron/mapping";
 import { clamp } from "@/utils/math";
 
-// The two palette sets the catalog switches between. Cells keep their recipe
-// (shape) but are colored with palettes from the active set: a recipe with
-// palette slot p renders with the p-th palette of the active set.
+// Palette sets the catalog cycles through. Each set maps a cell's palette
+// slot (0-9) onto a contiguous bank of ten palettes in the PALETTES table.
 export const PALETTE_SETS = [
-  { id: "mineral", label: "Mineral 00-09" },
-  { id: "neon", label: "Neon 10-19" },
+  { id: "mineral", label: "Mineral 00-09", offset: 0 },
+  { id: "neon", label: "Neon 10-19", offset: 10 },
+  { id: "hue-shift", label: "Hue Shift 20-29", offset: 20 },
+  { id: "analogous", label: "Analogous 30-39", offset: 30 },
+  { id: "wave", label: "Wave 40-49", offset: 40 },
+  { id: "split-comp", label: "Split Complement 50-59", offset: 50 },
 ] as const;
 
 export type PaletteSetId = (typeof PALETTE_SETS)[number]["id"];
 
 export default function HexWorld({ paletteSetId }: { paletteSetId: PaletteSetId }) {
+  const paletteSet = PALETTE_SETS.find((s) => s.id === paletteSetId) ?? PALETTE_SETS[0];
   const containerRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef<CameraState>(createDefaultCameraState());
   const selectedRef = useRef<Set<string>>(new Set());
@@ -88,8 +92,7 @@ export default function HexWorld({ paletteSetId }: { paletteSetId: PaletteSetId 
       // by shape AND resolved palette — keying by shape alone would give every
       // palette variant of a shape the first variant's colors.
       const bare = dna.replace(/(\d{2})([TOCID])$/, "$2");
-      const bankOffset = paletteSetId === "neon" ? 10 : 0;
-      const effectivePalette = (dnaPalette(dna) % 10) + bankOffset;
+      const effectivePalette = (dnaPalette(dna) % 10) + paletteSet.offset;
       const cacheKey = `${paletteSetId}:${bare}:${effectivePalette}`;
       let geos = shapeCache.get(cacheKey);
       if (!geos) {
