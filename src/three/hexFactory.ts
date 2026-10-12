@@ -18,6 +18,7 @@ export const HEX_OUTLINE_GEOMETRY = (() => {
     new THREE.Vector3(-HEX_SIZE, 0, 0),
     new THREE.Vector3(-HEX_SIZE / 2, 0, -h),
     new THREE.Vector3(HEX_SIZE / 2, 0, -h),
+    new THREE.Vector3(HEX_SIZE, 0, 0), // close the loop back to the first corner
   ];
   return new THREE.BufferGeometry().setFromPoints(pts);
 })();
