@@ -18,15 +18,26 @@ const S = SEEDS.length; // 5
 // Depth 0..4 chains; within each depth, lexicographic by operator symbol.
 // Index 0 is the bare seed (empty chain).
 export const TOTAL_CHAINS = 1 + R + R * R + R * R * R + R ** 4; // 168,401
-// The number-to-DNA folding only sweeps palettes that actually exist, so
-// cells never render the undefined-palette fallback (which would repeat 00
-// nine times out of ten). Palettes 10-99 remain addressable via explicit DNA.
+// The number-to-DNA folding only sweeps the CODE palettes (the mineral bank,
+// 00-09), so cells never render the undefined-palette fallback (which would
+// repeat 00 nine times out of ten). Palettes 10-19 (neon) and 20-99 remain
+// addressable via explicit DNA but are never folded into cell codes.
+// Palettes cell codes sweep: the first CODE_PALETTES_BANK_SIZE defined
+// palettes (00-09, the mineral bank). The catalog's neon toggle is a render-time
+// remap of these slots, so cell codes are stable across palette additions.
+export const CODE_PALETTES_BANK_SIZE = 10;
+
 const DEFINED_PALETTES: ReadonlyArray<number> = PALETTES.reduce<number[]>(
   (acc, colors, i) => (colors !== undefined ? [...acc, i] : acc),
   []
 );
 
-export const TOTAL_CODES = TOTAL_CHAINS * S * DEFINED_PALETTES.length; // 8,420,050
+export const CODE_PALETTES: ReadonlyArray<number> = DEFINED_PALETTES.slice(
+  0,
+  CODE_PALETTES_BANK_SIZE
+);
+
+export const TOTAL_CODES = TOTAL_CHAINS * S * CODE_PALETTES.length; // 8,420,050
 
 // ---------- chain <-> index ----------
 
@@ -69,14 +80,14 @@ export function indexToChain(index: number): string[] {
 
 // A "code" packs chain index, seed, and palette into one integer in
 // [0, TOTAL_CODES): code = chainIdx * (S * P) + seedIdx * P + paletteSlotIdx,
-// where paletteSlotIdx indexes the DEFINED palettes (currently 00-09). Palette
+// where paletteSlotIdx indexes the CODE palettes (mineral 00-09). Palette
 // is the fastest-varying part, so consecutive cells sweep defined palettes.
 export function codeToRecipeParts(code: number): { chain: string[]; seed: string; palette: number } {
   if (!Number.isInteger(code) || code < 0 || code >= TOTAL_CODES) {
     throw new Error(`Code out of range [0, ${TOTAL_CODES}): ${code}`);
   }
-  const p = DEFINED_PALETTES.length;
-  const palette = DEFINED_PALETTES[code % p];
+  const p = CODE_PALETTES.length;
+  const palette = CODE_PALETTES[code % p];
   const seed = SEEDS[Math.floor(code / p) % S];
   const chainIdx = Math.floor(code / (p * S));
   return { chain: indexToChain(chainIdx), seed, palette };
@@ -92,11 +103,11 @@ export function recipePartsToCode(
   if (!Number.isInteger(palette) || palette < 0 || palette >= TOTAL_PALETTES) {
     throw new Error(`Palette out of range [0, ${TOTAL_PALETTES}): ${palette}`);
   }
-  const slot = DEFINED_PALETTES.indexOf(palette);
+  const slot = CODE_PALETTES.indexOf(palette);
   if (slot < 0) {
     throw new Error(`Palette ${pad2(palette)} is not defined; cannot encode into a cell code`);
   }
-  const p = DEFINED_PALETTES.length;
+  const p = CODE_PALETTES.length;
   return chainToIndex(chain) * (p * S) + seedIdx * p + slot;
 }
 
@@ -143,8 +154,8 @@ export function buildPolytron(code: number): {
   overBudget: boolean;
 } {
   const recipe = intToRecipe(code);
-  const p = DEFINED_PALETTES.length;
-  const palette = DEFINED_PALETTES[code % p];
+  const p = CODE_PALETTES.length;
+  const palette = CODE_PALETTES[code % p];
   const poly = generatePoly(recipe);
   return { recipe, poly, palette, overBudget: poly.faces.length > FACE_BUDGET };
 }
@@ -161,9 +172,9 @@ export function runCodecSelfTests(): { passed: number; failed: Array<{ label: st
   };
 
   // Roundtrip over a sampled subset (full sweep of the enlarged space is slow):
-  // every chain/seed combo at every defined palette slot, plus a code sweep.
-  const p = DEFINED_PALETTES.length;
-  const sampleSlots = DEFINED_PALETTES.map((_, i) => i);
+  // every chain/seed combo at every code-palette slot, plus a code sweep.
+  const p = CODE_PALETTES.length;
+  const sampleSlots = CODE_PALETTES.map((_, i) => i);
   for (let chainIdx = 0; chainIdx < TOTAL_CHAINS; chainIdx += 1) {
     for (let seedIdx = 0; seedIdx < S; seedIdx++) {
       for (const slot of sampleSlots) {
