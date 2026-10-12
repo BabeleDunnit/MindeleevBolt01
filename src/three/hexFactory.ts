@@ -5,6 +5,7 @@ export const COLORS = {
   background: 0x000000,
   idle: 0x22c55e,
   selected: 0xfacc15,
+  center: 0xff3333,
   text: 0xffffff,
 };
 

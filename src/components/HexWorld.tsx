@@ -51,9 +51,11 @@ export default function HexWorld() {
 
     const idleMaterial = new THREE.LineBasicMaterial({ color: COLORS.idle });
     const selectedMaterial = new THREE.LineBasicMaterial({ color: COLORS.selected });
+    const centerMaterial = new THREE.LineBasicMaterial({ color: COLORS.center });
 
     for (const { coord, pos } of hexesInWorld()) {
-      const line = new THREE.Line(HEX_OUTLINE_GEOMETRY, idleMaterial);
+      const isCenter = coord.ring === 0;
+      const line = new THREE.Line(HEX_OUTLINE_GEOMETRY, isCenter ? centerMaterial : idleMaterial);
       line.position.set(pos.x, 0, pos.y);
       gridGroup.add(line);
       lineMap.set(hexKey(coord), line);
@@ -98,7 +100,7 @@ export default function HexWorld() {
     const refreshSelectionVisuals = () => {
       for (const [key, line] of lineMap) {
         const sel = selectedRef.current.has(key);
-        line.material = sel ? selectedMaterial : idleMaterial;
+        line.material = sel ? selectedMaterial : key === "0:0" ? centerMaterial : idleMaterial;
         if (sel && !labelMap.has(key)) {
           const [ring, idx] = key.split(":").map(Number);
           const dna = dnaByCell.get(key);
