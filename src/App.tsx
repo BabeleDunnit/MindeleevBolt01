@@ -1,5 +1,5 @@
 import { useState } from "react";
-import HexWorld, { PALETTE_SETS, type PaletteSetId } from "@/components/HexWorld";
+import HexWorld, { PALETTE_SETS } from "@/components/HexWorld";
 import { runCodecSelfTests } from "@/polytron/mapping";
 
 type TestResult = {
@@ -64,16 +64,25 @@ function TestOverlay() {
 function App() {
   const runTestsParam = new URLSearchParams(window.location.search).has("run-tests");
   const [paletteIdx, setPaletteIdx] = useState(0);
+  const [clearSignal, setClearSignal] = useState(0);
   const current = PALETTE_SETS[paletteIdx];
   return (
     <>
-      <HexWorld paletteSetId={current.id} />
-      <button
-        className="fixed top-4 right-4 z-10 px-4 py-2 rounded-md border border-white/30 bg-black/60 text-white/90 text-sm font-medium backdrop-blur-sm hover:bg-black/80 hover:border-white/60 transition-colors"
-        onClick={() => setPaletteIdx((paletteIdx + 1) % PALETTE_SETS.length)}
-      >
-        {current.label}
-      </button>
+      <HexWorld paletteSetId={current.id} clearSignal={clearSignal} />
+      <div className="fixed top-4 right-4 z-10 flex gap-2">
+        <button
+          className="px-4 py-2 rounded-md border border-white/30 bg-black/60 text-white/90 text-sm font-medium backdrop-blur-sm hover:bg-black/80 hover:border-white/60 transition-colors"
+          onClick={() => setClearSignal((n) => n + 1)}
+        >
+          Clear info
+        </button>
+        <button
+          className="px-4 py-2 rounded-md border border-white/30 bg-black/60 text-white/90 text-sm font-medium backdrop-blur-sm hover:bg-black/80 hover:border-white/60 transition-colors"
+          onClick={() => setPaletteIdx((paletteIdx + 1) % PALETTE_SETS.length)}
+        >
+          {current.label}
+        </button>
+      </div>
       {runTestsParam && <TestOverlay />}
     </>
   );

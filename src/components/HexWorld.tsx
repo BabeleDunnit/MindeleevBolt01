@@ -27,8 +27,15 @@ export const PALETTE_SETS = [
 
 export type PaletteSetId = (typeof PALETTE_SETS)[number]["id"];
 
-export default function HexWorld({ paletteSetId }: { paletteSetId: PaletteSetId }) {
+export default function HexWorld({
+  paletteSetId,
+  clearSignal,
+}: {
+  paletteSetId: PaletteSetId;
+  clearSignal: number;
+}) {
   const paletteSet = PALETTE_SETS.find((s) => s.id === paletteSetId) ?? PALETTE_SETS[0];
+  const clearSelectionRef = useRef<() => void>(() => {});
   const containerRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef<CameraState>(createDefaultCameraState());
   const selectedRef = useRef<Set<string>>(new Set());
@@ -137,6 +144,12 @@ export default function HexWorld({ paletteSetId }: { paletteSetId: PaletteSetId 
         }
       }
     };
+
+    const clearSelection = () => {
+      selectedRef.current.clear();
+      refreshSelectionVisuals();
+    };
+    clearSelectionRef.current = clearSelection;
 
     // --- Resize ---------------------------------------------------------------
     const resize = () => {
@@ -288,6 +301,10 @@ export default function HexWorld({ paletteSetId }: { paletteSetId: PaletteSetId 
       container.removeChild(dom);
     };
   }, [paletteSetId]);
+
+  useEffect(() => {
+    if (clearSignal > 0) clearSelectionRef.current();
+  }, [clearSignal]);
 
   return <div ref={containerRef} className="fixed inset-0 touch-none select-none" />;
 }
