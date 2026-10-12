@@ -64,21 +64,24 @@ export function wavePalette(slot: number): number[] {
     const t = ci / CLASSES;
     const phase = 2 * Math.PI * (c * t + d);
     const h = a + b * Math.cos(phase);
-    const v = 0.62 + 0.24 * Math.sin(phase - Math.PI / 2);
+    // Brightness peaks where the hue peaks, so the dominant hue is the
+    // brightest band instead of the darkest (inverting it floods the world
+    // with green/teal, since that band sits ~75 deg from most base hues).
+    const v = 0.62 + 0.24 * Math.cos(phase);
     colors.push(hsvToHex(h, 0.72, v));
   }
   return colors;
 }
 
 // 4. Clustered split-complementarity: most face classes vary the dominant
-// hue; every fourth class leaps to the opposite side of the wheel
+// hue; every third class leaps to the opposite side of the wheel
 // (180 deg +- 30) at high saturation for chromatic focal points.
 export function splitComplementPalette(slot: number): number[] {
   const hBase = baseHue(slot);
   const colors: number[] = [];
   for (let ci = 0; ci < CLASSES; ci++) {
-    if (ci % 4 === 3) {
-      const jitter = ci === 3 ? -28 : 26;
+    if (ci % 3 === 2) {
+      const jitter = ci === 2 ? -28 : 26;
       colors.push(hsvToHex(hBase + 180 + jitter, 0.92, 0.85));
     } else {
       colors.push(hsvToHex(hBase + (ci - 2) * 9, 0.62, 0.82 - ci * 0.07));
