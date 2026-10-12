@@ -52,21 +52,19 @@ export function analogousPalette(slot: number): number[] {
 }
 
 // 3. Trigonometric wave generation: H(t) = a + b*cos(2pi(c*t + d)) over the
-// normalized face-class id, with V following a quarter-shifted wave so
-// brightness and hue move together like Polyhedronisme gradients.
+// normalized face-class id. The oscillation is centered on the palette's own
+// dominant hue (a full -b..+b symmetric sweep) with brightness peaking at
+// that same hue — a narrower or one-sided sweep makes several base hues land
+// in the same arc, which floods the world with green/teal.
 export function wavePalette(slot: number): number[] {
   const a = baseHue(slot);
   const b = 75;
-  const c = 0.33;
-  const d = slot * 0.07;
+  const d = slot * 0.017;
   const colors: number[] = [];
   for (let ci = 0; ci < CLASSES; ci++) {
     const t = ci / CLASSES;
-    const phase = 2 * Math.PI * (c * t + d);
+    const phase = 2 * Math.PI * (t - 0.5 + d);
     const h = a + b * Math.cos(phase);
-    // Brightness peaks where the hue peaks, so the dominant hue is the
-    // brightest band instead of the darkest (inverting it floods the world
-    // with green/teal, since that band sits ~75 deg from most base hues).
     const v = 0.62 + 0.24 * Math.cos(phase);
     colors.push(hsvToHex(h, 0.72, v));
   }
