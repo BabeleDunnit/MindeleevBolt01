@@ -10,17 +10,26 @@ import {
   screenToGroundRay,
   type CameraState,
 } from "@/three/cameraRig";
-import { polytronGeometry } from "@/polytron/polytron";
+import { polytronGeometry, dnaPalette } from "@/polytron/polytron";
 import { intToRecipe, cellCode, FACE_BUDGET } from "@/polytron/mapping";
 import { clamp } from "@/utils/math";
 
-export default function HexWorld() {
+// The two palette sets the catalog switches between. Cells keep their recipe
+// (shape) but are colored with palettes from the active set: a recipe with
+// palette slot p renders with the p-th palette of the active set.
+export const PALETTE_SETS = [
+  { id: "mineral", label: "Mineral 00-09" },
+  { id: "neon", label: "Neon 10-19" },
+] as const;
+
+export type PaletteSetId = (typeof PALETTE_SETS)[number]["id"];
+
+export default function HexWorld({ paletteSetId }: { paletteSetId: PaletteSetId }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef<CameraState>(createDefaultCameraState());
   const selectedRef = useRef<Set<string>>(new Set());
 
-  useEffect(() => {
-    const container = containerRef.current;
+  useEffect(() => {    const container = containerRef.current;
     if (!container) return;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -33,6 +42,16 @@ export default function HexWorld() {
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(55, 1, 0.5, 6000);
 
+    // --- Lighting: ambient fill plus key/rim directional lights --------------
+    const ambient = new THREE.HemisphereLight(0xbfd4ff, 0x30281e, 0.55);
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.6);
+    keyLight.position.set(40, 80, 30);
+    const fillLight = new THREE.DirectionalLight(0x88aaff, 0.5);
+    fillLight.position.set(-50, 30, -40);
+    const rimLight = new THREE.DirectionalLight(0xffd9a0, 0.7);
+    rimLight.position.set(0, 20, -80);
+    scene.add(ambient, keyLight, fillLight, rimLight);
+
     // --- Build the hex grid world -------------------------------------------
     const gridGroup = new THREE.Group();
     const labelGroup = new THREE.Group();
@@ -41,9 +60,11 @@ export default function HexWorld() {
 
     const idleMaterial = new THREE.LineBasicMaterial({ color: COLORS.idle });
     const selectedMaterial = new THREE.LineBasicMaterial({ color: COLORS.selected });
+    const centerMaterial = new THREE.LineBasicMaterial({ color: COLORS.center });
 
     for (const { coord, pos } of hexesInWorld()) {
-      const line = new THREE.Line(HEX_OUTLINE_GEOMETRY, idleMaterial);
+      const isCenter = coord.ring === 0;
+      const line = new THREE.Line(HEX_OUTLINE_GEOMETRY, isCenter ? centerMaterial : idleMaterial);
       line.position.set(pos.x, 0, pos.y);
       gridGroup.add(line);
       lineMap.set(hexKey(coord), line);
@@ -56,15 +77,23 @@ export default function HexWorld() {
     const polytronGroup = new THREE.Group();
     const shapeCache = new Map<string, { solid: THREE.BufferGeometry; edges: THREE.BufferGeometry }>();
     const dnaByCell = new Map<string, string>();
-    const sharedMaterial = new THREE.MeshBasicMaterial({ vertexColors: true });
+    const sharedMaterial = new THREE.MeshLambertMaterial({ vertexColors: true });
     const sharedEdgeMaterial = new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35 });
 
     for (const { coord, pos } of hexesInWorld()) {
       const dna = intToRecipe(cellCode(coord));
       dnaByCell.set(hexKey(coord), dna);
-      let geos = shapeCache.get(dna);
+      // Cells sweep palette slots 0-9; the active set picks which bank colors
+      // the cell. Vertex colors are baked per geometry, so the cache is keyed
+      // by shape AND resolved palette — keying by shape alone would give every
+      // palette variant of a shape the first variant's colors.
+      const bare = dna.replace(/(\d{2})([TOCID])$/, "$2");
+      const bankOffset = paletteSetId === "neon" ? 10 : 0;
+      const effectivePalette = (dnaPalette(dna) % 10) + bankOffset;
+      const cacheKey = `${paletteSetId}:${bare}:${effectivePalette}`;
+      let geos = shapeCache.get(cacheKey);
       if (!geos) {
-        const built = polytronGeometry(dna);
+        const built = polytronGeometry(dna, () => effectivePalette);
         const triCount = built.solid.getAttribute("position").count / 3;
         // Face-budget valve: recipes whose meshes get huge render as a flat
         // hexagon outline instead, so no cell can stall the world.
@@ -72,7 +101,7 @@ export default function HexWorld() {
           triCount > FACE_BUDGET * 2
             ? { solid: PLACEHOLDER_GEOMETRY, edges: PLACEHOLDER_GEOMETRY }
             : built;
-        shapeCache.set(dna, geos);
+        shapeCache.set(cacheKey, geos);
       }
       const group = new THREE.Group();
       const mesh = new THREE.Mesh(geos.solid, sharedMaterial);
@@ -88,7 +117,7 @@ export default function HexWorld() {
     const refreshSelectionVisuals = () => {
       for (const [key, line] of lineMap) {
         const sel = selectedRef.current.has(key);
-        line.material = sel ? selectedMaterial : idleMaterial;
+        line.material = sel ? selectedMaterial : key === "0:0" ? centerMaterial : idleMaterial;
         if (sel && !labelMap.has(key)) {
           const [ring, idx] = key.split(":").map(Number);
           const dna = dnaByCell.get(key);
@@ -255,7 +284,7 @@ export default function HexWorld() {
       renderer.dispose();
       container.removeChild(dom);
     };
-  }, []);
+  }, [paletteSetId]);
 
   return <div ref={containerRef} className="fixed inset-0 touch-none select-none" />;
 }

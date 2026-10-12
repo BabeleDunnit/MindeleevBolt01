@@ -5,6 +5,7 @@ export const COLORS = {
   background: 0x000000,
   idle: 0x22c55e,
   selected: 0xfacc15,
+  center: 0xff3333,
   text: 0xffffff,
 };
 
@@ -17,6 +18,7 @@ export const HEX_OUTLINE_GEOMETRY = (() => {
     new THREE.Vector3(-HEX_SIZE, 0, 0),
     new THREE.Vector3(-HEX_SIZE / 2, 0, -h),
     new THREE.Vector3(HEX_SIZE / 2, 0, -h),
+    new THREE.Vector3(HEX_SIZE, 0, 0), // close the loop back to the first corner
   ];
   return new THREE.BufferGeometry().setFromPoints(pts);
 })();

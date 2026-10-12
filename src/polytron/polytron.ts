@@ -1,35 +1,39 @@
 import * as THREE from "three";
 import { generatePoly, type Poly } from "@/polyhedronisme/polyhedronisme";
+import { paletteColor } from "@/polytron/palettes";
 
-// A Polytron's DNA is a polyhedronisme recipe: [ops][seed], e.g. "gD", "ak3I".
+// A Polytron's DNA is a polyhedronisme recipe: [ops][palette][seed], e.g. "gD",
+// "ak3I", "gk05D". The palette digits sit between the ops and the seed.
 export type PolytronDNA = string;
 
 export function dnaToPoly(dna: PolytronDNA): Poly {
-  return generatePoly(dna);
+  // Strip the palette digits so the geometry parser never sees them (it would
+  // otherwise read them as operator parameters, e.g. "05D" -> k5-style arg).
+  const bare = dna.replace(/(\d{2})([TOCID])$/, "$2");
+  return generatePoly(bare);
 }
 
-// One color per congruence class, cycling deterministically.
-const CLASS_COLORS = [
-  0x38bdf8, 0xf472b6, 0xfb923c, 0x4ade80, 0xfacc15,
-  0xa78bfa, 0xf87171, 0x34d399, 0xfbbf24, 0x60a5fa,
-];
-
-function classColor(cls: number): number {
-  return CLASS_COLORS[cls % CLASS_COLORS.length];
+export function dnaPalette(dna: PolytronDNA): number {
+  const match = dna.match(/(\d{2})([TOCID])$/);
+  return match ? Number(match[1]) : 0;
 }
 
 // Triangulate faces as fans into a flat-shaded, vertex-colored solid plus edge lines.
+// paletteRemap lets a caller swap the palette set (e.g. mineral <-> neon)
+// without rebuilding the underlying shape.
 export function polytronGeometry(
-  dna: PolytronDNA
+  dna: PolytronDNA,
+  paletteRemap?: (p: number) => number
 ): { solid: THREE.BufferGeometry; edges: THREE.BufferGeometry } {
   const poly = dnaToPoly(dna);
+  const palette = paletteRemap ? paletteRemap(dnaPalette(dna)) : dnaPalette(dna);
   const positions: number[] = [];
   const colors: number[] = [];
   const edgePositions: number[] = [];
   const color = new THREE.Color();
 
   poly.faces.forEach((face, fi) => {
-    color.setHex(classColor(poly.faceClasses[fi] ?? 0));
+    color.setHex(paletteColor(palette, poly.faceClasses[fi] ?? 0));
     const [v0, ...rest] = face;
     for (let i = 0; i + 1 < rest.length; i++) {
       for (const idx of [v0, rest[i], rest[i + 1]]) {
