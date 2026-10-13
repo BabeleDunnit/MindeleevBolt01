@@ -1,6 +1,7 @@
 import { useState } from "react";
 import HexWorld, { PALETTE_SETS } from "@/components/HexWorld";
 import { runCodecSelfTests } from "@/polytron/mapping";
+import { runInterestingSelfTests } from "@/polytron/interesting";
 
 type TestResult = {
   passed: number;
@@ -16,7 +17,16 @@ function runTests(): Promise<TestResult> {
     setTimeout(() => {
       try {
         const { passed, failed } = runCodecSelfTests();
-        resolve({ passed, failed, done: true });
+        try {
+          const more = runInterestingSelfTests();
+          resolve({
+            passed: passed + more.passed,
+            failed: [...failed, ...more.failed],
+            done: true,
+          });
+        } catch (e) {
+          resolve({ passed, failed: [...failed, { label: "interesting-runner", detail: String(e) }], done: true });
+        }
       } catch (e) {
         resolve({ passed: 0, failed: [], done: true, error: String(e) });
       }
@@ -65,16 +75,23 @@ function App() {
   const runTestsParam = new URLSearchParams(window.location.search).has("run-tests");
   const [paletteIdx, setPaletteIdx] = useState(0);
   const [clearSignal, setClearSignal] = useState(0);
+  const [interestingMode, setInterestingMode] = useState(false);
   const current = PALETTE_SETS[paletteIdx];
   return (
     <>
-      <HexWorld paletteSetId={current.id} clearSignal={clearSignal} />
+      <HexWorld paletteSetId={current.id} clearSignal={clearSignal} interestingMode={interestingMode} />
       <div className="fixed top-4 right-4 z-10 flex gap-2">
         <button
           className="px-4 py-2 rounded-md border border-white/30 bg-black/60 text-white/90 text-sm font-medium backdrop-blur-sm hover:bg-black/80 hover:border-white/60 transition-colors"
           onClick={() => setClearSignal((n) => n + 1)}
         >
           Clear info
+        </button>
+        <button
+          className="px-4 py-2 rounded-md border border-white/30 bg-black/60 text-white/90 text-sm font-medium backdrop-blur-sm hover:bg-black/80 hover:border-white/60 transition-colors"
+          onClick={() => setInterestingMode((v) => !v)}
+        >
+          {interestingMode ? "Interesting only" : "All polytrons"}
         </button>
         <button
           className="px-4 py-2 rounded-md border border-white/30 bg-black/60 text-white/90 text-sm font-medium backdrop-blur-sm hover:bg-black/80 hover:border-white/60 transition-colors"

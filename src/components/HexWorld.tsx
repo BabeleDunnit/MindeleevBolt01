@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { useEffect, useRef } from "react";
-import { axialToRingIdx, pixelToAxial } from "@/hex/hexGrid";
+import { axialToRingIdx, pixelToAxial, type RingCoord } from "@/hex/hexGrid";
 import { HEX_SIZE, hexKey, hexesInWorld } from "@/hex/hexWorld";
 import { COLORS, HEX_OUTLINE_GEOMETRY, makeTextSprite, PLACEHOLDER_GEOMETRY } from "@/three/hexFactory";
 import {
@@ -12,6 +12,7 @@ import {
 } from "@/three/cameraRig";
 import { polytronGeometry, dnaPalette } from "@/polytron/polytron";
 import { intToRecipe, cellCode, FACE_BUDGET } from "@/polytron/mapping";
+import { ensureInterestingRanks, interestingCodeAt, interestingRankCount } from "@/polytron/interesting";
 import { clamp } from "@/utils/math";
 
 // Palette sets the catalog cycles through. Each set maps a cell's palette
@@ -30,9 +31,11 @@ export type PaletteSetId = (typeof PALETTE_SETS)[number]["id"];
 export default function HexWorld({
   paletteSetId,
   clearSignal,
+  interestingMode,
 }: {
   paletteSetId: PaletteSetId;
   clearSignal: number;
+  interestingMode: boolean;
 }) {
   const paletteSet = PALETTE_SETS.find((s) => s.id === paletteSetId) ?? PALETTE_SETS[0];
   const clearSelectionRef = useRef<() => void>(() => {});
@@ -83,7 +86,11 @@ export default function HexWorld({
     scene.add(gridGroup, labelGroup);
 
     // --- Polytrons: one floating pawn per hex ---------------------------------
-    // Deterministic: each cell's integer (ring-major order) picks its recipe.
+    // Each cell's polytronic number (ring-major order) picks its recipe. In
+    // interesting mode the number addresses the ascending catalog of shapes
+    // with >= 2 face-classes instead; the catalog is filled lazily, and any
+    // cell whose rank isn't ranked yet renders as a placeholder until the
+    // background scan reaches it.
 
     const polytronGroup = new THREE.Group();
     const shapeCache = new Map<string, { solid: THREE.BufferGeometry; edges: THREE.BufferGeometry }>();
@@ -91,8 +98,17 @@ export default function HexWorld({
     const sharedMaterial = new THREE.MeshLambertMaterial({ vertexColors: true });
     const sharedEdgeMaterial = new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35 });
 
-    for (const { coord, pos } of hexesInWorld()) {
-      const dna = intToRecipe(cellCode(coord));
+    // Warm the catalog synchronously with a small time budget so the first
+    // cells render instantly; the rest is finished in the background below.
+    const cells: Array<{ coord: RingCoord; pos: THREE.Vector2 }> = [];
+    for (const { coord, pos } of hexesInWorld()) cells.push({ coord, pos });
+    if (interestingMode) ensureInterestingRanks(cells.length, 150);
+
+    const buildCell = ({ coord, pos }: { coord: RingCoord; pos: THREE.Vector2 }): THREE.Group | null => {
+      const number = cellCode(coord);
+      if (interestingMode && interestingRankCount() <= number) return null; // not ranked yet
+      const code = interestingMode ? interestingCodeAt(number)! : number;
+      const dna = intToRecipe(code);
       dnaByCell.set(hexKey(coord), dna);
       // Cells sweep palette slots 0-9; the active set picks which bank colors
       // the cell. Vertex colors are baked per geometry, so the cache is keyed
@@ -121,6 +137,25 @@ export default function HexWorld({
       group.position.set(pos.x, 3.5, pos.y);
       group.scale.setScalar(HEX_SIZE * 0.62);
       polytronGroup.add(group);
+      return group;
+    };
+
+    for (const cell of cells) buildCell(cell);
+
+    // Finish catalog warm-up off the critical path, then fill the cells that
+    // were waiting on it.
+    let warmupRaf = 0;
+    if (interestingMode && interestingRankCount() < cells.length) {
+      const fillPending = () => {
+        ensureInterestingRanks(cells.length, 60);
+        const missing = cells.filter(({ coord }) => {
+          const number = cellCode(coord);
+          return interestingRankCount() > number && !dnaByCell.has(hexKey(coord));
+        });
+        for (const cell of missing) buildCell(cell);
+        if (interestingRankCount() < cells.length) warmupRaf = requestAnimationFrame(fillPending);
+      };
+      warmupRaf = requestAnimationFrame(fillPending);
     }
     scene.add(polytronGroup);
 
@@ -130,8 +165,10 @@ export default function HexWorld({
         line.material = sel ? selectedMaterial : key === "0:0" ? centerMaterial : idleMaterial;
         if (sel && !labelMap.has(key)) {
           const [ring, idx] = key.split(":").map(Number);
+          const number = cellCode({ ring, idx });
           const dna = dnaByCell.get(key);
-          const sprite = makeTextSprite(`(${ring},${idx}) ${dna}`, 7);
+          const text = dna === undefined ? `(unranked)` : `#${number} (${ring},${idx}) ${dna}`;
+          const sprite = makeTextSprite(text, 7);
           sprite.position.set(line.position.x, 1, line.position.z);
           labelGroup.add(sprite);
           labelMap.set(key, sprite);
@@ -297,10 +334,11 @@ export default function HexWorld({
       });
       sharedMaterial.dispose();
       sharedEdgeMaterial.dispose();
+      cancelAnimationFrame(warmupRaf);
       renderer.dispose();
       container.removeChild(dom);
     };
-  }, [paletteSetId]);
+  }, [paletteSetId, interestingMode]);
 
   useEffect(() => {
     if (clearSignal > 0) clearSelectionRef.current();
