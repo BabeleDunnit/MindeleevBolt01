@@ -18,10 +18,12 @@ export function keyToCoord(key: string): RingCoord {
   return { ring, idx };
 }
 
-export const WORLD_EXTENT = 25; // rings of hexes drawn around center
+export const WORLD_EXTENT = 25; // default rings of hexes drawn around center
 
-export function* hexesInWorld(): Generator<{ coord: RingCoord; axial: Axial; pos: THREE.Vector2 }> {
-  for (let ring = 0; ring <= WORLD_EXTENT; ring++) {
+export function* hexesInWorld(
+  maxRing: number = WORLD_EXTENT
+): Generator<{ coord: RingCoord; axial: Axial; pos: THREE.Vector2 }> {
+  for (let ring = 0; ring <= maxRing; ring++) {
     const count = ring === 0 ? 1 : 6 * ring;
     for (let idx = 0; idx < count; idx++) {
       const coord: RingCoord = { ring, idx };

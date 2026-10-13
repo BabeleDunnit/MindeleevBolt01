@@ -11,7 +11,7 @@ import {
   type CameraState,
 } from "@/three/cameraRig";
 import { polytronGeometry, dnaPalette } from "@/polytron/polytron";
-import { intToRecipe, cellCode, FACE_BUDGET } from "@/polytron/mapping";
+import { intToRecipe, cellCode } from "@/polytron/mapping";
 import { ensureInterestingRanks, interestingCodeAt, interestingRankCount } from "@/polytron/interesting";
 import { clamp } from "@/utils/math";
 
@@ -32,16 +32,24 @@ export default function HexWorld({
   paletteSetId,
   clearSignal,
   interestingMode,
+  maxRings,
+  maxFaces,
+  onFps,
 }: {
   paletteSetId: PaletteSetId;
   clearSignal: number;
   interestingMode: boolean;
+  maxRings: number;
+  maxFaces: number;
+  onFps?: (fps: number) => void;
 }) {
   const paletteSet = PALETTE_SETS.find((s) => s.id === paletteSetId) ?? PALETTE_SETS[0];
   const clearSelectionRef = useRef<() => void>(() => {});
   const containerRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef<CameraState>(createDefaultCameraState());
   const selectedRef = useRef<Set<string>>(new Set());
+  const onFpsRef = useRef(onFps);
+  onFpsRef.current = onFps;
 
   useEffect(() => {    const container = containerRef.current;
     if (!container) return;
@@ -76,7 +84,7 @@ export default function HexWorld({
     const selectedMaterial = new THREE.LineBasicMaterial({ color: COLORS.selected });
     const centerMaterial = new THREE.LineBasicMaterial({ color: COLORS.center });
 
-    for (const { coord, pos } of hexesInWorld()) {
+    for (const { coord, pos } of hexesInWorld(maxRings)) {
       const isCenter = coord.ring === 0;
       const line = new THREE.Line(HEX_OUTLINE_GEOMETRY, isCenter ? centerMaterial : idleMaterial);
       line.position.set(pos.x, 0, pos.y);
@@ -101,7 +109,7 @@ export default function HexWorld({
     // Warm the catalog synchronously with a small time budget so the first
     // cells render instantly; the rest is finished in the background below.
     const cells: Array<{ coord: RingCoord; pos: THREE.Vector2 }> = [];
-    for (const { coord, pos } of hexesInWorld()) cells.push({ coord, pos });
+    for (const { coord, pos } of hexesInWorld(maxRings)) cells.push({ coord, pos });
     if (interestingMode) ensureInterestingRanks(cells.length, 150);
 
     const buildCell = ({ coord, pos }: { coord: RingCoord; pos: THREE.Vector2 }): THREE.Group | null => {
@@ -124,7 +132,7 @@ export default function HexWorld({
         // Face-budget valve: recipes whose meshes get huge render as a flat
         // hexagon outline instead, so no cell can stall the world.
         geos =
-          triCount > FACE_BUDGET * 2
+          triCount > maxFaces * 2
             ? { solid: PLACEHOLDER_GEOMETRY, edges: PLACEHOLDER_GEOMETRY }
             : built;
         shapeCache.set(cacheKey, geos);
@@ -308,6 +316,9 @@ export default function HexWorld({
     // --- Render loop ----------------------------------------------------------
     let raf = 0;
     const clock = new THREE.Clock();
+    // FPS: rolling average of raw per-frame deltas, reported ~4x per second.
+    let frameCount = 0;
+    let fpsWindowStart = performance.now();
     const animate = () => {
       const t = clock.getElapsedTime();
       // Gentle hover bob for the floating Polytrons.
@@ -317,6 +328,15 @@ export default function HexWorld({
       applyCamera(camera, stateRef.current, camera.aspect);
       renderer.render(scene, camera);
       raf = requestAnimationFrame(animate);
+
+      frameCount++;
+      const now = performance.now();
+      if (now - fpsWindowStart >= 250) {
+        const fps = Math.round((frameCount * 1000) / (now - fpsWindowStart));
+        frameCount = 0;
+        fpsWindowStart = now;
+        onFpsRef.current?.(fps);
+      }
     };
     animate();
 
@@ -338,7 +358,7 @@ export default function HexWorld({
       renderer.dispose();
       container.removeChild(dom);
     };
-  }, [paletteSetId, interestingMode]);
+  }, [paletteSetId, interestingMode, maxRings, maxFaces]);
 
   useEffect(() => {
     if (clearSignal > 0) clearSelectionRef.current();

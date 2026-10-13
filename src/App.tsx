@@ -76,11 +76,61 @@ function App() {
   const [paletteIdx, setPaletteIdx] = useState(0);
   const [clearSignal, setClearSignal] = useState(0);
   const [interestingMode, setInterestingMode] = useState(false);
+  const [maxFaces, setMaxFaces] = useState(500);
+  const [rings, setRings] = useState(25);
+  const [fps, setFps] = useState<number | null>(null);
   const current = PALETTE_SETS[paletteIdx];
+
+  const panelClass =
+    "w-24 px-2 py-1.5 rounded-md border border-white/30 bg-black/60 text-white text-sm font-medium backdrop-blur-sm focus:outline-none focus:border-white/70 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
   return (
     <>
-      <HexWorld paletteSetId={current.id} clearSignal={clearSignal} interestingMode={interestingMode} />
-      <div className="fixed top-4 right-4 z-10 flex gap-2">
+      <HexWorld
+        paletteSetId={current.id}
+        clearSignal={clearSignal}
+        interestingMode={interestingMode}
+        maxRings={rings}
+        maxFaces={maxFaces}
+        onFps={setFps}
+      />
+      <div className="fixed top-4 right-4 z-10 flex items-center gap-2">
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-white/30 bg-black/60 text-white/90 text-sm font-medium backdrop-blur-sm">
+          <label htmlFor="max-faces" className="text-white/60">
+            Max faces
+          </label>
+          <input
+            id="max-faces"
+            type="number"
+            min={1}
+            max={20000}
+            value={maxFaces}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              if (Number.isFinite(v) && v >= 1) setMaxFaces(Math.min(Math.floor(v), 20000));
+            }}
+            className={panelClass}
+          />
+        </div>
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-white/30 bg-black/60 text-white/90 text-sm font-medium backdrop-blur-sm">
+          <label htmlFor="rings" className="text-white/60">
+            Rings
+          </label>
+          <input
+            id="rings"
+            type="number"
+            min={0}
+            max={100}
+            value={rings}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              if (Number.isFinite(v) && v >= 0) setRings(Math.min(Math.floor(v), 100));
+            }}
+            className={panelClass}
+          />
+        </div>
+        <div className="px-3 py-2 rounded-md border border-white/30 bg-black/60 text-white/90 text-sm font-mono backdrop-blur-sm min-w-16 text-center">
+          {fps === null ? "—" : fps} fps
+        </div>
         <button
           className="px-4 py-2 rounded-md border border-white/30 bg-black/60 text-white/90 text-sm font-medium backdrop-blur-sm hover:bg-black/80 hover:border-white/60 transition-colors"
           onClick={() => setClearSignal((n) => n + 1)}
