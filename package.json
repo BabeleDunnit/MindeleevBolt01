@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
-    "test:codec": "npx tsx scripts/test-codec.ts"
+    "test:codec": "npx tsx --tsconfig tsconfig.scripts.json scripts/test-codec.ts",
+    "test:interesting": "npx tsx --tsconfig tsconfig.scripts.json scripts/test-interesting.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
