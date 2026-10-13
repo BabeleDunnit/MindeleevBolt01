@@ -65,7 +65,7 @@ export function wavePalette(slot: number): number[] {
     const t = ci / CLASSES;
     const phase = 2 * Math.PI * (t - 0.5 + d);
     const h = a + b * Math.cos(phase);
-    const v = 0.62 + 0.24 * Math.cos(phase);
+    const v = 0.74 + 0.2 * Math.cos(phase);
     colors.push(hsvToHex(h, 0.72, v));
   }
   return colors;
