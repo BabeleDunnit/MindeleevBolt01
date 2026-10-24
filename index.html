@@ -1,16 +1,53 @@
 <!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>Hex Grid</title>
-    <meta property="og:image" content="https://bolt.new/static/og_default.png">
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:image" content="https://bolt.new/static/og_default.png">
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
+<title>Mindeleev · Game Design Lab</title>
+<style>
+  html,body{margin:0;min-height:100%;background:#090f1b;color:#e4f1fb}
+  #boot-status{position:fixed;left:20px;bottom:20px;z-index:9999;max-width:580px;box-sizing:border-box;padding:15px 18px;background:#152b3f;border:1px solid #5b7b90;border-radius:12px;font:14px/1.5 system-ui;color:#e4f1fb}
+  #boot-status a{color:#91e7d5} #boot-error{white-space:pre-wrap;overflow-wrap:anywhere;color:#ffb6a9}
+</style>
+<script>
+(function(){
+  var begun=Date.now();
+  function revealError(message){
+    var e=document.getElementById('boot-status'),t=document.getElementById('boot-error');
+    if(e&&t){e.hidden=false;t.textContent=String(message)}
+  }
+  window.addEventListener('error',function(event){
+    if(event.target && event.target!==window && event.target.tagName){
+      revealError('Risorsa non caricata: '+(event.target.src||event.target.href||event.target.tagName));
+    }else{
+      revealError('Errore JavaScript: '+(event.message||'sconosciuto'));
+    }
+  },true);
+  window.addEventListener('unhandledrejection',function(event){
+    revealError('Errore inizializzazione: '+(event.reason&&event.reason.message||event.reason||'Promise rejection'));
+  });
+  window.addEventListener('DOMContentLoaded',function(){
+    setTimeout(function(){
+      var root=document.getElementById('root'),e=document.getElementById('boot-status');
+      if(root&&root.children.length>0){if(e)e.hidden=true;}
+      else revealError('L’app non ha ancora montato alcuna interfaccia. Verifica il percorso degli asset JavaScript nel pannello Network.');
+    },4500);
+  });
+})();
+</script>
 </head>
-  <body style="background:#000; overscroll-behavior:none;">
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<body>
+  <div id="root"></div>
+  <div id="boot-status">
+  <strong>Mindeleev · Avvio applicazione</strong>
+  <p>Se la pagina resta vuota, qui apparirà l'errore.</p>
+  <div id="boot-error"></div>
+  <div style="margin-top:8px">
+  <a href="?experiment=conway-ring">Conway Ring Reactor</a> ·
+  <a href="./discovery/">Discovery Lab</a> ·
+  <a href="./">Visualizzatore Three.js</a>
+  </div>
+  </div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
 </html>
