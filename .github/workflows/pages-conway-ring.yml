@@ -26,6 +26,12 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run build
+      - name: Verify static publishing paths
+        run: |
+          test -f dist/index.html
+          test -f dist/discovery/index.html
+          grep -q '/MindeleevBolt01/assets/' dist/index.html
+          if grep -q 'src="/src/main.tsx"' dist/index.html; then exit 1; fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
