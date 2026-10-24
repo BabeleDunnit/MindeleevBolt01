@@ -57,7 +57,7 @@ export default function ConwayRingLab(){
    <h2 style={{fontSize:19}}>{level.title}</h2><p style={{color:"#abc4d4"}}>{level.hint} Obiettivo <b>{level.target}</b> nella cella <b>{level.goal}</b>.</p>
    <svg viewBox="0 0 520 480" style={{width:"100%",maxHeight:540}} aria-label="Mutatron a 19 celle">
    {CELLS.map(c=>{const x=260+61*c.axial.q,y=242+70*(c.axial.r+c.axial.q/2);const dna=state.pieces[c.key],sel=selection.includes(c.key);return <g key={c.key} onClick={()=>setSelection(s=>s.includes(c.key)?s.filter(k=>k!==c.key):s.length>=2?[c.key]:[...s,c.key])} style={{cursor:"pointer"}} role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();setSelection(s=>s.includes(c.key)?s.filter(k=>k!==c.key):s.length>=2?[c.key]:[...s,c.key]);}}}>
-    <polygon points={polygon(x,y,40)} fill={dna?"#315b69":c.r===0?"#283852":"#17293c"} stroke={sel?"#ffcf77":c.key===level.goal?"#84e8b0":"#345369"} strokeWidth={sel?4:2} />
+    <polygon points={polygon(x,y,40)} fill={dna?"#315b69":c.ring===0?"#283852":"#17293c"} stroke={sel?"#ffcf77":c.key===level.goal?"#84e8b0":"#345369"} strokeWidth={sel?4:2} />
     <text x={x} y={y+5} textAnchor="middle" fill="#eff9ff" fontWeight="bold" fontSize="18">{dna?.replace("C","")||"·"}</text><text x={x} y={y+24} textAnchor="middle" fontSize="10" fill="#9db4c7">{c.key}</text>
    </g>})}
    </svg>
