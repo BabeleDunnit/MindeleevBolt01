@@ -71,9 +71,9 @@ export default function ConwayRingLab(){
    </div>
    <p>Selezione: {selection.length?selection.join(" → "):"nessuna"}</p>
    <div style={{display:"flex",gap:9,alignItems:"center",flexWrap:"wrap"}}>
-    <button style={buttonStyle} disabled={!fuse||won} onClick={()=>run({kind:"fuse",a,b})}>Fusione</button>
-    <button style={buttonStyle} disabled={!split||won} onClick={()=>run({kind:"split",a,b,cut})}>Fissione</button>
-    {split&&<label>Taglio <select style={selectStyle} value={cut} onChange={e=>setCut(Number(e.target.value))}>{Array.from({length:operators(hasA).length-1},(_,i)=><option value={i+1} key={i}>{i+1}</option>)}</select></label>}
+    <button style={buttonStyle} disabled={!fuse||won} onClick={()=>run({kind:"fuse",a:a!,b:b!})}>Fusione</button>
+    <button style={buttonStyle} disabled={!split||won} onClick={()=>run({kind:"split",a:a!,b:b!,cut})}>Fissione</button>
+    {split&&<label>Taglio <select style={selectStyle} value={cut} onChange={e=>setCut(Number(e.target.value))}>{Array.from({length:operators(hasA!).length-1},(_,i)=><option value={i+1} key={i}>{i+1}</option>)}</select></label>}
    </div>
    {info&&<p style={{color:"#a0e7c9"}}>{info}</p>}
    <hr style={{borderColor:"#34475d",margin:"22px 0"}}/>
