@@ -70,7 +70,7 @@ export function advance(w:World,n:number,grab?:Grab):World{
  return {...w,nodes,steps:w.steps+n};
 }
 export function quantize(nodes:Particle[]):Record<string,string>{
- if(nodes.length>8||nodes.length>SINKS.length)throw new Error("Massimo otto particelle.");
+ if(nodes.length>9||nodes.length>SINKS.length)throw new Error("Massimo nove particelle in questo esperimento.");
  const ordered=[...nodes].sort((a,b)=>a.id.localeCompare(b.id));
  type Entry={cost:number;path:number[]};
  let dp=new Map<number,Entry>([[0,{cost:0,path:Array(ordered.length).fill(-1)}]]);
@@ -131,7 +131,7 @@ export function split(w:World,id:string,destination:string,cut:number):Result{
  if(!p||!p.sink)return fail("Seleziona il Polytrone sorgente.");
  if(!neighbors(p.sink,destination))return fail("La destinazione dev'essere un sink adiacente.");
  if(w.nodes.some(n=>n.sink===destination))return fail("Sink di destinazione occupato.");
- if(w.nodes.length>=8)return fail("Limite sperimentale: otto Polytroni.");
+ if(w.nodes.length>=9)return fail("Limite sperimentale: nove Polytroni. Fai prima una fusione per liberare spazio.");
  if(w.energy<2)return fail("Servono 2 ENERGY.");
  const x=parts(p.dna);
  if(!Number.isInteger(cut)||cut<1||cut>=x.ops.length)return fail("Seleziona un punto di taglio interno valido.");
@@ -196,6 +196,23 @@ export function selfTests():string[]{
  if(neighbor){
   const m=crystalMove(crystal,first.id,neighbor.key);
   if(!m.ok||m.world.energy!==crystal.energy-1)errors.push("crystal board move");
+ }
+ // Regression: scenario 04 begins with eight bodies but requires a 8→9 fission.
+ const crowded=crystallize(initial(3));
+ const parent=crowded.nodes.find(p=>p.dna==="adk05C");
+ if(!parent?.sink)errors.push("scenario04 parent missing");
+ else{
+  const empty=SINKS.find(s=>neighbors(parent.sink!,s.key)&&!crowded.nodes.some(p=>p.sink===s.key));
+  if(!empty)errors.push("scenario04 lacks adjacent empty sink for fission");
+  else{
+   const out=split(crowded,parent.id,empty.key,2);
+   if(!out.ok)errors.push("scenario04 fission blocked: "+out.reason);
+   else{
+    if(out.world.nodes.length!==9||!out.world.nodes.some(p=>p.dna==="k05C"))errors.push("scenario04 fission result");
+    const rebound=quantize(release(out.world).nodes);
+    if(Object.keys(rebound).length!==9||new Set(Object.values(rebound)).size!==9)errors.push("nine-body re-capture");
+   }
+  }
  }
  const example:World={...w,nodes:[{...w.nodes[0],x:0,y:0},{...w.nodes[1],x:67.5,y:0}]};
  const f=fuse(crystallize(example),"A","B");
