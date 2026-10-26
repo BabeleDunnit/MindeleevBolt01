@@ -3,25 +3,25 @@ import {recipeToInt} from "@/polytron/mapping";
 
 export type Phase="fluid"|"crystal";
 export type Particle={id:string;dna:string;x:number;y:number;vx:number;vy:number;sink?:string};
-export type World={phase:Phase;nodes:Particle[];energy:number;steps:number;actions:number};
+export type World={phase:Phase;nodes:Particle[];energy:number;steps:number;actions:number;scenario:number};
 export type Result={ok:true;world:World;explanation:string}|{ok:false;reason:string};
 export const SINKS=Array.from(hexesUpToRing(2)).map(c=>{
  const p=axialToPixel(c.axial,45);return {key:c.ring+":"+c.idx,ring:c.ring,x:p.x,y:p.y,axial:c.axial};
 });
 const POS=new Map(SINKS.map(s=>[s.key,s]));
 export const PRESETS=[
- {name:"01 · Primo legame",hint:"Cristallizza, fondi a05C con d05C e osserva il nuovo equilibrio.",xy:[[-65,-32],[0,8],[-98,91],[112,65]]},
- {name:"02 · Campo perturbato",hint:"Stesse ricette, posizioni diverse: confronta simulazione, impulsi e cattura.",xy:[[-129,-75],[118,107],[-33,101],[98,-101]]},
- {name:"03 · Sei corpi, sei desideri",hint:"Sei Polytroni; usa le distanze cromatiche per capire quali vicinati favorire. Prova scambi nella fase cristallina.",
+ {name:"01 · Primo legame",goal:"ad05C",hint:"Cristallizza, fondi a05C con d05C e osserva il nuovo equilibrio.",xy:[[-65,-32],[0,8],[-98,91],[112,65]]},
+ {name:"02 · Campo perturbato",goal:"ad05C",hint:"Stesse ricette, posizioni diverse: confronta simulazione, impulsi e cattura.",xy:[[-129,-75],[118,107],[-33,101],[98,-101]]},
+ {name:"03 · Sei corpi, sei desideri",goal:"adk05C",hint:"Obiettivo adk05C: i tre precursori sono separati. Servono almeno due fusioni e una pianificazione dei vicinati.",
   dna:["a05C","d05C","k05C","ad02D","k02D","a02D"],
   xy:[[-121,-72],[-44,-105],[31,42],[112,90],[-92,106],[96,-77]]},
- {name:"04 · Otto corpi, campo frustrato",hint:"Otto Polytroni con tre famiglie cromatiche e semi diversi. Il minimo dinamico non deve necessariamente avere stress basso.",
-  dna:["a05C","d05C","k05C","ad05C","a02D","d02D","k02D","ad04T"],
+ {name:"04 · Otto corpi, campo frustrato",goal:"dak05C",hint:"Obiettivo dak05C: l’unico k05C è nascosto in adk05C. Per ricombinare gli operatori serve anche una fissione.",
+  dna:["a05C","d05C","adk05C","a02D","d02D","k02D","ad04T","k04T"],
   xy:[[-144,-63],[-72,92],[44,-136],[128,85],[0,25],[91,-48],[-122,38],[51,137]]}
 ];
 export function initial(index=0):World{
  const p=PRESETS[index]||PRESETS[0],dna:string[]=Array.isArray(p.dna)?[...p.dna]:["a05C","d05C","adk02D","k02D"];
- return {phase:"fluid",energy:10,steps:0,actions:0,nodes:dna.map((d,i)=>({id:"ABCD"[i],dna:d,x:p.xy[i][0],y:p.xy[i][1],vx:0,vy:0}))};
+ return {phase:"fluid",scenario:index,energy:index===3?22:index===2?16:10,steps:0,actions:0,nodes:dna.map((d,i)=>({id:"ABCD"[i],dna:d,x:p.xy[i][0],y:p.xy[i][1],vx:0,vy:0}))};
 }
 export function parts(dna:string){const m=/^([a-z]*)(\d{2})?([TOCID])$/.exec(dna);
  if(!m)throw new Error("DNA invalido");return {ops:m[1],palette:Number(m[2]||0),seed:m[3]};}
@@ -172,7 +172,8 @@ export function affinityReason(a:Particle,b:Particle){
    explanation:(x.palette===y.palette?"Stesso colore, tendono a stare vicini":"Colori diversi, tendono a stare lontani")
     +(x.seed===y.seed?"; stesso seme":"; semi diversi")+"."};
 }
-export function won(w:World){return w.nodes.some(n=>n.dna==="ad05C");}
+export function goalDNA(w:World){return PRESETS[w.scenario]?.goal||"ad05C";}
+export function won(w:World){return w.nodes.some(n=>n.dna===goalDNA(w));}
 export function selfTests():string[]{
  const errors:string[]=[],w=initial(),q=quantize(w.nodes),qReverse=quantize([...w.nodes].reverse());
  if(JSON.stringify(q)!==JSON.stringify(qReverse))errors.push("assignment/order");
