@@ -21,7 +21,7 @@ export const PRESETS=[
 ];
 export function initial(index=0):World{
  const p=PRESETS[index]||PRESETS[0],dna:string[]=Array.isArray(p.dna)?[...p.dna]:["a05C","d05C","adk02D","k02D"];
- return {phase:"fluid",scenario:index,energy:index===3?22:index===2?16:10,steps:0,actions:0,nodes:dna.map((d,i)=>({id:"ABCD"[i],dna:d,x:p.xy[i][0],y:p.xy[i][1],vx:0,vy:0}))};
+ return {phase:"fluid",scenario:index,energy:index===3?22:index===2?16:10,steps:0,actions:0,nodes:dna.map((d,i)=>({id:"ABCDEFGHIJKLMNOPQRSTUVWXYZ"[i],dna:d,x:p.xy[i][0],y:p.xy[i][1],vx:0,vy:0}))};
 }
 export function parts(dna:string){const m=/^([a-z]*)(\d{2})?([TOCID])$/.exec(dna);
  if(!m)throw new Error("DNA invalido");return {ops:m[1],palette:Number(m[2]||0),seed:m[3]};}
@@ -176,6 +176,13 @@ export function goalDNA(w:World){return PRESETS[w.scenario]?.goal||"ad05C";}
 export function won(w:World){return w.nodes.some(n=>n.dna===goalDNA(w));}
 export function selfTests():string[]{
  const errors:string[]=[],w=initial(),q=quantize(w.nodes),qReverse=quantize([...w.nodes].reverse());
+ for(let scenario=0;scenario<PRESETS.length;scenario++){
+  const state=initial(scenario);
+  const ids=state.nodes.map(p=>p.id);
+  if(ids.some(id=>typeof id!=="string"||id.length===0)||new Set(ids).size!==ids.length)errors.push("invalid/duplicate ids in scenario "+scenario);
+  const assignment=quantize(state.nodes);
+  if(Object.keys(assignment).length!==state.nodes.length||new Set(Object.values(assignment)).size!==state.nodes.length)errors.push("quantize in scenario "+scenario);
+ }
  if(JSON.stringify(q)!==JSON.stringify(qReverse))errors.push("assignment/order");
  if(new Set(Object.values(q)).size!==w.nodes.length)errors.push("assignment/collision");
  const c=crystallize(w);
