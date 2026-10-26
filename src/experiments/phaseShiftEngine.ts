@@ -10,7 +10,7 @@ export const SINKS=Array.from(hexesUpToRing(2)).map(c=>{
 });
 const POS=new Map(SINKS.map(s=>[s.key,s]));
 export const PRESETS=[
- {name:"01 · Primo legame",hint:"Cristallizza, fondi a05C con d05C e osserva il nuovo equilibrio.",xy:[[-46,-19],[40,-10],[-98,91],[112,65]]},
+ {name:"01 · Primo legame",hint:"Cristallizza, fondi a05C con d05C e osserva il nuovo equilibrio.",xy:[[-65,-32],[0,8],[-98,91],[112,65]]},
  {name:"02 · Campo perturbato",hint:"Stesse ricette, posizioni diverse: confronta simulazione, impulsi e cattura.",xy:[[-129,-75],[118,107],[-33,101],[98,-101]]}
 ];
 export function initial(index=0):World{
