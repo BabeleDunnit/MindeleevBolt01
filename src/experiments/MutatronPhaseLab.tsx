@@ -1,7 +1,7 @@
 import {useEffect,useMemo,useRef,useState,type CSSProperties} from "react";
 import * as THREE from "three";
 import {polytronGeometry} from "@/polytron/polytron";
-import {PRESETS,SINKS,initial,advance,crystallize,release,quantize,stress,parts,desiredDistance,bondRelativeError,rmsSpeed,makeDNA,affinityReason,neighbors,crystalMove,impulse,fuse,split,won,selfTests,type World,type Particle,type Result,type Grab} from "./phaseShiftEngine";
+import {PRESETS,SINKS,initial,advance,crystallize,release,quantize,stress,parts,desiredDistance,bondRelativeError,rmsSpeed,makeDNA,affinityReason,neighbors,crystalMove,impulse,fuse,split,won,goalDNA,selfTests,type World,type Particle,type Result,type Grab} from "./phaseShiftEngine";
 
 const C={bg:"#091321",panel:"#13273a",border:"#365770",text:"#eaf6fd",muted:"#a3bbc9",mint:"#8ce9c8"};
 const button:CSSProperties={background:"#204c62",border:"1px solid #527c92",borderRadius:9,padding:"10px 13px",color:C.text,fontSize:14,cursor:"pointer"};
@@ -172,7 +172,7 @@ export default function MutatronPhaseLab(){
        const pt=centerOf(p),picked=chosen.includes(p.id),col=polyColor(p.dna);
        return <g key={p.id} className="phase-poly" transform={"translate("+pt.x+" "+pt.y+")"} role="button" tabIndex={0} aria-label={"Polytrone "+p.id+" "+p.dna}
         onPointerDown={e=>{
-         if(world.phase==="fluid"){
+         if(world.phase==="fluid"||(world.phase==="crystal"&&crystalMode==="move")){
           e.currentTarget.setPointerCapture(e.pointerId);
           dragRef.current={id:p.id,x:p.x,y:p.y,startX:e.clientX,startY:e.clientY,pointerId:e.pointerId,moved:false,before:world};
          }
@@ -181,12 +181,23 @@ export default function MutatronPhaseLab(){
          const dr=dragRef.current;if(!dr||dr.id!==p.id||dr.pointerId!==e.pointerId)return;
          const pt=pointerToWorld(e);dr.x=pt.x;dr.y=pt.y;
          if(!dr.moved&&Math.hypot(e.clientX-dr.startX,e.clientY-dr.startY)>6){dr.moved=true;setChosen([p.id]);}
+         if(dr.moved&&world.phase==="crystal"){const nearest=SINKS.reduce((best,s)=>Math.hypot(s.x-pt.x,s.y-pt.y)<Math.hypot(best.x-pt.x,best.y-pt.y)?s:best,SINKS[0]);setDestination(nearest.key);}
         }}
         onPointerUp={e=>{
          const dr=dragRef.current;
          if(dr&&dr.id===p.id&&dr.pointerId===e.pointerId){
           dragRef.current=null;
-          if(dr.moved){setChosen([p.id]);setHistory(h=>[...h,dr.before]);setNotice("Polytrone trascinato: le altre particelle seguono le forze reciproche. Trascinamento gratuito soltanto nel laboratorio.");}
+          if(dr.moved){
+           if(world.phase==="crystal"){
+            const drop=pointerToWorld(e);
+            const nearest=SINKS.reduce((best,s)=>Math.hypot(s.x-drop.x,s.y-drop.y)<Math.hypot(best.x-drop.x,best.y-drop.y)?s:best,SINKS[0]);
+            if(Math.hypot(nearest.x-drop.x,nearest.y-drop.y)<46)handle(crystalMove(world,p.id,nearest.key));
+            else setNotice("Lascia il Polytrone su un esagono adiacente per spostarlo.");
+            setDestination("");
+           }else{
+            setChosen([p.id]);setHistory(h=>[...h,dr.before]);setNotice("Polytrone trascinato: il sistema reagisce in tempo reale.");
+           }
+          }
           else choose(p.id);
           if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId);
          }else choose(p.id);
@@ -194,7 +205,7 @@ export default function MutatronPhaseLab(){
         }}
         onPointerCancel={()=>{dragRef.current=null;}}
         onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();choose(p.id);}}}
-        style={{cursor:world.phase==="fluid"?"grab":"pointer",touchAction:"none",filter:picked?"drop-shadow(0px 0px 8px #ffd37d)":"none"}}>
+        style={{cursor:world.phase==="fluid"||crystalMode==="move"?"grab":"pointer",touchAction:"none",filter:picked?"drop-shadow(0px 0px 8px #ffd37d)":"none"}}>
          <circle className="focus-ring" r="30" fill="none" stroke="#d7f7ff" strokeWidth="1.8" strokeDasharray="3 3" opacity="0"/>
          <circle r={picked?25:22} fill="#0a1828" stroke={picked?"#ffe3a0":col} strokeWidth={picked?3:1.8}/>
          <polygon points={hex(0,0,14)} fill={col} opacity=".78" stroke={col} strokeWidth="1"/>
@@ -214,7 +225,7 @@ export default function MutatronPhaseLab(){
        <span style={{fontSize:12}}>verde sottile = distanza ideale · rosso spesso = forte errore. I cerchietti con * mostrano le posizioni ideali rispetto al Polytrone selezionato.</span>
      </div>
     </div>
-    {victory&&<p style={{border:"1px solid #39876e",borderRadius:9,padding:12,color:C.mint}}>Scoperta: ad05C sintetizzato! Ora rilascia il sistema e confronta il nuovo equilibrio.</p>}
+    {victory&&<p style={{border:"1px solid #39876e",borderRadius:9,padding:12,color:C.mint}}>Scoperta: {goalDNA(world)} sintetizzato! Ora rilascia il sistema e confronta il nuovo equilibrio.</p>}
     {testErrors.length>0&&<p style={{color:"#ffb6a9"}}>Autoverifica fallita: {testErrors.join(", ")}</p>}
    </section>
    <aside style={{...panel,display:"grid",gap:14}}>
@@ -251,7 +262,7 @@ export default function MutatronPhaseLab(){
        <button className="phase-button" style={button} onClick={()=>handle(impulse(world,chosen[0]||"",1,0))}>→</button>
       </div>
      </div>:crystalMode==="move"?<div style={{display:"grid",gap:8}}>
-      <p style={{fontSize:13,color:C.muted,margin:0}}>Seleziona un Polytrone e poi un esagono adiacente libero: lo sposti. Se selezioni un Polytrone vicino, li scambi. Ogni movimento costa 1 ENERGY.</p>
+      <p style={{fontSize:13,color:C.muted,margin:0}}>Trascina un Polytrone su una cella adiacente, oppure selezionalo e clicca una cella: lo sposti. Se la destinazione è occupata, i due si scambiano. Ogni movimento costa 1 ENERGY.</p>
      </div>:<div style={{display:"grid",gap:8}}>
       <p style={{fontSize:13,color:C.muted,margin:0}}>Fusione: seleziona due Polytroni adiacenti nell'ordine. Fissione: seleziona un Polytrone, poi un sink vuoto confinante, e indica dove tagliare.</p>
       <button className="phase-button" style={button} onClick={()=>handle(fuse(world,chosen[0]||"",chosen[1]||""))}>Fondi (−2 ENERGY)</button>
@@ -310,7 +321,7 @@ export default function MutatronPhaseLab(){
      {!previewFusion&&splitOptions.length===0&&<p style={{fontSize:13,color:C.muted}}>Seleziona un Polytrone per vedere le possibilità di fissione, oppure due per vedere la fusione prima di applicarla.</p>}
     </div>}
     <div role="status" aria-live="polite" style={{background:"#1d4554",padding:13,borderRadius:10,fontSize:13,lineHeight:1.6}}>{notice}</div>
-    <p style={{color:C.muted,fontSize:12,lineHeight:1.5,margin:0}}>Esperimento di game design: lo stress misura gli scarti dalle distanze preferite, mentre il moto misura la velocità residua: un sistema fermo non è necessariamente poco stressato. Il trascinamento è gratuito solo in questo laboratorio. Le probabilità genetiche e la produzione di ENERGY non sono ancora attive. Obiettivo tutorial: creare <b>ad05C</b>; non è un puzzle bilanciato né una simulazione quantistica.</p>
+    <p style={{color:C.muted,fontSize:12,lineHeight:1.5,margin:0}}>Esperimento di game design: lo stress misura gli scarti dalle distanze preferite, mentre il moto misura la velocità residua: un sistema fermo non è necessariamente poco stressato. Il trascinamento è gratuito solo in questo laboratorio. Le probabilità genetiche e la produzione di ENERGY non sono ancora attive. Obiettivo di questo scenario: <b>{goalDNA(world)}</b>. I nuovi scenari richiedono più reazioni, ma non sono ancora puzzle bilanciati mediante solver.</p>
    </aside>
   </div>
  </div>;
