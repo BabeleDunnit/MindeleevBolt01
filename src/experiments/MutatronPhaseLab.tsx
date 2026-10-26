@@ -91,7 +91,11 @@ export default function MutatronPhaseLab(){
  }
  const centerOf=(p:Particle)=>({x:p.x,y:p.y});
  const previewFusion=world.phase==="crystal"&&chosen.length===2?fuse(world,chosen[0],chosen[1]):null;
- const previewSplit=world.phase==="crystal"&&selected&&destination?split(world,selected.id,destination,cut):null;
+ // Each selectable source gets a deterministic, visible adjacent free sink by default.
+ // Manual map clicks or destination buttons override that proposal.
+ const availableSplitSinks=world.phase==="crystal"&&selected?.sink?SINKS.filter(s=>neighbors(selected.sink!,s.key)&&!world.nodes.some(p=>p.sink===s.key)):[];
+ const splitDestination=availableSplitSinks.some(s=>s.key===destination)?destination:(availableSplitSinks[0]?.key||"");
+ const previewSplit=world.phase==="crystal"&&selected&&splitDestination?split(world,selected.id,splitDestination,cut):null;
  const splitOptions=selected&&parts(selected.dna).ops.length>1?Array.from({length:parts(selected.dna).ops.length-1},(_,i)=>{
   const dna=parts(selected.dna),k=i+1;return {cut:k,a:makeDNA(dna.ops.slice(0,k),dna.palette,dna.seed),b:makeDNA(dna.ops.slice(k),dna.palette,dna.seed)};
  }):[];
@@ -136,8 +140,8 @@ export default function MutatronPhaseLab(){
        if(crystalMode==="move"&&selected){handle(crystalMove(world,selected.id,s.key));return;}
        setDestination(s.key);
       }} style={{cursor:world.phase==="crystal"?"pointer":"default"}}>
-       <polygon points={hex(s.x,s.y,42)} fill={destination===s.key?"#705339":world.phase==="crystal"?"#2b4150":"transparent"}
-        stroke={destination===s.key?"#ffd08d":selectedSink&&crystalMode==="move"&&neighbors(selectedSink,s.key)?"#87d5b5":"#6f97a7"} strokeWidth={destination===s.key?2.5:selectedSink&&crystalMode==="move"&&neighbors(selectedSink,s.key)?2.3:1} opacity={world.phase==="crystal"?.78:.25}/>
+       <polygon points={hex(s.x,s.y,42)} fill={(world.phase==="crystal"&&crystalMode==="react"&&selected&&s.key===splitDestination)||destination===s.key?"#705339":world.phase==="crystal"?"#2b4150":"transparent"}
+        stroke={s.key===splitDestination&&crystalMode==="react"?"#ffd08d":destination===s.key?"#ffd08d":selectedSink&&crystalMode==="move"&&neighbors(selectedSink,s.key)?"#87d5b5":"#6f97a7"} strokeWidth={s.key===splitDestination&&crystalMode==="react"?2.5:destination===s.key?2.5:selectedSink&&crystalMode==="move"&&neighbors(selectedSink,s.key)?2.3:1} opacity={world.phase==="crystal"?.78:.25}/>
        {world.phase==="crystal"&&<text x={s.x} y={s.y+28} textAnchor="middle" fontSize="9" fill="#849cab">{s.key}</text>}
       </g>)}
      {showLinks&&world.nodes.flatMap((a,i)=>world.nodes.slice(i+1).map(b=>{
@@ -252,7 +256,7 @@ export default function MutatronPhaseLab(){
        <button style={{...button,background:crystalMode==="move"?"#387e68":"#244e64"}} onClick={()=>{setCrystalMode("move");setChosen([]);setDestination("");}}>Muovi / Scambia</button>
        <button style={{...button,background:crystalMode==="react"?"#387e68":"#244e64"}} onClick={()=>{setCrystalMode("react");setChosen([]);setDestination("");}}>Fondi / Scindi</button>
       </div>}
-     <p style={{fontSize:13,color:C.muted,margin:"0 0 9px"}}>Selezione: {chosen.length?chosen.join(" → "):"nessuna"}{destination?" · sink libero "+destination:""}</p>
+     <p style={{fontSize:13,color:C.muted,margin:"0 0 9px"}}>Selezione: {chosen.length?chosen.join(" → "):"nessuna"}{splitDestination&&world.phase==="crystal"&&crystalMode==="react"?" · destinazione "+splitDestination:""}</p>
      {world.phase==="fluid"?<div style={{display:"grid",gap:8}}>
       <p style={{fontSize:13,color:C.muted,margin:0}}>Il cannone applica un impulso (−1 ENERGY). Per esplorare il sistema puoi anche trascinare direttamente un Polytrone, osservando gli altri reagire in realtime.</p>
       <div style={{display:"flex",justifyContent:"center"}}><button className="phase-button" style={button} onClick={()=>handle(impulse(world,chosen[0]||"",0,-1))}>↑</button></div>
@@ -272,8 +276,20 @@ export default function MutatronPhaseLab(){
          {Array.from({length:Math.max(1,selected?parts(selected.dna).ops.length-1:1)},(_,i)=><option key={i+1} value={i+1}>{i+1}</option>)}
         </select>
        </label>
-       <button className="phase-button" style={button} onClick={()=>handle(split(world,chosen[0]||"",destination,cut))}>Scindi (−2 ENERGY)</button>
+       <button className="phase-button" style={button} disabled={!selected||splitOptions.length===0||!splitDestination||world.energy<2}
+        onClick={()=>handle(split(world,chosen[0]||"",splitDestination,cut))}>Scindi (−2 ENERGY)</button>
       </div>
+      {selected&&splitOptions.length>0&&<div style={{display:"grid",gap:7,marginTop:6}}>
+       <strong style={{fontSize:13,color:C.mint}}>Destinazione del secondo frammento</strong>
+       {availableSplitSinks.length>0?
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+         {availableSplitSinks.map(site=><button key={site.key} className="phase-button"
+          style={{...button,background:site.key===splitDestination?"#665027":"#23485b",padding:"7px 11px",fontSize:13}}
+          onClick={()=>setDestination(site.key)}>{site.key===splitDestination?"● ":"○ "}{site.key}</button>)}
+        </div>:
+        <span style={{fontSize:13,color:"#f3bcaa"}}>Nessun sink adiacente libero: sposta prima un vicino con Muovi / Scambia.</span>}
+       <span style={{fontSize:12,color:C.muted}}>Un sink libero è proposto automaticamente. Puoi cambiarlo qui oppure cliccando la cella sulla mappa.</span>
+      </div>}
      </div>}
     </div>
     <div style={{borderTop:"1px solid "+C.border,paddingTop:12}}>
@@ -314,7 +330,7 @@ export default function MutatronPhaseLab(){
       {splitOptions.map(option=><button key={option.cut} style={{...button,padding:"5px 9px",margin:"5px 5px 0 0",fontSize:12,
        background:cut===option.cut?"#376f63":"#254257"}}
        onClick={()=>setCut(option.cut)}>dopo {option.cut}: {option.a} + {option.b}</button>)}
-      <div style={{color:C.muted,marginTop:8}}>Scegli un sink vuoto adiacente sulla mappa per verificare la fissione prima di confermarla.</div>
+      <div style={{color:C.muted,marginTop:8}}>La destinazione proposta è evidenziata in giallo sulla griglia. Puoi cambiarla nei pulsanti sopra o cliccando un sink libero.</div>
       {previewSplit&&(previewSplit.ok?<div style={{color:C.mint}}>Risultato valido · stress subito dopo: {stress(previewSplit.world)} (prima {logicalStress})</div>
        :<div style={{color:"#f1b9ab"}}>{previewSplit.reason}</div>)}
      </div>}
