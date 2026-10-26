@@ -1,7 +1,7 @@
 import {useEffect,useMemo,useRef,useState,type CSSProperties} from "react";
 import * as THREE from "three";
 import {polytronGeometry} from "@/polytron/polytron";
-import {PRESETS,SINKS,initial,advance,crystallize,release,quantize,stress,parts,desiredDistance,impulse,fuse,split,won,selfTests,type World,type Particle,type Result} from "./phaseShiftEngine";
+import {PRESETS,SINKS,initial,advance,crystallize,release,quantize,stress,parts,desiredDistance,bondRelativeError,rmsSpeed,makeDNA,impulse,fuse,split,won,selfTests,type World,type Particle,type Result,type Grab} from "./phaseShiftEngine";
 
 const C={bg:"#091321",panel:"#13273a",border:"#365770",text:"#eaf6fd",muted:"#a3bbc9",mint:"#8ce9c8"};
 const button:CSSProperties={background:"#204c62",border:"1px solid #527c92",borderRadius:9,padding:"10px 13px",color:C.text,fontSize:14,cursor:"pointer"};
@@ -39,30 +39,61 @@ function PolyhedronPreview({dna}:{dna:string}){
 export default function MutatronPhaseLab(){
  const [preset,setPreset]=useState(0),[world,setWorld]=useState<World>(()=>initial(0));
  const [history,setHistory]=useState<World[]>([]),[chosen,setChosen]=useState<string[]>([]),[destination,setDestination]=useState("");
- const [cut,setCut]=useState(1),[notice,setNotice]=useState("La simulazione è in pausa. Avanza quando vuoi: qui non conta la rapidità.");
+ const [cut,setCut]=useState(1),[notice,setNotice]=useState("Il campo è in movimento. Puoi mettere in pausa, trascinare un Polytrone o cristallizzare quando vuoi.");
+ const [paused,setPaused]=useState(false);
+ const svgRef=useRef<SVGSVGElement>(null);
+ const dragRef=useRef<(Grab & {pointerId:number;startX:number;startY:number;moved:boolean;before:World})|null>(null);
  const [showPreview,setShowPreview]=useState(true),[showLinks,setShowLinks]=useState(true);
  const testErrors=useMemo(()=>selfTests(),[]);
+ // Interactive, real-time fluid phase. No action is scored by reaction speed.
+ // Physics uses a fixed 0.05 model timestep, independent of rendering framerate.
+ useEffect(()=>{
+  if(paused||world.phase!=="fluid")return;
+  let raf=0,last=0,acc=0;
+  const loop=(now:number)=>{
+   if(last===0)last=now;
+   if(!document.hidden){
+    acc+=Math.min(66,now-last);
+    const frames=Math.min(3,Math.floor(acc/(1000/60)));
+    if(frames>0){acc-=frames*(1000/60);setWorld(w=>w.phase==="fluid"?advance(w,frames*3,dragRef.current??undefined):w);}
+   }
+   last=now;raf=requestAnimationFrame(loop);
+  };
+  raf=requestAnimationFrame(loop);
+  return ()=>cancelAnimationFrame(raf);
+ },[paused,world.phase]);
  const assignment=useMemo(()=>world.phase==="fluid"?quantize(world.nodes):{},[world]);
  const selected=world.nodes.find(p=>p.id===chosen[0]);
  const target=world.nodes.find(p=>p.id===chosen[1]);
  const logicalStress=stress(world);
+ const speed=rmsSpeed(world);
  const victory=won(world);
  const save=(next:World,message:string)=>{
   if(next===world)return;setHistory(h=>[...h,world]);setWorld(next);setChosen([]);setDestination("");setNotice(message);
  };
  const handle=(r:Result)=>{if(!r.ok){setNotice(r.reason);return;}save(r.world,r.explanation);};
- const reset=(which:number)=>{setPreset(which);setWorld(initial(which));setHistory([]);setChosen([]);setDestination("");setCut(1);setNotice("Nuovo scenario: la simulazione è in pausa.");};
+ const reset=(which:number)=>{dragRef.current=null;setPaused(false);setPreset(which);setWorld(initial(which));setHistory([]);setChosen([]);setDestination("");setCut(1);setNotice("Nuovo scenario: la fase fluida riparte automaticamente.");};
  function choose(id:string){
   setChosen(old=>old.includes(id)?old.filter(x=>x!==id):old.length===2?[id]:[...old,id]);setDestination("");
  }
+ function pointerToWorld(e:React.PointerEvent<SVGGElement>){
+  const svg=svgRef.current;if(!svg)return {x:0,y:0};
+  const rect=svg.getBoundingClientRect();
+  return {x:(e.clientX-rect.left)/rect.width*470-235,y:(e.clientY-rect.top)/rect.height*410-205};
+ }
  const centerOf=(p:Particle)=>({x:p.x,y:p.y});
+ const previewFusion=world.phase==="crystal"&&chosen.length===2?fuse(world,chosen[0],chosen[1]):null;
+ const previewSplit=world.phase==="crystal"&&selected&&destination?split(world,selected.id,destination,cut):null;
+ const splitOptions=selected&&parts(selected.dna).ops.length>1?Array.from({length:parts(selected.dna).ops.length-1},(_,i)=>{
+  const dna=parts(selected.dna),k=i+1;return {cut:k,a:makeDNA(dna.ops.slice(0,k),dna.palette,dna.seed),b:makeDNA(dna.ops.slice(k),dna.palette,dna.seed)};
+ }):[];
  const bySink=new Map(world.nodes.filter(p=>p.sink).map(p=>[p.sink!,p]));
  return <div style={{background:C.bg,color:C.text,minHeight:"100vh",padding:"22px clamp(14px,3vw,34px)",fontFamily:"system-ui,sans-serif"}}>
-  <style>{".phase-grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(290px,1fr);gap:18px;align-items:start}.phase-button:disabled{opacity:.35;cursor:not-allowed}.phase-button:hover:not(:disabled){filter:brightness(1.25)}@media(max-width:850px){.phase-grid{grid-template-columns:1fr}}"} </style>
+  <style>{".phase-grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(290px,1fr);gap:18px;align-items:start}.phase-button:disabled{opacity:.35;cursor:not-allowed}.phase-button:hover:not(:disabled){filter:brightness(1.25)}.phase-poly:focus{outline:none}.phase-poly:focus-visible .focus-ring{opacity:1}@media(max-width:850px){.phase-grid{grid-template-columns:1fr}}"} </style>
   <header style={{display:"flex",justifyContent:"space-between",alignItems:"start",gap:15,flexWrap:"wrap",marginBottom:20}}>
    <div><div style={{fontSize:12,letterSpacing:2.2,color:C.mint}}>MINDELEEV · PROTOTIPO DI RICERCA · SPRINT 08</div>
     <h1 style={{margin:"5px 0",fontSize:"clamp(26px,3.8vw,40px)"}}>Mutatron · Phase Shift</h1>
-    <p style={{color:C.muted,maxWidth:780,margin:"4px 0"}}>Un universo, due fasi: equilibrio fluido e cristallizzazione esagonale. Tempo simulato a passi, nessun riflesso richiesto.</p></div>
+    <p style={{color:C.muted,maxWidth:780,margin:"4px 0"}}>Un universo, due fasi: equilibrio fluido e cristallizzazione esagonale. Fisica in tempo reale, pausa libera e nessun riflesso richiesto.</p></div>
    <div style={{display:"flex",gap:12,flexWrap:"wrap",fontSize:13}}>
     <a style={{color:C.mint}} href={import.meta.env.BASE_URL+"?experiment=conway-ring"}>Ring Reactor</a>
     <a style={{color:C.mint}} href={import.meta.env.BASE_URL+"discovery/"}>Discovery Lab</a>
@@ -84,10 +115,10 @@ export default function MutatronPhaseLab(){
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
      <div><div style={{fontSize:12,letterSpacing:1.6,color:C.mint}}>FASE ATTIVA</div>
      <h2 style={{margin:"4px 0 8px"}}>{world.phase==="fluid"?"FLUIDO · campo libero":"CRISTALLO · sink esagonali"}</h2></div>
-     <div style={{background:world.phase==="fluid"?"#23475b":"#554128",padding:"9px 13px",borderRadius:10,fontWeight:650}}>Stress: {logicalStress}</div>
+     <div style={{background:world.phase==="fluid"?"#23475b":"#554128",padding:"9px 13px",borderRadius:10,fontWeight:650}}>Stress: {logicalStress} · Moto: {speed.toFixed(1)}</div>
     </div>
     <p style={{fontSize:13,color:C.muted}}>{PRESETS[preset].hint}</p>
-    <svg viewBox="-235 -205 470 410" style={{width:"100%",height:"auto",maxHeight:570,background:"radial-gradient(circle, #18354b, #0b1727 72%)",borderRadius:14}} aria-label="Campo di movimento e griglia del Mutatron">
+    <svg ref={svgRef} viewBox="-235 -205 470 410" style={{width:"100%",height:"auto",maxHeight:570,background:"radial-gradient(circle, #18354b, #0b1727 72%)",borderRadius:14}} aria-label="Campo di movimento e griglia del Mutatron">
      <circle cx="0" cy="0" r="106" fill="none" stroke="#568ea1" opacity=".16" strokeDasharray="3 6"/>
      <circle cx="0" cy="0" r="147" fill="none" stroke="#568ea1" opacity=".1" strokeDasharray="3 9"/>
      {SINKS.map(s=><g key={s.key} onClick={()=>{if(world.phase==="crystal"&&!bySink.has(s.key)){setDestination(s.key);}}} style={{cursor:world.phase==="crystal"?"pointer":"default"}}>
@@ -97,8 +128,15 @@ export default function MutatronPhaseLab(){
       </g>)}
      {showLinks&&world.nodes.flatMap((a,i)=>world.nodes.slice(i+1).map(b=>{
        const d=Math.hypot(a.x-b.x,a.y-b.y),aim=desiredDistance(a,b);
+       const error=bondRelativeError(a,b),severity=Math.min(1,error/.6);
+       const engaged=chosen.includes(a.id)||chosen.includes(b.id);
+       const hue=Math.round(138*(1-severity));
+       const opacity=Math.min(1,.035+.92*Math.pow(severity,.85)+(engaged?.12:0));
+       const width=.35+5*Math.pow(severity,1.15)+(engaged?.3:0);
        return <line key={a.id+b.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y}
-        stroke={Math.abs(d-aim)<20?"#5ed1bd":"#d99e78"} strokeWidth="1.2" strokeOpacity=".38" strokeDasharray={Math.abs(d-aim)<20?undefined:"5 6"}/>;
+        stroke={`hsl(${hue},88%,50%)`} strokeWidth={width} strokeOpacity={opacity} strokeLinecap="round">
+         <title>{a.id}–{b.id}: distanza {d.toFixed(1)}, ideale {aim.toFixed(1)}, errore {(error*100).toFixed(0)}%</title>
+        </line>;
      }))}
      {world.phase==="fluid"&&showPreview&&world.nodes.map(p=>{
       const s=SINKS.find(x=>x.key===assignment[p.id]);if(!s)return null;
@@ -107,9 +145,32 @@ export default function MutatronPhaseLab(){
      })}
      {world.nodes.map(p=>{
        const pt=centerOf(p),picked=chosen.includes(p.id),col=polyColor(p.dna);
-       return <g key={p.id} transform={"translate("+pt.x+" "+pt.y+")"} role="button" tabIndex={0} aria-label={"Polytrone "+p.id+" "+p.dna}
-        onClick={e=>{e.stopPropagation();choose(p.id);}} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();choose(p.id);}}}
-        style={{cursor:"pointer",filter:picked?"drop-shadow(0px 0px 8px #ffd37d)":"none"}}>
+       return <g key={p.id} className="phase-poly" transform={"translate("+pt.x+" "+pt.y+")"} role="button" tabIndex={0} aria-label={"Polytrone "+p.id+" "+p.dna}
+        onPointerDown={e=>{
+         if(world.phase==="fluid"){
+          e.currentTarget.setPointerCapture(e.pointerId);
+          dragRef.current={id:p.id,x:p.x,y:p.y,startX:e.clientX,startY:e.clientY,pointerId:e.pointerId,moved:false,before:world};
+         }
+        }}
+        onPointerMove={e=>{
+         const dr=dragRef.current;if(!dr||dr.id!==p.id||dr.pointerId!==e.pointerId)return;
+         const pt=pointerToWorld(e);dr.x=pt.x;dr.y=pt.y;
+         if(!dr.moved&&Math.hypot(e.clientX-dr.startX,e.clientY-dr.startY)>6){dr.moved=true;setChosen([p.id]);}
+        }}
+        onPointerUp={e=>{
+         const dr=dragRef.current;
+         if(dr&&dr.id===p.id&&dr.pointerId===e.pointerId){
+          dragRef.current=null;
+          if(dr.moved){setChosen([p.id]);setHistory(h=>[...h,dr.before]);setNotice("Polytrone trascinato: le altre particelle seguono le forze reciproche. Trascinamento gratuito soltanto nel laboratorio.");}
+          else choose(p.id);
+          if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId);
+         }else choose(p.id);
+         e.currentTarget.blur();e.stopPropagation();
+        }}
+        onPointerCancel={()=>{dragRef.current=null;}}
+        onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();choose(p.id);}}}
+        style={{cursor:world.phase==="fluid"?"grab":"pointer",touchAction:"none",filter:picked?"drop-shadow(0px 0px 8px #ffd37d)":"none"}}>
+         <circle className="focus-ring" r="30" fill="none" stroke="#d7f7ff" strokeWidth="1.8" strokeDasharray="3 3" opacity="0"/>
          <circle r={picked?25:22} fill="#0a1828" stroke={picked?"#ffe3a0":col} strokeWidth={picked?3:1.8}/>
          <polygon points={hex(0,0,14)} fill={col} opacity=".78" stroke={col} strokeWidth="1"/>
          <text y="4" textAnchor="middle" fontSize="12" fontWeight="bold" fill="#10202d">{p.id}</text>
