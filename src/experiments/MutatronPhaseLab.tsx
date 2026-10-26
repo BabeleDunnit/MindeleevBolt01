@@ -131,9 +131,13 @@ export default function MutatronPhaseLab(){
     <svg ref={svgRef} viewBox="-235 -205 470 410" style={{width:"100%",height:"auto",maxHeight:570,background:"radial-gradient(circle, #18354b, #0b1727 72%)",borderRadius:14}} aria-label="Campo di movimento e griglia del Mutatron">
      <circle cx="0" cy="0" r="106" fill="none" stroke="#568ea1" opacity=".16" strokeDasharray="3 6"/>
      <circle cx="0" cy="0" r="147" fill="none" stroke="#568ea1" opacity=".1" strokeDasharray="3 9"/>
-     {SINKS.map(s=><g key={s.key} onClick={()=>{if(world.phase==="crystal"&&!bySink.has(s.key)){setDestination(s.key);}}} style={{cursor:world.phase==="crystal"?"pointer":"default"}}>
+     {SINKS.map(s=><g key={s.key} onClick={()=>{
+       if(world.phase!=="crystal"||bySink.has(s.key))return;
+       if(crystalMode==="move"&&selected){handle(crystalMove(world,selected.id,s.key));return;}
+       setDestination(s.key);
+      }} style={{cursor:world.phase==="crystal"?"pointer":"default"}}>
        <polygon points={hex(s.x,s.y,42)} fill={destination===s.key?"#705339":world.phase==="crystal"?"#2b4150":"transparent"}
-        stroke={destination===s.key?"#ffd08d":"#6f97a7"} strokeWidth={destination===s.key?2.5:1} opacity={world.phase==="crystal"?.78:.25}/>
+        stroke={destination===s.key?"#ffd08d":selectedSink&&crystalMode==="move"&&neighbors(selectedSink,s.key)?"#87d5b5":"#6f97a7"} strokeWidth={destination===s.key?2.5:selectedSink&&crystalMode==="move"&&neighbors(selectedSink,s.key)?2.3:1} opacity={world.phase==="crystal"?.78:.25}/>
        {world.phase==="crystal"&&<text x={s.x} y={s.y+28} textAnchor="middle" fontSize="9" fill="#849cab">{s.key}</text>}
       </g>)}
      {showLinks&&world.nodes.flatMap((a,i)=>world.nodes.slice(i+1).map(b=>{
@@ -191,11 +195,12 @@ export default function MutatronPhaseLab(){
     <div style={{display:"flex",gap:16,flexWrap:"wrap",marginTop:12,fontSize:12,color:C.muted}}>
      <label><input type="checkbox" checked={showPreview} onChange={e=>setShowPreview(e.target.checked)}/> Anteprima sink</label>
      <label><input type="checkbox" checked={showLinks} onChange={e=>setShowLinks(e.target.checked)}/> Legami e tensioni</label>
+     <label><input type="checkbox" checked={showIdeal} onChange={e=>setShowIdeal(e.target.checked)}/> Dove vorrebbero stare</label>
      <span style={{marginLeft:"auto"}}>La cattura usa assegnazione globale senza sovrapposizioni.</span>
      <div style={{width:"100%",display:"flex",alignItems:"center",gap:8,color:C.muted}}>
        <span style={{fontSize:12}}>Legami:</span>
        <div style={{width:105,height:8,borderRadius:8,background:"linear-gradient(90deg,rgba(38,195,103,.18),#d7ad36,#f04439)"}}/>
-       <span style={{fontSize:12}}>verde sottile = distanza ideale · rosso spesso = forte errore</span>
+       <span style={{fontSize:12}}>verde sottile = distanza ideale · rosso spesso = forte errore. I cerchietti con * mostrano le posizioni ideali rispetto al Polytrone selezionato.</span>
      </div>
     </div>
     {victory&&<p style={{border:"1px solid #39876e",borderRadius:9,padding:12,color:C.mint}}>Scoperta: ad05C sintetizzato! Ora rilascia il sistema e confronta il nuovo equilibrio.</p>}
@@ -221,6 +226,10 @@ export default function MutatronPhaseLab(){
     </div>
     <div style={{borderTop:"1px solid "+C.border,paddingTop:12}}>
      <h3 style={{fontSize:16,margin:"0 0 7px"}}>Causa → effetto</h3>
+     {world.phase==="crystal"&&<div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+       <button style={{...button,background:crystalMode==="move"?"#387e68":"#244e64"}} onClick={()=>{setCrystalMode("move");setChosen([]);setDestination("");}}>Muovi / Scambia</button>
+       <button style={{...button,background:crystalMode==="react"?"#387e68":"#244e64"}} onClick={()=>{setCrystalMode("react");setChosen([]);setDestination("");}}>Fondi / Scindi</button>
+      </div>}
      <p style={{fontSize:13,color:C.muted,margin:"0 0 9px"}}>Selezione: {chosen.length?chosen.join(" → "):"nessuna"}{destination?" · sink libero "+destination:""}</p>
      {world.phase==="fluid"?<div style={{display:"grid",gap:8}}>
       <p style={{fontSize:13,color:C.muted,margin:0}}>Il cannone applica un impulso (−1 ENERGY). Per esplorare il sistema puoi anche trascinare direttamente un Polytrone, osservando gli altri reagire in realtime.</p>
@@ -230,6 +239,8 @@ export default function MutatronPhaseLab(){
        <button className="phase-button" style={button} onClick={()=>handle(impulse(world,chosen[0]||"",0,1))}>↓</button>
        <button className="phase-button" style={button} onClick={()=>handle(impulse(world,chosen[0]||"",1,0))}>→</button>
       </div>
+     </div>:crystalMode==="move"?<div style={{display:"grid",gap:8}}>
+      <p style={{fontSize:13,color:C.muted,margin:0}}>Seleziona un Polytrone e poi un esagono adiacente libero: lo sposti. Se selezioni un Polytrone vicino, li scambi. Ogni movimento costa 1 ENERGY.</p>
      </div>:<div style={{display:"grid",gap:8}}>
       <p style={{fontSize:13,color:C.muted,margin:0}}>Fusione: seleziona due Polytroni adiacenti nell'ordine. Fissione: seleziona un Polytrone, poi un sink vuoto confinante, e indica dove tagliare.</p>
       <button className="phase-button" style={button} onClick={()=>handle(fuse(world,chosen[0]||"",chosen[1]||""))}>Fondi (−2 ENERGY)</button>
