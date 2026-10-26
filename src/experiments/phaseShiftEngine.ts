@@ -20,7 +20,7 @@ export const PRESETS=[
   xy:[[-144,-63],[-72,92],[44,-136],[128,85],[0,25],[91,-48],[-122,38],[51,137]]}
 ];
 export function initial(index=0):World{
- const p=PRESETS[index]||PRESETS[0],dna=("dna" in p ? p.dna : ["a05C","d05C","adk02D","k02D"]);
+ const p=PRESETS[index]||PRESETS[0],dna:string[]=Array.isArray(p.dna)?[...p.dna]:["a05C","d05C","adk02D","k02D"];
  return {phase:"fluid",energy:10,steps:0,actions:0,nodes:dna.map((d,i)=>({id:"ABCD"[i],dna:d,x:p.xy[i][0],y:p.xy[i][1],vx:0,vy:0}))};
 }
 export function parts(dna:string){const m=/^([a-z]*)(\d{2})?([TOCID])$/.exec(dna);
