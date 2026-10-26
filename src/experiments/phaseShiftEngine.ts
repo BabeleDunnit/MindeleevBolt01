@@ -101,7 +101,7 @@ export function impulse(w:World,id:string,dx:number,dy:number):Result{
  const len=Math.hypot(dx,dy);
  return {ok:true,world:{...w,energy:w.energy-1,actions:w.actions+1,nodes:w.nodes.map(p=>p.id===id?{...p,vx:p.vx+45*dx/len,vy:p.vy+45*dy/len}:p)},explanation:"Impulso a "+id+": −1 ENERGY. La simulazione avanza solo su comando."};
 }
-export function fuse(w,idA:string,idB:string):Result{
+export function fuse(w:World,idA:string,idB:string):Result{
  if(w.phase!=="crystal")return fail("Cristallizza prima di fondere.");
  const a=w.nodes.find(p=>p.id===idA),b=w.nodes.find(p=>p.id===idB);
  if(!a||!b||a.id===b.id)return fail("Seleziona due Polytroni distinti nell'ordine desiderato.");
