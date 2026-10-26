@@ -152,6 +152,17 @@ export default function MutatronPhaseLab(){
          <title>{a.id}–{b.id}: distanza {d.toFixed(1)}, ideale {aim.toFixed(1)}, errore {(error*100).toFixed(0)}%</title>
         </line>;
      }))}
+     {showIdeal&&selected&&world.nodes.filter(p=>p.id!==selected.id).map(p=>{
+       const wanted=desiredDistance(selected,p),dx=p.x-selected.x,dy=p.y-selected.y,dist=Math.max(.001,Math.hypot(dx,dy));
+       const ex=selected.x+dx/dist*wanted,ey=selected.y+dy/dist*wanted;
+       return <g key={"ideal-"+selected.id+"-"+p.id} style={{pointerEvents:"none"}}>
+        <line x1={p.x} y1={p.y} x2={ex} y2={ey} stroke={polyColor(p.dna)}
+         strokeWidth="1.9" strokeDasharray="3 5" strokeOpacity=".7"/>
+        <circle cx={ex} cy={ey} r="11" fill="none" stroke={polyColor(p.dna)}
+         strokeDasharray="3 3" strokeWidth="1.9" opacity=".9"/>
+        <text x={ex} y={ey-16} textAnchor="middle" fontSize="12" fill={polyColor(p.dna)}>{p.id}*</text>
+       </g>;
+      })}
      {world.phase==="fluid"&&showPreview&&world.nodes.map(p=>{
       const s=SINKS.find(x=>x.key===assignment[p.id]);if(!s)return null;
       return <g key={"preview-"+p.id}><path d={"M "+p.x+" "+p.y+" L "+s.x+" "+s.y} stroke={polyColor(p.dna)} strokeWidth="1.4" opacity=".62" strokeDasharray="4 4"/>
@@ -264,7 +275,19 @@ export default function MutatronPhaseLab(){
        <div>Operatori: {parts(selected.dna).ops||"(nessuno)"}</div>
       </div>
      </div>:<p style={{fontSize:13,color:C.muted}}>Seleziona un Polytrone per vedere il poliedro 3D prodotto dal motore Conway originale.</p>}
-     {target&&<p style={{fontSize:13,color:C.muted}}>Secondo reagente: {target.dna}. Affinità di coppia: distanza preferita {Math.round(desiredDistance(selected!,target))}.</p>}
+     {selected&&<div style={{fontSize:13,color:C.muted,background:"#1c3448",padding:10,borderRadius:8}}>
+       <strong style={{color:C.mint}}>Regola visiva dei legami</strong>
+       <div style={{marginTop:5}}>Stesso colore → <b style={{color:"#83e0ad"}}>preferenza di vicinanza</b>; colore differente → <b style={{color:"#efae9b"}}>preferenza di distanza</b>.</div>
+       <div>Semi diversi aggiungono distanza, così come differenze nella lunghezza del DNA.</div>
+       <div>I piccoli cerchi tratteggiati sulla mappa indicano dove ciascun altro Polytrone vorrebbe stare rispetto a quello selezionato.</div>
+      </div>}
+     {target&&chosenRelation&&<div style={{fontSize:13,color:C.muted,background:"#1c3448",padding:10,borderRadius:8}}>
+       <b style={{color:C.mint}}>Affinità {selected?.id}–{target.id}</b>
+       <div>{chosenRelation.explanation}</div>
+       <div>Palette: {chosenRelation.samePalette?"uguali":"diverse"} · Semi: {chosenRelation.sameSeed?"uguali":"diversi"}</div>
+       <div>Distanza ideale: <b>{chosenRelation.total}</b></div>
+       <div style={{fontSize:12}}>Regola provvisoria: {chosenRelation.paletteBase} (colore) + {chosenRelation.seedModifier} (seme) + {chosenRelation.chainModifier} (DNA).</div>
+      </div>}
     </div>
     {world.phase==="crystal"&&<div style={{borderTop:"1px solid "+C.border,paddingTop:12}}>
      <h3 style={{fontSize:16,margin:"0 0 8px"}}>Anteprima delle trasmutazioni</h3>
