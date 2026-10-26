@@ -34,27 +34,33 @@ export function stress(w:World){
  for(const p of w.nodes)sum+=Math.pow(Math.hypot(p.x,p.y)-RADII[parts(p.dna).seed],2)*0.18;
  return Math.round(sum/100);
 }
-function tick(nodes:Particle[]):Particle[]{
- const fx=nodes.map(()=>0),fy=nodes.map(()=>0),dt=0.05;
- for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){
-  const a=nodes[i],b=nodes[j],dx=b.x-a.x,dy=b.y-a.y,dist=Math.max(.001,Math.hypot(dx,dy));
+export type Grab={id:string;x:number;y:number};
+function tick(nodes:Particle[],grab?:Grab):Particle[]{
+ const dt=0.05;
+ // A grabbed particle follows the pointer while all other bodies react to it.
+ // This is a free sandbox interaction, NOT a balanced puzzle move.
+ const current=grab?nodes.map(n=>n.id===grab.id?{...n,x:n.x+(grab.x-n.x)*.21,y:n.y+(grab.y-n.y)*.21,vx:0,vy:0}:n):nodes;
+ const fx=current.map(()=>0),fy=current.map(()=>0);
+ for(let i=0;i<current.length;i++)for(let j=i+1;j<current.length;j++){
+  const a=current[i],b=current[j],dx=b.x-a.x,dy=b.y-a.y,dist=Math.max(.001,Math.hypot(dx,dy));
   const force=Math.max(-10,Math.min(10,(dist-desiredDistance(a,b))*.072));
   fx[i]+=dx/dist*force;fy[i]+=dy/dist*force;fx[j]-=dx/dist*force;fy[j]-=dy/dist*force;
  }
- for(let i=0;i<nodes.length;i++){
-  const n=nodes[i],r=Math.max(.001,Math.hypot(n.x,n.y)),force=Math.max(-8,Math.min(8,(r-RADII[parts(n.dna).seed])*.042));
+ for(let i=0;i<current.length;i++){
+  const n=current[i],r=Math.max(.001,Math.hypot(n.x,n.y)),force=Math.max(-8,Math.min(8,(r-RADII[parts(n.dna).seed])*.042));
   fx[i]-=n.x/r*force;fy[i]-=n.y/r*force;
  }
- return nodes.map((n,i)=>{
+ return current.map((n,i)=>{
+  if(grab&&n.id===grab.id)return n;
   const mass=1+parts(n.dna).ops.length*.17;
   const vx=Math.max(-65,Math.min(65,(n.vx+fx[i]/mass*dt)*.978));
   const vy=Math.max(-65,Math.min(65,(n.vy+fy[i]/mass*dt)*.978));
   return {...n,vx,vy,x:Math.max(-195,Math.min(195,n.x+vx*dt)),y:Math.max(-195,Math.min(195,n.y+vy*dt))};
  });
 }
-export function advance(w:World,n:number):World{
+export function advance(w:World,n:number,grab?:Grab):World{
  if(w.phase!=="fluid"||!Number.isInteger(n)||n<1||n>480)return w;
- let nodes=w.nodes.map(p=>({...p}));for(let i=0;i<n;i++)nodes=tick(nodes);
+ let nodes=w.nodes.map(p=>({...p}));for(let i=0;i<n;i++)nodes=tick(nodes,grab);
  return {...w,nodes,steps:w.steps+n};
 }
 export function quantize(nodes:Particle[]):Record<string,string>{
@@ -142,4 +148,11 @@ export function selfTests():string[]{
  const f=fuse(crystallize(example),"A","B");
  if(!f.ok||f.world.nodes[0].dna!=="ad05C")errors.push("fuse");
  return errors;
+}
+
+export function bondRelativeError(a:Particle,b:Particle):number{
+ return Math.abs(Math.hypot(a.x-b.x,a.y-b.y)-desiredDistance(a,b))/desiredDistance(a,b);
+}
+export function rmsSpeed(w:World):number{
+ return Math.sqrt(w.nodes.reduce((total,n)=>total+n.vx*n.vx+n.vy*n.vy,0)/Math.max(1,w.nodes.length));
 }
