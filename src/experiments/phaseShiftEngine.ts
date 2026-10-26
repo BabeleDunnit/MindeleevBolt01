@@ -11,10 +11,16 @@ export const SINKS=Array.from(hexesUpToRing(2)).map(c=>{
 const POS=new Map(SINKS.map(s=>[s.key,s]));
 export const PRESETS=[
  {name:"01 · Primo legame",hint:"Cristallizza, fondi a05C con d05C e osserva il nuovo equilibrio.",xy:[[-65,-32],[0,8],[-98,91],[112,65]]},
- {name:"02 · Campo perturbato",hint:"Stesse ricette, posizioni diverse: confronta simulazione, impulsi e cattura.",xy:[[-129,-75],[118,107],[-33,101],[98,-101]]}
+ {name:"02 · Campo perturbato",hint:"Stesse ricette, posizioni diverse: confronta simulazione, impulsi e cattura.",xy:[[-129,-75],[118,107],[-33,101],[98,-101]]},
+ {name:"03 · Sei corpi, sei desideri",hint:"Sei Polytroni; usa le distanze cromatiche per capire quali vicinati favorire. Prova scambi nella fase cristallina.",
+  dna:["a05C","d05C","k05C","ad02D","k02D","a02D"],
+  xy:[[-121,-72],[-44,-105],[31,42],[112,90],[-92,106],[96,-77]]},
+ {name:"04 · Otto corpi, campo frustrato",hint:"Otto Polytroni con tre famiglie cromatiche e semi diversi. Il minimo dinamico non deve necessariamente avere stress basso.",
+  dna:["a05C","d05C","k05C","ad05C","a02D","d02D","k02D","ad04T"],
+  xy:[[-144,-63],[-72,92],[44,-136],[128,85],[0,25],[91,-48],[-122,38],[51,137]]}
 ];
 export function initial(index=0):World{
- const p=PRESETS[index]||PRESETS[0],dna=["a05C","d05C","adk02D","k02D"];
+ const p=PRESETS[index]||PRESETS[0],dna=("dna" in p ? p.dna : ["a05C","d05C","adk02D","k02D"]);
  return {phase:"fluid",energy:10,steps:0,actions:0,nodes:dna.map((d,i)=>({id:"ABCD"[i],dna:d,x:p.xy[i][0],y:p.xy[i][1],vx:0,vy:0}))};
 }
 export function parts(dna:string){const m=/^([a-z]*)(\d{2})?([TOCID])$/.exec(dna);
@@ -64,7 +70,7 @@ export function advance(w:World,n:number,grab?:Grab):World{
  return {...w,nodes,steps:w.steps+n};
 }
 export function quantize(nodes:Particle[]):Record<string,string>{
- if(nodes.length>6||nodes.length>SINKS.length)throw new Error("Massimo sei particelle.");
+ if(nodes.length>8||nodes.length>SINKS.length)throw new Error("Massimo otto particelle.");
  const ordered=[...nodes].sort((a,b)=>a.id.localeCompare(b.id));
  type Entry={cost:number;path:number[]};
  let dp=new Map<number,Entry>([[0,{cost:0,path:Array(ordered.length).fill(-1)}]]);
@@ -125,7 +131,7 @@ export function split(w:World,id:string,destination:string,cut:number):Result{
  if(!p||!p.sink)return fail("Seleziona il Polytrone sorgente.");
  if(!neighbors(p.sink,destination))return fail("La destinazione dev'essere un sink adiacente.");
  if(w.nodes.some(n=>n.sink===destination))return fail("Sink di destinazione occupato.");
- if(w.nodes.length>=6)return fail("Limite sperimentale: sei Polytroni.");
+ if(w.nodes.length>=8)return fail("Limite sperimentale: otto Polytroni.");
  if(w.energy<2)return fail("Servono 2 ENERGY.");
  const x=parts(p.dna);
  if(!Number.isInteger(cut)||cut<1||cut>=x.ops.length)return fail("Seleziona un punto di taglio interno valido.");
@@ -133,6 +139,38 @@ export function split(w:World,id:string,destination:string,cut:number):Result{
  const dest=POS.get(destination)!;
  const used=new Set(w.nodes.map(n=>n.id)),newId="EFGHIJKLMNOPQRSTUVWXYZ".split("").find(c=>!used.has(c))!;
  return {ok:true,world:{...w,energy:w.energy-2,actions:w.actions+1,nodes:[...w.nodes.map(n=>n.id===id?{...n,dna:a}:n),{id:newId,dna:b,x:dest.x,y:dest.y,vx:0,vy:0,sink:destination}]},explanation:p.dna+" → "+a+" + "+b+" (−2 ENERGY)."};
+}
+
+// Boardgame-like manipulation in the crystal phase. One-step hex moves cost ENERGY.
+// The crystal destination is authoritative; physical spring layout resumes after release.
+export function crystalMove(w:World,id:string,destination:string):Result{
+ if(w.phase!=="crystal")return fail("Gli spostamenti su celle sono disponibili solo nel cristallo.");
+ const source=w.nodes.find(p=>p.id===id);
+ if(!source||!source.sink)return fail("Seleziona un Polytrone da spostare.");
+ const site=POS.get(destination);
+ if(!site||!neighbors(source.sink,destination))return fail("Spostamento consentito soltanto a una cella esagonale adiacente.");
+ if(w.energy<1)return fail("Serve 1 ENERGY per spostare o scambiare.");
+ const occupant=w.nodes.find(p=>p.sink===destination);
+ const origin=POS.get(source.sink)!;
+ const moved=w.nodes.map(p=>{
+  if(p.id===source.id)return {...p,sink:site.key,x:site.x,y:site.y,vx:0,vy:0};
+  if(occupant&&p.id===occupant.id)return {...p,sink:origin.key,x:origin.x,y:origin.y,vx:0,vy:0};
+  return p;
+ });
+ return {ok:true,world:{...w,nodes:moved,energy:w.energy-1,actions:w.actions+1},explanation:occupant?
+  "Scambio "+id+" ↔ "+occupant.id+" (−1 ENERGY)." : "Spostato "+id+" in "+destination+" (−1 ENERGY)."};
+}
+// A relationship explanation, using exactly the same rule as the physics engine.
+// The signature is game-fiction: these are not experimentally measured solid properties.
+export function affinityReason(a:Particle,b:Particle){
+ const x=parts(a.dna),y=parts(b.dna);
+ const paletteBase=x.palette===y.palette?64:124;
+ const seedModifier=x.seed===y.seed?0:12;
+ const chainModifier=7*Math.abs(x.ops.length-y.ops.length);
+ return {paletteBase,seedModifier,chainModifier,total:paletteBase+seedModifier+chainModifier,
+   samePalette:x.palette===y.palette,sameSeed:x.seed===y.seed,
+   explanation:(x.palette===y.palette?"Stesso colore, tendono a stare vicini":"Colori diversi, tendono a stare lontani")
+    +(x.seed===y.seed?"; stesso seme":"; semi diversi")+"."};
 }
 export function won(w:World){return w.nodes.some(n=>n.dna==="ad05C");}
 export function selfTests():string[]{
@@ -144,6 +182,13 @@ export function selfTests():string[]{
  if(advance(c,30)!==c||advance(w,30).steps!==30)errors.push("step");
  if(stress(w)<0)errors.push("stress");
  const i=impulse(w,"A",1,0);if(!i.ok||i.world.energy!==9)errors.push("impulse");
+ const many=initial(3);
+ if(many.nodes.length!==8||new Set(Object.values(quantize(many.nodes))).size!==8)errors.push("eight piece capture");
+ const crystal=crystallize(many),first=crystal.nodes[0],neighbor=SINKS.find(site=>first.sink!==site.key&&neighbors(first.sink!,site.key));
+ if(neighbor){
+  const m=crystalMove(crystal,first.id,neighbor.key);
+  if(!m.ok||m.world.energy!==crystal.energy-1)errors.push("crystal board move");
+ }
  const example:World={...w,nodes:[{...w.nodes[0],x:0,y:0},{...w.nodes[1],x:67.5,y:0}]};
  const f=fuse(crystallize(example),"A","B");
  if(!f.ok||f.world.nodes[0].dna!=="ad05C")errors.push("fuse");
