@@ -182,6 +182,11 @@ export default function MutatronPhaseLab(){
      <label><input type="checkbox" checked={showPreview} onChange={e=>setShowPreview(e.target.checked)}/> Anteprima sink</label>
      <label><input type="checkbox" checked={showLinks} onChange={e=>setShowLinks(e.target.checked)}/> Legami e tensioni</label>
      <span style={{marginLeft:"auto"}}>La cattura usa assegnazione globale senza sovrapposizioni.</span>
+     <div style={{width:"100%",display:"flex",alignItems:"center",gap:8,color:C.muted}}>
+       <span style={{fontSize:12}}>Legami:</span>
+       <div style={{width:105,height:8,borderRadius:8,background:"linear-gradient(90deg,rgba(38,195,103,.18),#d7ad36,#f04439)"}}/>
+       <span style={{fontSize:12}}>verde sottile = distanza ideale · rosso spesso = forte errore</span>
+     </div>
     </div>
     {victory&&<p style={{border:"1px solid #39876e",borderRadius:9,padding:12,color:C.mint}}>Scoperta: ad05C sintetizzato! Ora rilascia il sistema e confronta il nuovo equilibrio.</p>}
     {testErrors.length>0&&<p style={{color:"#ffb6a9"}}>Autoverifica fallita: {testErrors.join(", ")}</p>}
@@ -189,18 +194,26 @@ export default function MutatronPhaseLab(){
    <aside style={{...panel,display:"grid",gap:14}}>
     <div>
      <h2 style={{margin:"0 0 5px",fontSize:19}}>Controllo del reattore</h2>
-     <p style={{color:C.muted,fontSize:13,lineHeight:1.55,margin:"0 0 10px"}}>La fisica è congelata finché non scegli tu di avanzare. Gli eventi sono riproducibili e annullabili.</p>
+     <p style={{color:C.muted,fontSize:13,lineHeight:1.55,margin:"0 0 10px"}}>La fase fluida evolve automaticamente. Pausa quando vuoi per esaminare un legame o avanzare per passi: non serve alcun riflesso.</p>
      {world.phase==="fluid"?<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-      <button className="phase-button" style={button} onClick={()=>save(advance(world,60),"Simulati 60 passi. Nessun costo ENERGY.")}>+60 passi</button>
-      <button className="phase-button" style={button} onClick={()=>save(advance(world,240),"Simulati 240 passi. Nessun costo ENERGY.")}>+240 passi</button>
-      <button className="phase-button" style={{...button,gridColumn:"1 / -1",background:"#2a665c",fontWeight:700}} onClick={()=>save(crystallize(world),"Cristallizzato: assegnazione deterministica dei sink. Ora puoi fondere o scindere.")}>Cristallizza sui sink</button>
-     </div>:<button className="phase-button" style={{...button,background:"#2a665c"}} onClick={()=>save(release(world),"Rilasciati i Polytroni: cambia il DNA e osserva la nuova dinamica.")}>Rilascia nel campo fluido</button>}
+      <button className="phase-button" style={{...button,gridColumn:"1 / -1",background:paused?"#2a665c":"#3a536f",fontWeight:700}}
+       onClick={()=>{setPaused(v=>!v);setNotice(paused?"Dinamica ripresa.":"Simulazione in pausa: ora puoi leggere con calma i legami.");}}>
+       {paused?"▶ Riprendi realtime":"Ⅱ Pausa"}
+      </button>
+      {paused&&<>
+       <button className="phase-button" style={button} onClick={()=>save(advance(world,1),"Avanzato un passo di simulazione.")}>+1 passo</button>
+       <button className="phase-button" style={button} onClick={()=>save(advance(world,60),"Avanzati 60 passi di simulazione.")}>+60 passi</button>
+      </>}
+      <button className="phase-button" style={{...button,gridColumn:"1 / -1",background:"#2a665c",fontWeight:700}}
+       onClick={()=>save(crystallize(world),"Cristallizzato: la previsione dei sink coincide con la cattura. Ora puoi fondere o scindere.")}>Cristallizza sui sink</button>
+     </div>:<button className="phase-button" style={{...button,background:"#2a665c"}}
+       onClick={()=>{setPaused(false);save(release(world),"Rilasciati i Polytroni: la dinamica riparte automaticamente con le nuove affinità.");}}>Rilascia nel campo fluido ▶</button>}
     </div>
     <div style={{borderTop:"1px solid "+C.border,paddingTop:12}}>
      <h3 style={{fontSize:16,margin:"0 0 7px"}}>Causa → effetto</h3>
      <p style={{fontSize:13,color:C.muted,margin:"0 0 9px"}}>Selezione: {chosen.length?chosen.join(" → "):"nessuna"}{destination?" · sink libero "+destination:""}</p>
      {world.phase==="fluid"?<div style={{display:"grid",gap:8}}>
-      <p style={{fontSize:13,color:C.muted,margin:0}}>Il cannone imprime un impulso controllato al Polytrone selezionato (−1 ENERGY). Nessun tiro di precisione.</p>
+      <p style={{fontSize:13,color:C.muted,margin:0}}>Il cannone applica un impulso (−1 ENERGY). Per esplorare il sistema puoi anche trascinare direttamente un Polytrone, osservando gli altri reagire in realtime.</p>
       <div style={{display:"flex",justifyContent:"center"}}><button className="phase-button" style={button} onClick={()=>handle(impulse(world,chosen[0]||"",0,-1))}>↑</button></div>
       <div style={{display:"flex",justifyContent:"center",gap:8}}>
        <button className="phase-button" style={button} onClick={()=>handle(impulse(world,chosen[0]||"",-1,0))}>←</button>
@@ -232,8 +245,28 @@ export default function MutatronPhaseLab(){
      </div>:<p style={{fontSize:13,color:C.muted}}>Seleziona un Polytrone per vedere il poliedro 3D prodotto dal motore Conway originale.</p>}
      {target&&<p style={{fontSize:13,color:C.muted}}>Secondo reagente: {target.dna}. Affinità di coppia: distanza preferita {Math.round(desiredDistance(selected!,target))}.</p>}
     </div>
+    {world.phase==="crystal"&&<div style={{borderTop:"1px solid "+C.border,paddingTop:12}}>
+     <h3 style={{fontSize:16,margin:"0 0 8px"}}>Anteprima delle trasmutazioni</h3>
+     {previewFusion&&<div style={{border:"1px solid #4b7182",borderRadius:8,padding:10,fontSize:13,lineHeight:1.6,marginBottom:9}}>
+       <b>Fusione {chosen.join(" + ")}</b>
+       {previewFusion.ok?<><div style={{color:C.mint}}>{selected?.dna} + {target?.dna} → <b>{previewFusion.world.nodes.find(n=>n.id===chosen[0])?.dna}</b></div>
+        <div>Stress subito dopo: {stress(previewFusion.world)} (prima {logicalStress})</div>
+        <div style={{color:C.muted}}>Distanze e colori dei legami cambieranno dopo il rilascio; questa NON è una previsione dell'equilibrio finale.</div>
+       </>:<div style={{color:"#f1b9ab"}}>{previewFusion.reason}</div>}
+      </div>}
+     {selected&&splitOptions.length>0&&<div style={{border:"1px solid #4b7182",borderRadius:8,padding:10,fontSize:13,lineHeight:1.6}}>
+      <b>Tagli possibili di {selected.dna}</b>
+      {splitOptions.map(option=><button key={option.cut} style={{...button,padding:"5px 9px",margin:"5px 5px 0 0",fontSize:12,
+       background:cut===option.cut?"#376f63":"#254257"}}
+       onClick={()=>setCut(option.cut)}>dopo {option.cut}: {option.a} + {option.b}</button>)}
+      <div style={{color:C.muted,marginTop:8}}>Scegli un sink vuoto adiacente sulla mappa per verificare la fissione prima di confermarla.</div>
+      {previewSplit&&(previewSplit.ok?<div style={{color:C.mint}}>Risultato valido · stress subito dopo: {stress(previewSplit.world)} (prima {logicalStress})</div>
+       :<div style={{color:"#f1b9ab"}}>{previewSplit.reason}</div>)}
+     </div>}
+     {!previewFusion&&splitOptions.length===0&&<p style={{fontSize:13,color:C.muted}}>Seleziona un Polytrone per vedere le possibilità di fissione, oppure due per vedere la fusione prima di applicarla.</p>}
+    </div>}
     <div role="status" aria-live="polite" style={{background:"#1d4554",padding:13,borderRadius:10,fontSize:13,lineHeight:1.6}}>{notice}</div>
-    <p style={{color:C.muted,fontSize:12,lineHeight:1.5,margin:0}}>Esperimento di game design: forze, affinità e costi energetici sono ipotesi ludiche. Stress non è valuta. Obiettivo tutorial: creare <b>ad05C</b>; non è un puzzle bilanciato né una simulazione quantistica.</p>
+    <p style={{color:C.muted,fontSize:12,lineHeight:1.5,margin:0}}>Esperimento di game design: lo stress misura gli scarti dalle distanze preferite, mentre il moto misura la velocità residua: un sistema fermo non è necessariamente poco stressato. Il trascinamento è gratuito solo in questo laboratorio. Le probabilità genetiche e la produzione di ENERGY non sono ancora attive. Obiettivo tutorial: creare <b>ad05C</b>; non è un puzzle bilanciato né una simulazione quantistica.</p>
    </aside>
   </div>
  </div>;
