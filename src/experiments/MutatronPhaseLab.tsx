@@ -1,7 +1,7 @@
 import {useEffect,useMemo,useRef,useState,type CSSProperties} from "react";
 import * as THREE from "three";
 import {polytronGeometry} from "@/polytron/polytron";
-import {PRESETS,SINKS,initial,advance,crystallize,release,quantize,stress,parts,desiredDistance,bondRelativeError,rmsSpeed,makeDNA,impulse,fuse,split,won,selfTests,type World,type Particle,type Result,type Grab} from "./phaseShiftEngine";
+import {PRESETS,SINKS,initial,advance,crystallize,release,quantize,stress,parts,desiredDistance,bondRelativeError,rmsSpeed,makeDNA,affinityReason,neighbors,crystalMove,impulse,fuse,split,won,selfTests,type World,type Particle,type Result,type Grab} from "./phaseShiftEngine";
 
 const C={bg:"#091321",panel:"#13273a",border:"#365770",text:"#eaf6fd",muted:"#a3bbc9",mint:"#8ce9c8"};
 const button:CSSProperties={background:"#204c62",border:"1px solid #527c92",borderRadius:9,padding:"10px 13px",color:C.text,fontSize:14,cursor:"pointer"};
@@ -41,6 +41,8 @@ export default function MutatronPhaseLab(){
  const [history,setHistory]=useState<World[]>([]),[chosen,setChosen]=useState<string[]>([]),[destination,setDestination]=useState("");
  const [cut,setCut]=useState(1),[notice,setNotice]=useState("Il campo è in movimento. Puoi mettere in pausa, trascinare un Polytrone o cristallizzare quando vuoi.");
  const [paused,setPaused]=useState(false);
+ const [crystalMode,setCrystalMode]=useState<"move"|"react">("move");
+ const [showIdeal,setShowIdeal]=useState(true);
  const svgRef=useRef<SVGSVGElement>(null);
  const dragRef=useRef<(Grab & {pointerId:number;startX:number;startY:number;moved:boolean;before:World})|null>(null);
  const [showPreview,setShowPreview]=useState(true),[showLinks,setShowLinks]=useState(true);
@@ -72,9 +74,15 @@ export default function MutatronPhaseLab(){
   if(next===world)return;setHistory(h=>[...h,world]);setWorld(next);setChosen([]);setDestination("");setNotice(message);
  };
  const handle=(r:Result)=>{if(!r.ok){setNotice(r.reason);return;}save(r.world,r.explanation);};
- const reset=(which:number)=>{dragRef.current=null;setPaused(false);setPreset(which);setWorld(initial(which));setHistory([]);setChosen([]);setDestination("");setCut(1);setNotice("Nuovo scenario: la fase fluida riparte automaticamente.");};
+ const reset=(which:number)=>{dragRef.current=null;setCrystalMode("move");setPaused(false);setPreset(which);setWorld(initial(which));setHistory([]);setChosen([]);setDestination("");setCut(1);setNotice("Nuovo scenario: la fase fluida riparte automaticamente.");};
  function choose(id:string){
-  setChosen(old=>old.includes(id)?old.filter(x=>x!==id):old.length===2?[id]:[...old,id]);setDestination("");
+  if(world.phase==="crystal"&&crystalMode==="move"&&chosen.length===1&&chosen[0]!==id){
+   const target=world.nodes.find(p=>p.id===id),start=world.nodes.find(p=>p.id===chosen[0]);
+   if(start?.sink&&target?.sink&&neighbors(start.sink,target.sink)){
+    handle(crystalMove(world,start.id,target.sink));return;
+   }
+  }
+  setChosen(old=>old.includes(id)?old.filter(x=>x!==id):crystalMode==="move"?[id]:old.length===2?[id]:[...old,id]);setDestination("");
  }
  function pointerToWorld(e:React.PointerEvent<SVGGElement>){
   const svg=svgRef.current;if(!svg)return {x:0,y:0};
@@ -88,6 +96,8 @@ export default function MutatronPhaseLab(){
   const dna=parts(selected.dna),k=i+1;return {cut:k,a:makeDNA(dna.ops.slice(0,k),dna.palette,dna.seed),b:makeDNA(dna.ops.slice(k),dna.palette,dna.seed)};
  }):[];
  const bySink=new Map(world.nodes.filter(p=>p.sink).map(p=>[p.sink!,p]));
+ const selectedSink=world.phase==="crystal"&&selected?.sink||undefined;
+ const chosenRelation=selected&&target?affinityReason(selected,target):null;
  return <div style={{background:C.bg,color:C.text,minHeight:"100vh",padding:"22px clamp(14px,3vw,34px)",fontFamily:"system-ui,sans-serif"}}>
   <style>{".phase-grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(290px,1fr);gap:18px;align-items:start}.phase-button:disabled{opacity:.35;cursor:not-allowed}.phase-button:hover:not(:disabled){filter:brightness(1.25)}.phase-poly:focus{outline:none}.phase-poly:focus-visible .focus-ring{opacity:1}@media(max-width:850px){.phase-grid{grid-template-columns:1fr}}"} </style>
   <header style={{display:"flex",justifyContent:"space-between",alignItems:"start",gap:15,flexWrap:"wrap",marginBottom:20}}>
