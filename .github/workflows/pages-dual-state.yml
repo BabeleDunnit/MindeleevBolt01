@@ -1,0 +1,41 @@
+name: Pages · Dual-State Mutatron experiment
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experiments/sprint08-mutatron-dual-state
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: mindeleev-pages
+  cancel-in-progress: false
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - name: Verify project-site paths and laboratories
+        run: |
+          test -f dist/index.html
+          test -f dist/discovery/index.html
+          grep -q '/MindeleevBolt01/assets/' dist/index.html
+          if grep -q 'src="/src/main.tsx"' dist/index.html; then exit 1; fi
+          grep -r -q 'Phase Shift' dist/assets/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+      - id: deployment
+        uses: actions/deploy-pages@v4
