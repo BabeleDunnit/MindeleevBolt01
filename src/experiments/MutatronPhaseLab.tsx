@@ -7,7 +7,7 @@ const C={bg:"#091321",panel:"#13273a",border:"#365770",text:"#eaf6fd",muted:"#a3
 const button:CSSProperties={background:"#204c62",border:"1px solid #527c92",borderRadius:9,padding:"10px 13px",color:C.text,fontSize:14,cursor:"pointer"};
 const panel:CSSProperties={background:C.panel,border:"1px solid "+C.border,borderRadius:16,padding:20};
 const selectStyle:CSSProperties={background:"#19374b",border:"1px solid #527c92",borderRadius:8,padding:8,color:C.text};
-const polyColor=(dna:string)=>parts(dna).palette===5?"#f4b45c":parts(dna).palette===2?"#b0a0f8":"#7dd8d4";
+const polyColor=(dna:string)=>parts(dna).palette===5?"#f4b45c":parts(dna).palette===2?"#b0a0f8":parts(dna).palette===4?"#d3d979":"#7dd8d4";
 const hex=(x:number,y:number,rad:number)=>Array.from({length:6},(_,i)=>{
  const a=Math.PI/3*i+Math.PI/6;return (x+rad*Math.cos(a)).toFixed(2)+","+(y+rad*Math.sin(a)).toFixed(2);
 }).join(" ");
