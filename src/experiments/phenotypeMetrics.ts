@@ -177,3 +177,18 @@ export function histogramDistance(a:Phenotype,b:Phenotype):number{
  return hist(a.vertexDegrees,b.vertexDegrees)+hist(a.faceSides,b.faceSides)
   +Math.abs(a.edgeVariation-b.edgeVariation)+Math.abs(a.areaVariation-b.areaVariation);
 }
+
+/**
+ * Multi-angle response distance. This is a property of our *current scattering
+ * model*, not an intrinsic geometry invariant. Do not optimize in-place rotation.
+ * Value: mean total-variation distance in [0,1] over identical incident beams.
+ */
+export function angularResponseDistance(a:Phenotype,b:Phenotype,incidences:number[]=[0,30,60,90,120,150,180,210,240,270,300,330]):number{
+ if(!incidences.length)return 0;
+ let distance=0;
+ for(const incident of incidences){
+  const x=scatter(a,incident,0),y=scatter(b,incident,0);
+  distance+=x.bins.reduce((sum,v,j)=>sum+Math.abs(v-y.bins[j]),0)/2;
+ }
+ return distance/incidences.length;
+}
