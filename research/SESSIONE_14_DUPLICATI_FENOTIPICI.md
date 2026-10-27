@@ -106,3 +106,24 @@ L'obiettivo finale è una Tavola Mindeleev che non elenchi semplicemente tutti i
 - Martin Reuter, Franz-Erich Wolter, Niklas Peinecke, *Laplace–Beltrami spectra as Shape-DNA of surfaces and solids*, CAD 38(4) (2006), https://doi.org/10.1016/j.cad.2005.10.011
 - Riferimento IUPAC tavola periodica: https://iupac.org/what-we-do/periodic-table-of-elements/
 - Ripetuti limiti: “isospettrale” non implica necessariamente “isometrico”; “stessa curvatura polare” non implica stesso comportamento reale; equivalenza genetica non equivale a equivalenza fenotipica.
+
+
+## 8. Primi risultati **misurati**, 27 ottobre 2026
+
+L'audit automatico dello Sprint 14 è stato eseguito realmente su GitHub Actions (script \`scripts/analyze-phenotype-degeneracy.mjs\`, workflow \`pages-shape-dna.yml\`). Il campione analizzato comprende **23 ricette**, **253 coppie** e nessuna forma saltata. Secondo la soglia esplorativa \`D_angular < 0.07\`, **25 coppie** hanno risposte angolari molto simili. La metrica è la distanza di variazione totale media su dodici incidenze, calcolata su 72 bin di uscita; le cifre seguenti sono arrotondate a sei decimali.
+
+| Ricette | Istogrammi/VEF uguali? | D_angolare | D_spettrale | Interpretazione prudente |
+|---|---|---:|---:|---|
+| C / ddC | Sì | 0 | 0 | Caso atteso di dual²: stessa forma in termini del generatore e dei descrittori |
+| O / dC | Sì | 0 | 0 | Doppio costruttivo, ottaedro e duale del cubo |
+| T / O | No | 0 | 0.405465 | **Falso doppione della sonda angolare**, forma spettralmente diversa |
+| aC / daC | No | 0 | 0.136282 | Stessa curva ma struttura e firma spettrale differenti |
+| C / daT | Sì (descrittori) | 0 | 0.162534 | Gli istogrammi non certificano equivalenza della mesh |
+| D / aI | No | 0.218034 | 0.068057 | Firme spettrali relativamente vicine con risposta angolare visibilmente diversa |
+| aI / aD | Sì | 0 | 0 | Comportamento atteso per ambo su solidi duali |
+
+**Risultato concreto:** il modello di scattering basato su *somma delle normali proiettate* non ha sufficiente potere discriminante; **il problema non è principalmente la grafica del diagramma**, ma la perdita di informazioni spaziali nel kernel. La comparazione spettrale recupera informazione, ma non è una prova di identità o unicità matematica. Il confronto “colonne della tavola” dovrà eventualmente tenere conto di una **risposta funzionale misurata con un modello energetico più completo**.
+
+Il campione contiene deliberatamente ricette equivalenti; quindi **25/253 non è la prevalenza stimata di doppioni nell'universo Mindeleev**. È soltanto un audit preliminare ad alta concentrazione di casi diagnostici, utile per falsificare il modello corrente.
+
+**Decisione di metodo:** non filtrare automaticamente i Polytroni sulla sola forma della curva; distinguere duplicati genetici/alias, duplicati geometrici, prossimità Shape-DNA e equivalenza funzionale per un test specifico. Procedere a un secondo modello con **posizione delle facce e intersezione dei raggi nel piano** prima di attribuire classi energetiche.
