@@ -82,18 +82,23 @@ function graphEigen(poly:Poly,edges:Array<[number,number]>):number[]|null{
  const L=Array.from({length:n},(_,i)=>Array.from({length:n},(_,j)=>i===j?1:0));
  for(const [a,b] of edges){const w=-1/Math.sqrt(Math.max(1,d[a]*d[b]));L[a][b]=w;L[b][a]=w;}
  // Symmetric Jacobi, finite tolerance. Graph spectrum, NOT the surface Laplace-Beltrami spectrum.
- for(let pass=0;pass<80*n*n;pass++){
-  let p=0,q=1,best=0;
-  for(let i=0;i<n;i++)for(let j=i+1;j<n;j++){const x=Math.abs(L[i][j]);if(x>best){best=x;p=i;q=j;}}
-  if(best<1e-8)break;
-  const angle=.5*Math.atan2(2*L[p][q],L[q][q]-L[p][p]);
-  const c=Math.cos(angle),s=Math.sin(angle),app=L[p][p],aqq=L[q][q],apq=L[p][q];
-  L[p][p]=c*c*app-2*s*c*apq+s*s*aqq;
-  L[q][q]=s*s*app+2*s*c*apq+c*c*aqq;
-  L[p][q]=0;L[q][p]=0;
-  for(let k=0;k<n;k++)if(k!==p&&k!==q){
-   const x=L[k][p],y=L[k][q];L[k][p]=L[p][k]=c*x-s*y;L[k][q]=L[q][k]=s*x+c*y;
+ // Cyclic Jacobi sweeps: O(n^3) per sweep, unlike repeated global max search.
+ for(let sweep=0;sweep<22;sweep++){
+  let peak=0;
+  for(let p=0;p<n;p++)for(let q=p+1;q<n;q++){
+   const off=L[p][q];
+   peak=Math.max(peak,Math.abs(off));
+   if(Math.abs(off)<1e-10)continue;
+   const angle=.5*Math.atan2(2*off,L[q][q]-L[p][p]);
+   const c=Math.cos(angle),t=Math.sin(angle),app=L[p][p],aqq=L[q][q];
+   L[p][p]=c*c*app-2*t*c*off+t*t*aqq;
+   L[q][q]=t*t*app+2*t*c*off+c*c*aqq;
+   L[p][q]=L[q][p]=0;
+   for(let k=0;k<n;k++)if(k!==p&&k!==q){
+    const x=L[k][p],y=L[k][q];L[k][p]=L[p][k]=c*x-t*y;L[k][q]=L[q][k]=t*x+c*y;
+   }
   }
+  if(peak<1e-8)break;
  }
  return L.map((row,i)=>Math.max(0,row[i])).sort((a,b)=>a-b).slice(0,12);
 }
