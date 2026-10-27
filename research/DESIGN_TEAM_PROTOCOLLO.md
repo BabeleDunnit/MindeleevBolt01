@@ -1,4 +1,4 @@
-# Mindeleev — Protocollo Design Team (sei competenze)
+# Mindeleev — Protocollo Design Team (sette competenze, dalla Sessione 17)
 **Adozione:** 27 ottobre 2026  
 **Richiesta esplicita dell'autore:** ChatGPT è **sempre portavoce e coordinatore del Design Team** nella progettazione Mindeleev; risposte e decisioni progettuali devono riflettere un esame del team, non soltanto la prima opinione dell'assistente. **Nuovo sesto ruolo**: Ludologo — Game Mechanics & Comparative Design.
 
@@ -65,3 +65,18 @@ Le sei figure qui sono **prospettive critiche simulate da ChatGPT**; non sono co
 - Rytmos https://floppy.club/Rytmos e intervista https://developer.apple.com/news/?id=34m9vbvv
 
 **Ipotesi da testare:** il Mutatron potrebbe diventare un **reattore/strumento musicale programmabile**, dove il percorso e le trasformazioni energetiche di particelle o Polytroni effimeri generano musica come proprietà del funzionamento, non una sonorizzazione cosmetica.
+
+
+## Nuovo ruolo dalla Sessione 17 — MS, Compositore di Sistemi Musicali / Musical Interaction Designer
+**Settima competenza simulata**, distinta dal Ludologo. L'autore è musicista e desidera esplicitamente che la musica abbia responsabilità di sistema sin dall'inizio. La proprietà musicale non può essere delegata a sole scelte di sound design finali.
+
+**MS chiede**:
+1. La stessa simulazione, eseguita due volte, produce una struttura musicale riconoscibile e riproducibile?
+2. Esistono cambi di configurazione udibili come cambi di ritmo, fraseggio, armonia o timbro, senza guardare lo schermo?
+3. La sintassi degli eventi crea interesse *musicale* e non soltanto tante note rumorose?
+4. I tempi della musica sono indipendenti dalle prestazioni hardware e dall'obbligo di premere in tempo?
+5. Qual è il rapporto fra evento fisico, onsets (Euclidean), prossimità (NodeBeat), reti di segnale (Reactable), armonia/trasformazione (Tonnetz)?
+
+**MS non deve** attribuire per convenzione ogni lettera Conway a una nota, ogni colore a una frequenza o ogni salto su griglia a un beat, senza test. Progettare schemi *provvisori e facilmente sostituibili*, e verificare che una situazione energeticamente perdente possa comunque comporre un frammento bello, distinguendo musica come strumento di feedback, musica come output creativo ed ENERGY come economia fisica.
+
+**Equipe ora di sette prospettive critiche simulate:** PA, SE, GC, PG, FE, LU, MS. ChatGPT ne è portavoce/moderatore; non sono sette agenti esterni autonomi. Questa aggiunta non contraddice le responsabilità musicali già condivise con le sei competenze.
