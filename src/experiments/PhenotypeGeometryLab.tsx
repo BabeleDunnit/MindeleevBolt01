@@ -80,6 +80,17 @@ export default function PhenotypeGeometryLab(){
  const beam=useMemo(()=>first?scatter(first,incident,orientation):null,[first,incident,orientation]);
  const beam2=useMemo(()=>second?scatter(second,incident,orientation):null,[second,incident,orientation]);
  const atlas=useMemo(()=>atlasOpen?FORMS.map(d=>{try{return measurePoly(d);}catch{return null;}}).filter((x):x is Phenotype=>Boolean(x)):[],[atlasOpen]);
+ const exportAtlas=()=>{
+  const values=atlasOpen?atlas:FORMS.map(d=>{try{return measurePoly(d);}catch{return null;}}).filter((x):x is Phenotype=>Boolean(x));
+  const escape=(v:string|number)=>JSON.stringify(String(v));
+  const headers=["dna","V","E","F","Euler","closed","face_sides","vertex_degrees","edge_cv","face_area_cv","total_area","volume_estimate","moment_1","moment_2","moment_3","shape_fingerprint"];
+  const rows=values.map(p=>[p.dna,p.vertices,p.edges,p.faces,p.euler,p.closed,JSON.stringify(p.faceSides),JSON.stringify(p.vertexDegrees),p.edgeVariation,p.areaVariation,p.area,p.volume,...p.principalMoments,p.shapeKey]);
+  const csv=[headers.map(escape).join(","),...rows.map(row=>row.map(v=>escape(String(v))).join(","))].join("\n");
+  const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
+  const url=URL.createObjectURL(blob);
+  const link=document.createElement("a");link.href=url;link.download="mindeleev_phenotype_atlas.csv";document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);
+ };
+
  return <main style={{background:bg,color:"#e8f5ff",minHeight:"100vh",padding:"clamp(14px,3vw,30px)",fontFamily:"system-ui,-apple-system,sans-serif"}}>
   <style>{".phen-layout{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(285px,1fr);gap:14px;align-items:start}.phen-table{width:100%;border-collapse:collapse;font-size:12px}.phen-table td,.phen-table th{padding:9px;border-bottom:1px solid #335267;text-align:left}@media(max-width:820px){.phen-layout{grid-template-columns:1fr}}"}</style>
   <header style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:12,marginBottom:18}}>
@@ -125,7 +136,7 @@ export default function PhenotypeGeometryLab(){
   </div>
   <section style={{...card,marginTop:16}}>
    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}><div><h2 style={{fontSize:18,margin:"0 0 6px"}}>Atlante delle forme</h2><p style={{margin:0,color:muted,fontSize:12}}>Confronto dello stesso algoritmo su semi e trasformazioni.</p></div>
-    <button style={button} onClick={()=>setAtlasOpen(x=>!x)}>{atlasOpen?"Chiudi":"Apri"} atlante · {FORMS.length} geometrie</button></div>
+    <div style={{display:"flex",gap:7,flexWrap:"wrap"}}><button style={button} onClick={exportAtlas}>Esporta misure CSV</button><button style={button} onClick={()=>setAtlasOpen(x=>!x)}>{atlasOpen?"Chiudi":"Apri"} atlante · {FORMS.length} geometrie</button></div></div>
    {atlasOpen&&<div style={{overflowX:"auto",marginTop:12}}><table className="phen-table"><thead><tr><th>DNA</th><th>V</th><th>E</th><th>F</th><th>Euler</th><th>Facce per lati</th><th>Valenze</th><th>CV aree</th></tr></thead>
     <tbody>{atlas.map(p=><tr key={p.dna} onClick={()=>setDna(p.dna)} style={{cursor:"pointer",background:p.dna===dna?"#28576a":"transparent"}}><td style={{color:mint,fontWeight:700}}>{p.dna}</td><td>{p.vertices}</td><td>{p.edges}</td><td>{p.faces}</td><td>{p.euler}</td><td>{hist(p.faceSides)}</td><td>{hist(p.vertexDegrees)}</td><td>{fmt(p.areaVariation)}</td></tr>)}</tbody>
     </table></div>}
