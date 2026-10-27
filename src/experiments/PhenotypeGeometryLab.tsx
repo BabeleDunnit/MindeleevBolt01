@@ -2,6 +2,7 @@ import {useEffect,useMemo,useRef,useState,type CSSProperties} from "react";
 import * as THREE from "three";
 import {polytronGeometry} from "@/polytron/polytron";
 import {measurePoly,scatter,histogramDistance,type Phenotype,type Scatter} from "./phenotypeMetrics";
+import {surfaceShapeDNA,spectrumDistance} from "./surfaceShapeDNA";
 
 const FORMS=["T","C","O","D","I","dC","aC","aaC","adC","daC","kC","tC","aT","dT","kD","gT","aI","kI","aD","tD"];
 const bg="#081521",surface="#142839",outline="#3c586a",muted="#a1b7c8",mint="#7ce4c7";
@@ -28,9 +29,10 @@ function Viewer({dna}:{dna:string}){
    renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
    renderer.domElement.style.width="100%";renderer.domElement.style.height="100%";
    host.appendChild(renderer.domElement);
-   const resize=()=>{const w=Math.max(120,host.clientWidth),h=Math.max(120,host.clientHeight);renderer?.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();};
+   const resize=()=>{const w=Math.max(120,host.clientWidth),h=Math.max(120,host.clientHeight);renderer?.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();renderer?.render(scene,camera);};
    observer=new ResizeObserver(resize);observer.observe(host);resize();
-   const draw=()=>{group.rotation.y+=.008;group.rotation.x=.19;renderer?.render(scene,camera);raf=requestAnimationFrame(draw);};draw();
+   // Canonical fixed orientation: no rotation of the physical Polytron or its research preview.
+   renderer?.render(scene,camera);
   }catch(err){host.textContent="Anteprima 3D non disponibile: "+String(err);}
   return ()=>{cancelAnimationFrame(raf);observer?.disconnect();if(renderer&&renderer.domElement.parentElement===host)host.removeChild(renderer.domElement);renderer?.dispose();geo?.solid.dispose();geo?.edges.dispose();solid?.dispose();wire?.dispose();};
  },[dna]);
@@ -74,11 +76,13 @@ function Detail({p}:{p:Phenotype}){
 }
 export default function PhenotypeGeometryLab(){
  const [dna,setDna]=useState("aC"),[secondDna,setSecondDna]=useState("dC"),[compare,setCompare]=useState(true);
- const [incident,setIncident]=useState(0),[orientation,setOrientation]=useState(0),[showSpectrum,setShowSpectrum]=useState(false),[atlasOpen,setAtlasOpen]=useState(false);
+ const [incident,setIncident]=useState(0),[showSpectrum,setShowSpectrum]=useState(false),[showShapeDNA,setShowShapeDNA]=useState(false),[atlasOpen,setAtlasOpen]=useState(false);
  const first=useMemo(()=>{try{return measurePoly(dna,showSpectrum);}catch{return null;}},[dna,showSpectrum]);
  const second=useMemo(()=>{try{return compare?measurePoly(secondDna,showSpectrum):null;}catch{return null;}},[secondDna,compare,showSpectrum]);
- const beam=useMemo(()=>first?scatter(first,incident,orientation):null,[first,incident,orientation]);
- const beam2=useMemo(()=>second?scatter(second,incident,orientation):null,[second,incident,orientation]);
+ const beam=useMemo(()=>first?scatter(first,incident,0):null,[first,incident]);
+ const beam2=useMemo(()=>second?scatter(second,incident,0):null,[second,incident]);
+ const shapeA=useMemo(()=>showShapeDNA&&first?surfaceShapeDNA(first.poly):null,[showShapeDNA,first]);
+ const shapeB=useMemo(()=>showShapeDNA&&second?surfaceShapeDNA(second.poly):null,[showShapeDNA,second]);
  const atlas=useMemo(()=>atlasOpen?FORMS.map(d=>{try{return measurePoly(d);}catch{return null;}}).filter((x):x is Phenotype=>Boolean(x)):[],[atlasOpen]);
  const exportAtlas=()=>{
   const values=atlasOpen?atlas:FORMS.map(d=>{try{return measurePoly(d);}catch{return null;}}).filter((x):x is Phenotype=>Boolean(x));
@@ -109,7 +113,7 @@ export default function PhenotypeGeometryLab(){
     {beam?<><Rose first={beam} second={beam2} incident={incident}/>
      <div style={{textAlign:"center",fontSize:12,color:muted}}> <span style={{color:"#5acee8"}}>● {dna}</span> {compare&&second&&<span style={{color:"#efb75e"}}>　● {secondDna} (tratteggio)</span>}　┄ ingresso</div>
      <label style={{display:"grid",gap:5,fontSize:13}}>Angolo di ingresso: {incident}°<input type="range" min="0" max="355" step="5" value={incident} onChange={e=>setIncident(Number(e.target.value))}/></label>
-     <label style={{display:"grid",gap:5,fontSize:13}}>Rotazione delle normali intorno a Z: {orientation}°<input type="range" min="0" max="355" step="5" value={orientation} onChange={e=>setOrientation(Number(e.target.value))}/></label>
+     <p style={{margin:0,fontSize:12,color:mint}}>Orientamento dei Polytroni fisso e canonico. Cambia solo la direzione del fascio incidente, nel piano continuo.</p>
      <div style={{fontSize:13,display:"flex",justifyContent:"space-around",gap:8,color:mint}}><span>Ingresso: {fmt(beam.incoming,2)}</span><span>Uscita: {fmt(beam.outgoing,2)}</span><span>Assorbita: {fmt(beam.absorbed,2)}</span></div>
     </>:<p style={{color:"#efb0b0"}}>La geometria non è stata generata. Prova un'altra ricetta.</p>}
     <p style={{margin:0,color:muted,fontSize:12,lineHeight:1.55}}>⚠ <b>Non è ottica reale:</b> un fascio unitario viene distribuito nelle direzioni definite dalle normali di faccia proiettate, pesate per area e incidenza. L'integrale delle uscite resta 1. Questo diagramma polare non è ancora una traiettoria di raggi nel reattore.</p>
@@ -126,7 +130,16 @@ export default function PhenotypeGeometryLab(){
       Distanza euristica: <b>{fmt(histogramDistance(first,second))}</b></p>
       <p style={{fontSize:11,color:muted,margin:0}}>Gli istogrammi e gli spettri non sono prove di isomorfismo; poliedri diversi possono condividerli.</p>
      </section>}
-    <section style={card}><label style={{display:"flex",gap:7,fontSize:13,alignItems:"center"}}><input type="checkbox" checked={showSpectrum} onChange={e=>setShowSpectrum(e.target.checked)}/>Spettro del grafo (avanzato)</label>
+    <section style={card}><label style={{display:"flex",gap:7,fontSize:13,alignItems:"center"}}><input type="checkbox" checked={showShapeDNA} onChange={e=>setShowShapeDNA(e.target.checked)}/>Shape-DNA della superficie (sperimentale)</label>
+     {showShapeDNA&&[shapeA,shapeB].map((p,i)=><div key={i} style={{marginTop:9,fontSize:12,color:muted}}>
+      <b>{i===0?dna:secondDna}</b> {p?
+       <div style={{overflowWrap:"anywhere",fontFamily:"monospace"}}>{p.values.map(n=>fmt(n,2)).join(" · ")}</div>
+       :<span>— (oltre 80 vertici, mesh non valida, o confronto spento)</span>}
+     </div>)}
+     {showShapeDNA&&shapeA&&shapeB&&<p style={{fontSize:12,color:mint}}>Distanza spettrale normalizzata: {fmt(spectrumDistance(shapeA,shapeB))}</p>}
+     <p style={{color:muted,fontSize:11,lineHeight:1.6}}>Approssimazione discreta agli elementi finiti con pesi cotangenti e massa concentrata; triangolazione a ventaglio. Autovalori moltiplicati per l'area per rimuovere la scala. Non sono lo spettro continuo esatto e la triangolazione può influire.</p>
+    </section>
+    <section style={card}><label style={{display:"flex",gap:7,fontSize:13,alignItems:"center"}}><input type="checkbox" checked={showSpectrum} onChange={e=>setShowSpectrum(e.target.checked)}/>Spettro del grafo (precedente, confronto)</label>
      {showSpectrum&&[first,second].filter((x):x is Phenotype=>Boolean(x)).map(p=><div key={p.dna} style={{marginTop:10,fontSize:12,color:muted}}><b>{p.dna}</b>
        <div style={{overflowWrap:"anywhere",fontFamily:"monospace"}}>{p.graphSpectrum?p.graphSpectrum.map(n=>fmt(n,3)).join(" · "):"Oltre 90 vertici; non calcolato"}</div>
       </div>)}
@@ -141,6 +154,6 @@ export default function PhenotypeGeometryLab(){
     <tbody>{atlas.map(p=><tr key={p.dna} onClick={()=>setDna(p.dna)} style={{cursor:"pointer",background:p.dna===dna?"#28576a":"transparent"}}><td style={{color:mint,fontWeight:700}}>{p.dna}</td><td>{p.vertices}</td><td>{p.edges}</td><td>{p.faces}</td><td>{p.euler}</td><td>{hist(p.faceSides)}</td><td>{hist(p.vertexDegrees)}</td><td>{fmt(p.areaVariation)}</td></tr>)}</tbody>
     </table></div>}
   </section>
-  <p style={{fontSize:12,lineHeight:1.6,maxWidth:920,color:muted}}>Una buona risposta geometrica non è ancora una buona meccanica. Stiamo cercando differenze riproducibili, indizi visivi e invarianti: prima le misure, poi il modello di campo, soltanto dopo ENERGY e gioco. Il Mutatron dello Sprint 09 non viene modificato da questo esperimento.</p>
+  <p style={{fontSize:12,lineHeight:1.6,maxWidth:920,color:muted}}>Nessuna rotazione in-place: i Polytroni mantengono l’orientamento canonico, mentre i fasci hanno direzione continua. Una buona risposta geometrica non è ancora una buona meccanica. Stiamo cercando differenze riproducibili, indizi visivi e invarianti: prima le misure, poi il modello di campo, soltanto dopo ENERGY e gioco. Il Mutatron dello Sprint 09 non viene modificato da questo esperimento.</p>
  </main>;
 }
