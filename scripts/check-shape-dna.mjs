@@ -8,7 +8,7 @@ import {pathToFileURL} from "node:url";
 const dir=await mkdtemp(join(tmpdir(),"mindeleev-shape-dna-"));
 try{
  await build({entryPoints:["src/experiments/surfaceShapeDNA.ts","src/polytron/polytron.ts"],outdir:dir,
-  entryNames:"[name]",bundle:true,platform:"node",format:"esm",tsconfig:"tsconfig.app.json",logLevel:"warning"});
+  entryNames:"[name]",outExtension:{".js":".mjs"},bundle:true,platform:"node",format:"esm",tsconfig:"tsconfig.app.json",logLevel:"warning"});
  const {surfaceShapeDNA,spectrumDistance}=await import(pathToFileURL(join(dir,"surfaceShapeDNA.mjs")).href);
  const {dnaToPoly}=await import(pathToFileURL(join(dir,"polytron.mjs")).href);
  const close=(a,b,rel=.018)=>Math.abs(a-b)<=rel*Math.max(1,Math.abs(a),Math.abs(b));
