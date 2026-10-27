@@ -41,3 +41,27 @@ Le sei figure qui sono **prospettive critiche simulate da ChatGPT**; non sono co
 - ENERGY: un'unica valuta spendibile, ma distinte riserve e potenziale fisico; nessun ciclo perpetuo gratuito; preferire invarianti verificabili.
 - Caleidoscopio e meraviglia sono **requisiti di design**. Bellezza ≠ sola massimizzazione numerica.
 - Ogni promessa di "il gioco funziona" necessita di prototipo giocato e confronto, non solo teoria/CI.
+
+
+## Aggiornamento Sessione 17 — La musica è una parte strutturale di Mindeleev
+**Richiesta esplicita dell'autore (musicista):** l'autore è anche **musicista** e ha forte interesse per **sequencer euclidei**, **NodeBeat**, **Reactable** (interfaccia tangibile impiegata nel live di Björk) e **Rytmos**. L'integrazione sonora in Mindeleev è una **premessa progettuale**, non un possibile accessorio né una colonna sonora estetica da aggiungere alla fine.
+
+**Nuova responsabilità trasversale del Design Team** (non un settimo membro separato per ora):
+- **LU** confronta grammatica e meccaniche dei sistemi musicali interattivi; indaga la *playability musicale* e la relazione puzzle/composizione.
+- **SE** cerca eventi e pattern poliritmici emergenti dalla simulazione.
+- **FE** definisce l'evento fisico discreto e l'eventuale orologio logico, distinguendo joule dal segnale acustico e dai BPM.
+- **PA** assicura che il feedback uditivo sia intelligibile e non introduca prove di riflessi.
+- **GC** tutela l'identità timbrica delle specie e degli individui senza attribuire note arbitrarie a ogni token.
+- **PG** considera il piacere della composizione e del replay come motivazione autonoma, distinta da ENERGY e dalla collezione.
+
+**Vincolo non negoziabile:** AUDIO e VISUAL devono discendere dagli **stessi eventi registrabili della simulazione**. Un evento può essere un'emissione, un transito, una collisione/risonanza, una trasformazione, una biforcazione, un ritorno all'Architron o una perdita dal bordo. Questa regola non impone una nota per ogni evento e non è ancora una mappatura musicale definitiva.
+
+**Tempo:** la simulazione può avere passi discreti e animazione continua, il suono può essere quantizzato o risuonato in un clock musicale indipendente ma derivato dall'event log; variazioni di tempo non devono cambiare la validità del puzzle o richiedere riflessi. Evitare di associare BPM al tasso di generazione gratuita di ENERGY.
+
+**Riferimenti verificati:**
+- Reactable official history https://reactable.com/about-us/
+- NodeBeat https://www.nodebeat.com/?lang=en
+- Toussaint (2005) sequenze euclidee https://www.archive.bridgesmathart.org/2005/bridges2005-47.html
+- Rytmos https://floppy.club/Rytmos e intervista https://developer.apple.com/news/?id=34m9vbvv
+
+**Ipotesi da testare:** il Mutatron potrebbe diventare un **reattore/strumento musicale programmabile**, dove il percorso e le trasformazioni energetiche di particelle o Polytroni effimeri generano musica come proprietà del funzionamento, non una sonorizzazione cosmetica.
