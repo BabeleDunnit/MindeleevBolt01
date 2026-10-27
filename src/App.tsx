@@ -1,6 +1,7 @@
 import { useState } from "react";
 import ConwayRingLab from "@/experiments/ConwayRingLab";
 import MutatronPhaseLab from "@/experiments/MutatronPhaseLab";
+import PhenotypeGeometryLab from "@/experiments/PhenotypeGeometryLab";
 import HexWorld, { PALETTE_SETS } from "@/components/HexWorld";
 import { runCodecSelfTests } from "@/polytron/mapping";
 import { runInterestingSelfTests } from "@/polytron/interesting";
@@ -74,6 +75,7 @@ function TestOverlay() {
 }
 
 function App() {
+  if (new URLSearchParams(window.location.search).get("experiment") === "phenotype") return <PhenotypeGeometryLab />;
   if (new URLSearchParams(window.location.search).get("experiment") === "phase-shift") return <MutatronPhaseLab />;
   if (new URLSearchParams(window.location.search).get("experiment") === "conway-ring") return <ConwayRingLab />;
   const runTestsParam = new URLSearchParams(window.location.search).has("run-tests");
