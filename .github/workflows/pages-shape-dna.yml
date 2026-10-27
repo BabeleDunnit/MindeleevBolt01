@@ -27,6 +27,8 @@ jobs:
       - run: npm run typecheck
       - run: node scripts/check-phenotype.mjs
       - run: node scripts/check-shape-dna.mjs
+      - name: Audit response degeneracy vs surface Shape-DNA
+        run: node scripts/analyze-phenotype-degeneracy.mjs
       - run: node scripts/check-phase.mjs
       - run: npm run build
       - name: Verify SPA and prior discovery lab
