@@ -120,7 +120,7 @@ try{
   candidates.push({
    dna,seed,ops,vertices:phen.vertices,edges:phen.edges,faces:phen.faces,
    faceSides:phen.faceSides,vertexDegrees:phen.vertexDegrees,
-   shapeKey:phen.shapeKey,signature,topology,
+   shapeKey:phen.shapeKey,signature,poly:phen.poly,
    distances:squaredDistanceSignature(phen.poly.vertices)
   });
  }
@@ -128,8 +128,16 @@ try{
  // A sorted distance multiset is not a formal congruence proof: mark as provisional.
  const groups=[];
  for(const p of candidates){
-  let g=groups.find(g=>g.topology===p.topology&&rmsSignature(g.distances,p.distances)<.002);
-  if(!g){g={topology:p.topology,distances:p.distances,recipes:[],members:[]};groups.push(g);}
+  // Expensive rooted-map isomorphism is computed ONLY for geometrically-close
+  // candidates, never for the thousands of clearly different mesh pairs.
+  let g=null;
+  for(const candidate of groups){
+   if(candidate.shapeKey!==p.shapeKey||rmsSignature(candidate.distances,p.distances)>=.002)continue;
+   const pCode=p.topology??(p.topology=topologyCode(p.poly));
+   const gCode=candidate.topology??(candidate.topology=topologyCode(candidate.members[0].poly));
+   if(pCode!==null&&gCode!==null&&pCode===gCode){g=candidate;break;}
+  }
+  if(!g){g={shapeKey:p.shapeKey,topology:null,distances:p.distances,recipes:[],members:[]};groups.push(g);}
   g.recipes.push(p.dna);g.members.push(p);
  }
  const base=groups.map(g=>{
