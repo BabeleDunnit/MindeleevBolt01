@@ -1,0 +1,44 @@
+name: Pages · Phenotype Geometry Laboratory
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experiments/sprint13-phenotype-geometry-lab
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: mindeleev-pages
+  cancel-in-progress: false
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: phase-lab
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - name: Test phenotype geometric metrics
+        run: node scripts/check-phenotype.mjs
+      - name: Preserve Phase Shift regression tests
+        run: node scripts/check-phase.mjs
+      - run: npm run build
+      - name: Verify GitHub Pages entrypoints
+        run: |
+          test -f dist/index.html
+          test -f dist/discovery/index.html
+          grep -q '/MindeleevBolt01/assets/' dist/index.html
+          grep -r -q 'Phenotype Geometry Lab' dist/assets/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+      - id: deployment
+        uses: actions/deploy-pages@v4
