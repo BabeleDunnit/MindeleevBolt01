@@ -79,7 +79,7 @@ function graphEigen(poly:Poly,edges:Array<[number,number]>):number[]|null{
  if(n<3||n>90)return null;
  const d=new Array<number>(n).fill(0);
  for(const [a,b] of edges){d[a]++;d[b]++;}
- const L=Array.from({length:n},(_,i)=>Array.from({length:n},(_,j)=>i===j?1:0));
+ const L:number[][]=Array.from({length:n},(_,i)=>Array.from({length:n},(_,j)=>i===j?1:0));
  for(const [a,b] of edges){const w=-1/Math.sqrt(Math.max(1,d[a]*d[b]));L[a][b]=w;L[b][a]=w;}
  // Symmetric Jacobi, finite tolerance. Graph spectrum, NOT the surface Laplace-Beltrami spectrum.
  // Cyclic Jacobi sweeps: O(n^3) per sweep, unlike repeated global max search.
