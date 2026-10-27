@@ -1,7 +1,7 @@
 import {useEffect,useMemo,useRef,useState,type CSSProperties} from "react";
 import * as THREE from "three";
 import {polytronGeometry} from "@/polytron/polytron";
-import {measurePoly,scatter,histogramDistance,type Phenotype,type Scatter} from "./phenotypeMetrics";
+import {measurePoly,scatter,histogramDistance,angularResponseDistance,type Phenotype,type Scatter} from "./phenotypeMetrics";
 import {surfaceShapeDNA,spectrumDistance} from "./surfaceShapeDNA";
 
 const FORMS=["T","C","O","D","I","dC","aC","aaC","adC","daC","kC","tC","aT","dT","kD","gT","aI","kI","aD","tD"];
@@ -81,6 +81,7 @@ export default function PhenotypeGeometryLab(){
  const second=useMemo(()=>{try{return compare?measurePoly(secondDna,showSpectrum):null;}catch{return null;}},[secondDna,compare,showSpectrum]);
  const beam=useMemo(()=>first?scatter(first,incident,0):null,[first,incident]);
  const beam2=useMemo(()=>second?scatter(second,incident,0):null,[second,incident]);
+ const meanAngularDistance=useMemo(()=>first&&second?angularResponseDistance(first,second):null,[first,second]);
  const shapeA=useMemo(()=>showShapeDNA&&first?surfaceShapeDNA(first.poly):null,[showShapeDNA,first]);
  const shapeB=useMemo(()=>showShapeDNA&&second?surfaceShapeDNA(second.poly):null,[showShapeDNA,second]);
  const atlas=useMemo(()=>atlasOpen?FORMS.map(d=>{try{return measurePoly(d);}catch{return null;}}).filter((x):x is Phenotype=>Boolean(x)):[],[atlasOpen]);
@@ -128,7 +129,9 @@ export default function PhenotypeGeometryLab(){
     {first&&second&&<section style={card}><b>Confronto dei descrittori</b>
       <p style={{fontSize:13,color:muted}}>Istogrammi di facce e valenze: <strong style={{color:mint}}>{first.shapeKey===second.shapeKey?"uguali":"diversi"}</strong>.
       Distanza euristica: <b>{fmt(histogramDistance(first,second))}</b></p>
-      <p style={{fontSize:11,color:muted,margin:0}}>Gli istogrammi e gli spettri non sono prove di isomorfismo; poliedri diversi possono condividerli.</p>
+      <p style={{fontSize:13,color:"#e4f6fa",marginBottom:4}}>Somiglianza delle risposte angolari: <b>{meanAngularDistance===null?"—":fmt(meanAngularDistance,4)}</b> <span style={{color:muted}}>(0 = indistinguibili dal modello corrente)</span></p>
+      <p style={{fontSize:12,color:muted,margin:"0 0 6px"}}>Misura media su 12 direzioni di ingresso, con Polytroni sempre non ruotati. Non confondere curve simili con forme uguali.</p>
+      <p style={{fontSize:11,color:muted,margin:0}}>Gli istogrammi e gli spettri non sono prove di isomorfismo; poliedri diversi possono condividerli. Una risposta quasi identica può indicare anche <b>un limite della nostra sonda energetica</b>.</p>
      </section>}
     <section style={card}><label style={{display:"flex",gap:7,fontSize:13,alignItems:"center"}}><input type="checkbox" checked={showShapeDNA} onChange={e=>setShowShapeDNA(e.target.checked)}/>Shape-DNA della superficie (sperimentale)</label>
      {showShapeDNA&&[shapeA,shapeB].map((p,i)=><div key={i} style={{marginTop:9,fontSize:12,color:muted}}>
@@ -136,7 +139,10 @@ export default function PhenotypeGeometryLab(){
        <div style={{overflowWrap:"anywhere",fontFamily:"monospace"}}>{p.values.map(n=>fmt(n,2)).join(" · ")}</div>
        :<span>— (oltre 80 vertici, mesh non valida, o confronto spento)</span>}
      </div>)}
-     {showShapeDNA&&shapeA&&shapeB&&<p style={{fontSize:12,color:mint}}>Distanza spettrale normalizzata: {fmt(spectrumDistance(shapeA,shapeB))}</p>}
+     {showShapeDNA&&shapeA&&shapeB&&<div style={{fontSize:12,lineHeight:1.65}}>
+      <p style={{color:mint,margin:"8px 0 0"}}>Distanza spettrale normalizzata: {fmt(spectrumDistance(shapeA,shapeB))}</p>
+      <p style={{color:muted,margin:"5px 0 0"}}>Confronto incrociato: {meanAngularDistance===null?"—":fmt(meanAngularDistance,4)} di differenza angolare. {meanAngularDistance!==null&&meanAngularDistance<.07&&spectrumDistance(shapeA,shapeB)>.1?"Attenzione: i fasci sembrano simili, ma lo Shape-DNA distingue nettamente le superfici.":"Le due metriche descrivono proprietà diverse."}</p>
+     </div>}
      <p style={{color:muted,fontSize:11,lineHeight:1.6}}>Approssimazione discreta agli elementi finiti con pesi cotangenti e massa concentrata; triangolazione a ventaglio. Autovalori moltiplicati per l'area per rimuovere la scala. Non sono lo spettro continuo esatto e la triangolazione può influire.</p>
     </section>
     <section style={card}><label style={{display:"flex",gap:7,fontSize:13,alignItems:"center"}}><input type="checkbox" checked={showSpectrum} onChange={e=>setShowSpectrum(e.target.checked)}/>Spettro del grafo (precedente, confronto)</label>
@@ -154,6 +160,6 @@ export default function PhenotypeGeometryLab(){
     <tbody>{atlas.map(p=><tr key={p.dna} onClick={()=>setDna(p.dna)} style={{cursor:"pointer",background:p.dna===dna?"#28576a":"transparent"}}><td style={{color:mint,fontWeight:700}}>{p.dna}</td><td>{p.vertices}</td><td>{p.edges}</td><td>{p.faces}</td><td>{p.euler}</td><td>{hist(p.faceSides)}</td><td>{hist(p.vertexDegrees)}</td><td>{fmt(p.areaVariation)}</td></tr>)}</tbody>
     </table></div>}
   </section>
-  <p style={{fontSize:12,lineHeight:1.6,maxWidth:920,color:muted}}>Nessuna rotazione in-place: i Polytroni mantengono l’orientamento canonico, mentre i fasci hanno direzione continua. Una buona risposta geometrica non è ancora una buona meccanica. Stiamo cercando differenze riproducibili, indizi visivi e invarianti: prima le misure, poi il modello di campo, soltanto dopo ENERGY e gioco. Il Mutatron dello Sprint 09 non viene modificato da questo esperimento.</p>
+  <p style={{fontSize:12,lineHeight:1.6,maxWidth:920,color:muted}}>Forme geometricamente diverse possono avere curve angolari quasi identiche. La ricerca sulle forme "interessanti" deve distinguere novità strutturale, novità spettrale e differenza di comportamento. Nessuna rotazione in-place: i Polytroni mantengono l’orientamento canonico, mentre i fasci hanno direzione continua. Una buona risposta geometrica non è ancora una buona meccanica. Stiamo cercando differenze riproducibili, indizi visivi e invarianti: prima le misure, poi il modello di campo, soltanto dopo ENERGY e gioco. Il Mutatron dello Sprint 09 non viene modificato da questo esperimento.</p>
  </main>;
 }
