@@ -34,7 +34,6 @@ export type Stats={step:number;impacts:number;geneticChanges:number;returns:numb
 type Internal={id:string;kind:AgentType;name:string;dna:string;energy:number;
  body:RAPIER.RigidBody;collider:RAPIER.Collider;touches:number;lastContact:number;
  state:"flying"|"buffered"|"returned"|"escaped"|"station";bufferId?:string;bufferStep?:number};
-const RADIAL=Math.PI/6;
 const MAX_AGENTS=48;
 const MESH_SCALE= {controller:.55,traveler:.41};
 const NODE_SCENARIOS:Record<Scenario,string[]>={
@@ -83,7 +82,9 @@ export class PlanarRapierEngine{
     layout.x/22,plan.dynamics.hoverHeight,layout.y/22,0,0,0,0);
   }
   for(let i=0;i<plan.count;i++){
-   const theta=RADIAL+i*2*Math.PI/plan.count,speed=plan.dynamics.launchSpeed;
+   // Radial directions are aligned to the physical hexagonal island axes.
+   const theta=Math.atan2(samples[0].y,samples[0].x)+i*2*Math.PI/plan.count;
+   const speed=plan.dynamics.launchSpeed;
    engine.makeAgent("traveler","v"+engine.nextId++,"Viaggiatore "+(i+1),plan.dna,
     .76*Math.cos(theta),plan.dynamics.hoverHeight,.76*Math.sin(theta),
     speed*Math.cos(theta),0,speed*Math.sin(theta),6/plan.count);
