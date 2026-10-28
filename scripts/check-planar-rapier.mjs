@@ -47,6 +47,19 @@ try{
     elapsedSteps:summary.step});
   }finally{engine.dispose();}
  }
+ // The Mutatron has free 3D impulse response, but a stable ~1m plane.
+ const hover=await e.PlanarRapierEngine.create({...e.DEFAULT_PLAN,scenario:"quiet",count:1,
+  physics:"off",dynamics:{...e.DEFAULT_PLAN.dynamics,launchSpeed:0,attraction:0,pairSpring:0}});
+ try{
+  hover.world.forEachRigidBody(body=>{
+   if(body.isDynamic())body.setTranslation({x:.65,y:3.3,z:.35},true);
+  });
+  for(let i=0;i<850;i++)hover.tick();
+  const lone=hover.agentsView().find(a=>a.type==="traveler");
+  assert(lone,"hover test body should still be in the Mutatron");
+  assert(Math.abs(lone.y-e.SINK_HEIGHT)<.12,
+   "Vertical recovery must return an airborne traveler to horizontal sink plane");
+ }finally{hover.dispose();}
  assert(runs[0].impactEvents>0,"radial color demonstration must reach real 3D colliders");
  assert(runs[0].geneticChanges>0,"color station must alter genomes on actual Rapier contacts");
  console.log("PASS real Rapier 3D WASM planar constraints, radial symmetry, contacts, mutations, finite energy and stable motion");
