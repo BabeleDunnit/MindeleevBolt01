@@ -5,7 +5,7 @@ import {measurePoly} from "./phenotypeMetrics";
 export type Mode="M0"|"M1"|"M2"|"PHOTON";
 export type Station={id:string;name:string;dna:string;sink:string;reserve:number;mutated?:boolean};
 export type Setup={stations:Station[];injection:number;pulses:2|3};
-export type Traveler={id:string;kind:"carrier"|"photon";dna:string;x:number;y:number;q:number;r:number;direction:number;energy:number;alive:boolean;status:"flying"|"returned"|"escaped";path:{x:number;y:number}[]};
+export type Traveler={id:string;kind:"carrier"|"photon";dna:string;x:number;y:number;q:number;r:number;direction:number;energy:number;alive:boolean;status:"flying"|"returned"|"escaped";lastStationId?:string;path:{x:number;y:number}[]};
 export type Event={step:number;kind:"emit"|"travel"|"encounter"|"mutate"|"return"|"escape";carrierId:string;stationId?:string;stationName?:string;before?:string;after?:string;x:number;y:number;energy:number;note:string};
 export type Ledger={input:number;fromReserve:number;returned:number;escaped:number;dissipated:number;inFlight:number;unusedReserve:number;balance:number;walletAfter:number};
 export type Frame={step:number;travelers:Traveler[];stations:Station[];events:Event[];ledger:Ledger};
@@ -30,7 +30,7 @@ const syllables=(s:string)=>s.toLowerCase().split(/(?=[aeiouy])/).map(x=>x.repla
 function individualName(a:string,d:string){
  const as=syllables(a),ds=syllables(d);
  const first=(as.length===1?as[0].slice(0,3):as.slice(0,2).join("").slice(0,5));
- const prev=ds.at(-2)??"",last=ds.at(-1)??"";
+ const prev=ds[ds.length-2]??"",last=ds[ds.length-1]??"";
  const tail=(ds.length===1?last.slice(-3):(prev.length<=2?prev:prev.slice(-2))+last).slice(-5);
  const mid=!"aeiouy".includes(first.slice(-1))&&!"aeiouy".includes(tail[0])?"a":"";
  const result=(first+mid+tail).slice(0,10);
@@ -73,6 +73,7 @@ function nextRayHit(c:Traveler,stations:Station[]){
  const dir=vector(c.direction);
  const list:{distance:number;type:"station"|"center"|"edge";station?:Station}[]=[];
  for(const s of stations){
+  if(s.id===c.lastStationId)continue; // do not strike same field twice while clearing it
   const p=BY_KEY.get(s.sink)!;
   const distance=rayDistance(c.x,c.y,dir.x,dir.y,p.x,p.y,18);
   if(Number.isFinite(distance))list.push({distance,type:"station",station:s});
@@ -154,6 +155,7 @@ export function simulate(setup:Setup,mode:Mode):Run{
       note:hit.type==="center"?"Raggio raccolto":"Raggio oltre il bordo"});
     }else if(hit.station){
      const s=hit.station,response=shapeResponse(s.dna),transfer=Math.min(1.05,s.reserve);
+     c.lastStationId=s.id;
      s.reserve-=transfer;c.energy+=transfer;fromReserve+=transfer;
      c.direction=(c.direction+response.turn)%6;
      // Clear collision boundary in direction of new outgoing ray.
