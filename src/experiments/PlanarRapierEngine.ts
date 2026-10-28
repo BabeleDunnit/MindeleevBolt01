@@ -18,16 +18,19 @@ export type Dynamics={period:number;dampingRatio:number;launchSpeed:number;attra
 export const DEFAULT_DYNAMICS:Dynamics={period:1.25,dampingRatio:.58,launchSpeed:3.5,
  attraction:1.0,restitution:.72,pairSpring:.12,hoverHeight:SINK_HEIGHT,angularDamping:.16};
 export type Scenario="color"|"five"|"quiet";
+export type FamilySizes={controller:number;traveler:number};
+export const DEFAULT_SIZES:FamilySizes={controller:.68,traveler:.26};
 export type Plan={scenario:Scenario;count:1|6|12;dna:string;returnPalette:number;
- seed:number;physics:"shape"|"off";dynamics:Dynamics};
+ seed:number;physics:"shape"|"off";dynamics:Dynamics;sizes:FamilySizes;
+ stationDNA:Record<string,string>;travelerDNA:Record<string,string>};
 export const DEFAULT_PLAN:Plan={scenario:"color",count:6,dna:"01C",returnPalette:2,
- seed:47,physics:"shape",dynamics:DEFAULT_DYNAMICS};
+ seed:47,physics:"shape",dynamics:DEFAULT_DYNAMICS,sizes:DEFAULT_SIZES,stationDNA:{},travelerDNA:{}};
 export type AgentType="controller"|"traveler";
 export type AgentView={id:string;type:AgentType;name:string;dna:string;energy:number;
  x:number;y:number;z:number;qx:number;qy:number;qz:number;qw:number;
  vx:number;vy:number;vz:number;touches:number;status:string};
-export type Impact={step:number;kind:"color"|"fuse"|"split"|"clone"|"filter"|"null"|"buffer"|"return"|"escape"|"impact";
- subject:string;station?:string;before?:string;after?:string;note:string};
+export type Impact={step:number;kind:"color"|"fuse"|"split"|"clone"|"filter"|"null"|"buffer"|"return"|"escape"|"impact"|"edit";
+ subject:string;station?:string;stationId?:string;otherId?:string;before?:string;after?:string;note:string};
 export type Stats={step:number;impacts:number;geneticChanges:number;returns:number;escaped:number;
  peakHeight:number;peakSpeed:number;active:number;retained:number;inputEnergy:number;returnedEnergy:number;
  escapedEnergy:number;carriedEnergy:number};
@@ -35,7 +38,7 @@ type Internal={id:string;kind:AgentType;name:string;dna:string;energy:number;
  body:RAPIER.RigidBody;collider:RAPIER.Collider;touches:number;lastContact:number;
  state:"flying"|"buffered"|"returned"|"escaped"|"station";bufferId?:string;bufferStep?:number};
 const MAX_AGENTS=48;
-const MESH_SCALE= {controller:.55,traveler:.41};
+
 const NODE_SCENARIOS:Record<Scenario,string[]>={
  color:["02T","02T","02T","02T","02T","02T"],
  five:["a02T","01C","02O","02D","02I","02T"],
@@ -77,7 +80,7 @@ export class PlanarRapierEngine{
     .setTranslation(0,-.08,0).setRestitution(.35).setFriction(.4));
   const samples=initialIslands("R0").nodes;
   for(let i=0;i<6;i++){
-   const layout=samples[i],dna=NODE_SCENARIOS[plan.scenario][i];
+   const layout=samples[i],dna=plan.stationDNA[layout.id]??NODE_SCENARIOS[plan.scenario][i];
    engine.makeAgent("controller",layout.id,layout.name,dna,
     layout.x/22,plan.dynamics.hoverHeight,layout.y/22,0,0,0,0);
   }
@@ -88,7 +91,8 @@ export class PlanarRapierEngine{
    // Spawn clear of the source and each other. For 12 carriers use two
    // interleaved concentric hex rings, not twelve overlapping hulls.
    const startRadius=plan.count===12?(i%2===0?1.1:1.8):1.07;
-   engine.makeAgent("traveler","v"+engine.nextId++,"Viaggiatore "+(i+1),plan.dna,
+   const travelerId="v"+engine.nextId++;
+   engine.makeAgent("traveler",travelerId,"Viaggiatore "+(i+1),plan.travelerDNA[travelerId]??plan.dna,
     startRadius*Math.cos(theta),plan.dynamics.hoverHeight,startRadius*Math.sin(theta),
     speed*Math.cos(theta),0,speed*Math.sin(theta),6/plan.count);
   }
@@ -103,7 +107,7 @@ export class PlanarRapierEngine{
     .setLinvel(vx,vy,vz).setLinearDamping(.025)
     .setAngularDamping(this.plan.dynamics.angularDamping).setCcdEnabled(true).setCanSleep(false);
   const body=this.world.createRigidBody(d);
-  const shape=RAPIER.ColliderDesc.convexHull(hull(dna,MESH_SCALE[kind]));
+  const shape=RAPIER.ColliderDesc.convexHull(hull(dna,this.plan.sizes[kind]));
   if(!shape)throw Error("Impossibile creare convex hull: "+dna);
   shape.setRestitution(this.plan.dynamics.restitution).setFriction(.22)
    .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS);
@@ -121,7 +125,7 @@ export class PlanarRapierEngine{
   const old=agent.collider;
   this.colliders.delete(old.handle);
   this.world.removeCollider(old,true);
-  const colliderDesc=RAPIER.ColliderDesc.convexHull(hull(nextDNA,MESH_SCALE[agent.kind]));
+  const colliderDesc=RAPIER.ColliderDesc.convexHull(hull(nextDNA,this.plan.sizes[agent.kind]));
   if(!colliderDesc)throw Error("Convex hull genotipo risultante impossibile: "+nextDNA);
   colliderDesc.setRestitution(this.plan.dynamics.restitution).setFriction(.22)
    .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS);
@@ -129,6 +133,20 @@ export class PlanarRapierEngine{
   agent.collider=this.world.createCollider(colliderDesc,agent.body);
   this.colliders.set(agent.collider.handle,agent.id);
   agent.dna=nextDNA;
+ }
+ /** Inspector edit: rebuild the actual Rapier collider and keep the rigid body's pose.
+  * The event is explicit; persisting this choice into a repeatable scenario is done
+  * by the UI with stationDNA/travelerDNA and a fresh world reset. */
+ editDNA(id:string,nextDNA:string):boolean{
+  const agent=this.agents.get(id);
+  if(!agent||(agent.state!=="station"&&agent.state!=="flying"&&agent.state!=="buffered"))return false;
+  const before=agent.dna;
+  if(before===nextDNA)return true;
+  decode(nextDNA);
+  this.replaceDNA(agent,nextDNA);
+  this.events.push({step:this.stepIndex,kind:"edit",subject:id,
+   before,after:nextDNA,note:"Inspector: DNA impostato esplicitamente"});
+  return true;
  }
  private remove(agent:Internal,state:"returned"|"escaped"|"buffered"){
   agent.state=state;
@@ -212,7 +230,7 @@ export class PlanarRapierEngine{
   }catch(e){note="Operazione non applicabile: "+String(e);}
   if((kind==="color"||kind==="filter"||kind==="fuse")&&after!==before||
     kind==="split"||kind==="clone")this.geneticChanges++;
-  this.events.push({step:this.stepIndex,kind,subject:subject.id,station:station.name,before,after,note});
+  this.events.push({step:this.stepIndex,kind,subject:subject.id,station:station.name,stationId:station.id,before,after,note});
  }
  private activeWalkers(){return [...this.agents.values()].filter(a=>a.kind==="traveler"&&a.state==="flying").length;}
  tick(){
@@ -269,7 +287,7 @@ export class PlanarRapierEngine{
    if(a.kind==="traveler"&&b.kind==="controller")contacts.push({walker:a,station:b});
    else if(b.kind==="traveler"&&a.kind==="controller")contacts.push({walker:b,station:a});
    else if(a.kind==="traveler"&&b.kind==="traveler"){
-    this.events.push({step:this.stepIndex,kind:"impact",subject:a.id,station:b.id,
+    this.events.push({step:this.stepIndex,kind:"impact",subject:a.id,station:b.id,otherId:b.id,
      note:"Urto reale fra convex hull: impulso e rotazione Rapier"});
     this.impacts++;
    }
