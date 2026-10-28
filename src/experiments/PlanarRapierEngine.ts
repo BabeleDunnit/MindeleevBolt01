@@ -206,7 +206,8 @@ export class PlanarRapierEngine{
     }
    }
   }catch(e){note="Operazione non applicabile: "+String(e);}
-  if(kind==="color"||kind==="split"||kind==="clone"||kind==="fuse"||kind==="filter")this.geneticChanges++;
+  if((kind==="color"||kind==="filter"||kind==="fuse")&&after!==before||
+    kind==="split"||kind==="clone")this.geneticChanges++;
   this.events.push({step:this.stepIndex,kind,subject:subject.id,station:station.name,before,after,note});
  }
  private activeWalkers(){return [...this.agents.values()].filter(a=>a.kind==="traveler"&&a.state==="flying").length;}
