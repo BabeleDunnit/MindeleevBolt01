@@ -114,7 +114,7 @@ function IslandScene({plan,playing,view,onReport}:{plan:Plan;playing:boolean;vie
      renderer.render(scene,viewRef.current==="top"?top:orbit);
      if(now-lastSnapshot>160){
       lastSnapshot=now;
-      report.current(engine.stats(),agents,engine.events.slice(reportedEvents,-0||undefined));
+      report.current(engine.stats(),agents,engine.events.slice(reportedEvents));
       reportedEvents=engine.events.length;
      }
      raf=requestAnimationFrame(animate);
@@ -128,7 +128,7 @@ function IslandScene({plan,playing,view,onReport}:{plan:Plan;playing:boolean;vie
    if(renderer&&renderer.domElement.parentElement===root)root.removeChild(renderer.domElement);
    objects.forEach(g=>{scene.remove(g);disposeGroup(g);});
    trackers.forEach(g=>disposeGroup(g));disposeGroup(core);
-   source.traverse(o=>{if(o instanceof THREE.Mesh&&o!==core){o.geometry.dispose();(o.material as THREE.Material).dispose();}});
+   source.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();(o.material as THREE.Material).dispose();}});
    for(const child of scene.children)if(child instanceof THREE.Line){
     child.geometry.dispose();(child.material as THREE.Material).dispose();
    }
