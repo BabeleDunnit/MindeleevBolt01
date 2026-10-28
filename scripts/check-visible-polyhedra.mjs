@@ -6,9 +6,8 @@ import {renderToStaticMarkup} from "react-dom/server";
 import {build} from "esbuild";
 import {mkdtemp,rm} from "node:fs/promises";
 import {join} from "node:path";
-import {tmpdir} from "node:os";
 import {pathToFileURL} from "node:url";
-const dir=await mkdtemp(join(tmpdir(),"mindeleev-mesh-vis-"));
+const dir=await mkdtemp(join(process.cwd(),".mesh-vis-check-"));
 try{
  const output=join(dir,"glyph.mjs");
  await build({entryPoints:["src/experiments/PolytronMeshGlyph.tsx"],outfile:output,
