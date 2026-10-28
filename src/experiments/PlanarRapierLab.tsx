@@ -1,7 +1,7 @@
 import {useEffect,useRef,useState,type CSSProperties} from "react";
 import * as THREE from "three";
-import {polytronGeometry,dnaToPoly} from "@/polytron/polytron";
-import {PlanarRapierEngine,DEFAULT_PLAN,DEFAULT_DYNAMICS,FIXED_STEP,SINK_HEIGHT,
+import {polytronGeometry} from "@/polytron/polytron";
+import {PlanarRapierEngine,DEFAULT_PLAN,DEFAULT_DYNAMICS,FIXED_STEP,SINK_HEIGHT,isCollisionEvent,
  type Plan,type Stats,type Impact,type AgentView,type Scenario} from "./PlanarRapierEngine";
 import {VERBS,decode} from "./IslandAffinityEngine";
 const UI={bg:"#071524",panel:"#102a3a",stroke:"#3e6074",fg:"#ecf8ff",muted:"#acc9d8",mint:"#88ead0",gold:"#f0ca8b"};
@@ -14,16 +14,25 @@ const PRESET:{id:Scenario;name:string;desc:string}[]=[
  {id:"five",name:"Cinque verbi platonici",desc:"Un percorso sperimentale fra T Colora, C Combina, O Scinde, D Clona, I Seleziona. Le collisioni sono fisiche; la reazione deriva dal DNA."},
  {id:"quiet",name:"Filtro / equilibrio",desc:"Un controllo per osservare distanze preferite, urti, rotazioni e moto senza metamorfosi cromatiche."}
 ];
-const DNA_OPTS=["01C","ad01C","a01C","k01C","01O","02T"];
-function makeGroup(dna:string,type:"traveler"|"controller"){
+const DNA_OPTS=["01T","02T","k02T","a02T","01C","02C","a02C","ad01C","k01C","adk01C",
+ "01O","02O","d02O","01D","02D","a02D","01I","02I","d02I"];
+const PLATONIC_LEGEND=[
+ ["T","Tetraedro","Colora","Assegna palette; eventuali operatori Conway modificano anche la forma."],
+ ["C","Cubo","Combina","Unisce DNA compatibili; attende un secondo viaggiatore."],
+ ["O","Ottaedro","Scinde","Taglia casualmente i geni Conway: DNA non tagliabili → nulla."],
+ ["D","Dodecaedro","Clona","Produce due portatori dello stesso DNA, ripartendo le risorse."],
+ ["I","Icosaedro","Seleziona","Filtra per palette; i portatori respinti non spariscono."]
+] as const;
+function makeGroup(dna:string,type:"traveler"|"controller",scale:number,id?:string){
  const geom=polytronGeometry(dna),group=new THREE.Group();
  const shape=new THREE.Mesh(geom.solid,new THREE.MeshStandardMaterial({
   vertexColors:true,roughness:.38,metalness:.12,flatShading:true,side:THREE.DoubleSide}));
  shape.castShadow=true;shape.receiveShadow=true;
  const edge=new THREE.LineSegments(geom.edges,new THREE.LineBasicMaterial({color:0xdcefff,transparent:true,opacity:.48}));
  group.add(shape,edge);
- group.scale.setScalar(type==="controller"?.55:.41);
+ group.scale.setScalar(scale);
  group.userData.dna=dna;
+ group.userData.agentId=id??"";
  return group;
 }
 function disposeGroup(group:THREE.Group){
@@ -34,18 +43,42 @@ function disposeGroup(group:THREE.Group){
   }
  });
 }
-function IslandScene({plan,playing,view,onReport}:{plan:Plan;playing:boolean;view:"top"|"zoom";onReport:(stats:Stats,agents:AgentView[],events:Impact[])=>void}){
+type DNAManualEdit={id:string;dna:string;seq:number};
+function IslandScene({plan,playing,view,onReport,onSelect,selectedId,pauseOnCollision,onCollision,manualEdit}:{
+ plan:Plan;playing:boolean;view:"top"|"zoom";
+ onReport:(stats:Stats,agents:AgentView[],events:Impact[])=>void;
+ onSelect:(id:string)=>void;selectedId:string|null;
+ pauseOnCollision:boolean;onCollision:(e:Impact)=>void;manualEdit:DNAManualEdit|null;
+}){
  const mount=useRef<HTMLDivElement>(null),playingRef=useRef(playing),viewRef=useRef(view),report=useRef(onReport);
+ const pick=useRef(onSelect),collision=useRef(onCollision),pauseOn=useRef(pauseOnCollision),selected=useRef(selectedId);
+ const engineRef=useRef<PlanarRapierEngine|null>(null);
  useEffect(()=>{playingRef.current=playing;},[playing]);
  useEffect(()=>{viewRef.current=view;},[view]);
  useEffect(()=>{report.current=onReport;},[onReport]);
+ useEffect(()=>{pick.current=onSelect;},[onSelect]);
+ useEffect(()=>{collision.current=onCollision;},[onCollision]);
+ useEffect(()=>{pauseOn.current=pauseOnCollision;},[pauseOnCollision]);
+ useEffect(()=>{selected.current=selectedId;},[selectedId]);
+ useEffect(()=>{
+  if(!manualEdit||!engineRef.current)return;
+  try{
+   if(engineRef.current.editDNA(manualEdit.id,manualEdit.dna)){
+    report.current(engineRef.current.stats(),engineRef.current.agentsView(),
+      engineRef.current.events.slice(-1));
+   }
+  }catch(e){console.warn("DNA edit rejected",e);}
+ },[manualEdit]);
  useEffect(()=>{
   const root=mount.current;if(!root)return;
   let alive=true,raf=0,engine:PlanarRapierEngine|undefined,renderer:THREE.WebGLRenderer|undefined,observer:ResizeObserver|undefined;
   let accumulator=0,last=0,reportedEvents=0,lastSnapshot=0;
-  const objects=new Map<string,THREE.Group>();
+  const objects=new Map<string,THREE.Group>(),raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2();
+  const selectedRing=new THREE.Mesh(new THREE.RingGeometry(.32,.37,40),
+   new THREE.MeshBasicMaterial({color:0xf4d08b,transparent:true,opacity:.85,side:THREE.DoubleSide}));
+  selectedRing.rotation.x=-Math.PI/2;selectedRing.visible=false;
   const scene=new THREE.Scene();scene.background=new THREE.Color("#071a29");
-  scene.fog=new THREE.FogExp2(0x071a29,.018);
+  scene.fog=new THREE.FogExp2(0x071a29,.018);scene.add(selectedRing);
   const top=new THREE.OrthographicCamera(-9.3,9.3,9.3,-9.3,.1,90);
   top.position.set(0,28,.001);top.up.set(0,0,-1);top.lookAt(0,0,0);
   const orbit=new THREE.PerspectiveCamera(42,1,.1,90);
@@ -66,19 +99,32 @@ function IslandScene({plan,playing,view,onReport}:{plan:Plan;playing:boolean;vie
   const ring=new THREE.Mesh(new THREE.TorusGeometry(.53,.045,8,64),
    new THREE.MeshStandardMaterial({color:0x7ae7c2,emissive:0x3aa889,emissiveIntensity:1.4,metalness:.25}));
   ring.rotation.x=Math.PI/2;source.add(ring);
-  const core=makeGroup("02I","controller");core.scale.setScalar(.31);core.position.y=.95;source.add(core);
+  const core=makeGroup("02I","controller",.31);core.position.y=.95;source.add(core);
   source.position.y=.12;scene.add(source);
   const trackers:THREE.Group[]=[];
   const boot=async()=>{
    try{
     const next=await PlanarRapierEngine.create(plan);
-    if(!alive){next.dispose();return;}engine=next;
+    if(!alive){next.dispose();return;}engine=next;engineRef.current=next;
     renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:"high-performance"});
     renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
     renderer.shadowMap.enabled=false;
     renderer.outputColorSpace=THREE.SRGBColorSpace;
     renderer.domElement.style.width="100%";renderer.domElement.style.height="100%";renderer.domElement.style.display="block";
     root.appendChild(renderer.domElement);
+    const onPick=(evt:PointerEvent)=>{
+     if(!renderer)return;
+     const box=renderer.domElement.getBoundingClientRect();
+     pointer.set((evt.clientX-box.left)/box.width*2-1,-(evt.clientY-box.top)/box.height*2+1);
+     raycaster.setFromCamera(pointer,viewRef.current==="top"?top:orbit);
+     const hits=raycaster.intersectObjects([...objects.values()],true);
+     for(const hit of hits){
+      let o:THREE.Object3D|null=hit.object;
+      while(o&&!(o.userData.agentId as string|undefined))o=o.parent;
+      if(o?.userData.agentId){pick.current(String(o.userData.agentId));return;}
+     }
+    };
+    renderer.domElement.addEventListener("pointerdown",onPick);
     const resize=()=>{
      if(!renderer)return;
      const w=Math.max(1,root.clientWidth),h=Math.max(1,root.clientHeight);
@@ -95,7 +141,17 @@ function IslandScene({plan,playing,view,onReport}:{plan:Plan;playing:boolean;vie
      else accumulator=0;
      let loops=0;
      while(accumulator>=FIXED_STEP&&loops++<10){
+      const before=engine.events.length;
       engine.tick();accumulator-=FIXED_STEP;
+      const collisionEvent=pauseOn.current?engine.events.slice(before).find(isCollisionEvent):undefined;
+      if(collisionEvent){
+       // Exactly ONE physics step ends at the collision. The parent immediately
+       // pauses before the next frame; preserve the complete event and select
+       // its traveling subject for the inspector.
+       accumulator=0;playingRef.current=false;
+       collision.current(collisionEvent);
+       break;
+      }
      }
      if(loops>=10)accumulator=0;
      const agents=engine.agentsView(),seen=new Set<string>();
@@ -103,18 +159,21 @@ function IslandScene({plan,playing,view,onReport}:{plan:Plan;playing:boolean;vie
       seen.add(a.id);let group=objects.get(a.id);
       if(!group||group.userData.dna!==a.dna){
        if(group){scene.remove(group);disposeGroup(group);}
-       group=makeGroup(a.dna,a.type);
+       group=makeGroup(a.dna,a.type,plan.sizes[a.type],a.id);
        objects.set(a.id,group);scene.add(group);
       }
       group.position.set(a.x,a.y,a.z);
       group.quaternion.set(a.qx,a.qy,a.qz,a.qw);
      }
      for(const [id,g] of objects)if(!seen.has(id)){scene.remove(g);disposeGroup(g);objects.delete(id);}
+     const chosen=agents.find(a=>a.id===selected.current);
+     selectedRing.visible=!!chosen;
+     if(chosen){selectedRing.position.set(chosen.x,.11,chosen.z);}
      source.rotation.y+=seconds*.08;
      renderer.render(scene,viewRef.current==="top"?top:orbit);
      if(now-lastSnapshot>160){
       lastSnapshot=now;
-      report.current(engine.stats(),agents,engine.events.slice(reportedEvents));
+       report.current(engine.stats(),agents,engine.events.slice(reportedEvents));
       reportedEvents=engine.events.length;
      }
      raf=requestAnimationFrame(animate);
@@ -124,9 +183,11 @@ function IslandScene({plan,playing,view,onReport}:{plan:Plan;playing:boolean;vie
   };
   void boot();
   return ()=>{
-   alive=false;cancelAnimationFrame(raf);observer?.disconnect();
+   alive=false;cancelAnimationFrame(raf);observer?.disconnect();engineRef.current=null;
+   if(renderer)renderer.domElement.removeEventListener("pointerdown",onPick);
    if(renderer&&renderer.domElement.parentElement===root)root.removeChild(renderer.domElement);
    objects.forEach(g=>{scene.remove(g);disposeGroup(g);});
+   selectedRing.geometry.dispose();(selectedRing.material as THREE.Material).dispose();
    trackers.forEach(g=>disposeGroup(g));disposeGroup(core);
    source.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();(o.material as THREE.Material).dispose();}});
    for(const child of scene.children)if(child instanceof THREE.Line){
