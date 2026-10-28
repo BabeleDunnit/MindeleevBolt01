@@ -79,7 +79,17 @@ export function cutDNA(dna:string,randomNumber:number):[string,string]|null{
 const cloneNode=(n:Node):Node=>({...n,known:[...n.known],history:[...n.history]});
 const cloneWalker=(t:Walker):Walker=>({...t,trail:t.trail.map(x=>({...x}))});
 const names=makeSetup(0).stations.map(s=>s.name);
-const extraNames=["Elemigin","Mahamarbas","Lelahith"];
+const chunk=(s:string)=>s.toLowerCase().split(/(?=[aeiouy])/).map(x=>x.replace(/[^a-z]/g,"")).filter(Boolean);
+function historicalName(angel:string,demon:string){
+ const a=chunk(angel),d=chunk(demon);
+ const lead=(a.length===1?a[0].slice(0,3):a.slice(0,2).join("").slice(0,5));
+ const previous=d[d.length-2]??"",last=d[d.length-1]??"";
+ const suffix=(d.length===1?last.slice(-3):(previous.length<=2?previous:previous.slice(-2))+last).slice(-5);
+ const bridge=!"aeiouy".includes(lead.slice(-1))&&!"aeiouy".includes(suffix[0])?"a":"";
+ const name=(lead+bridge+suffix).slice(0,10);
+ return name[0].toUpperCase()+name.slice(1);
+}
+const extraNames=[historicalName("Elemiah","Gamigin"),historicalName("Mahasiah","Marbas"),historicalName("Lelahel","Valefor")];
 const ring=SINKS.filter(x=>x.ring===1);
 export function initialIslands(scenario:Scenario="R0"):Setup{
  const seeds:Seed[]=scenario==="R0"||scenario==="R4"?["T","T","T","T","T","T"]:
