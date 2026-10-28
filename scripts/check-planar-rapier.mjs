@@ -60,6 +60,7 @@ try{
   assert(Math.abs(lone.y-e.SINK_HEIGHT)<.12,
    "Vertical recovery must return an airborne traveler to horizontal sink plane");
  }finally{hover.dispose();}
+ console.log("RADIAL DIAGNOSTICS",JSON.stringify(runs));
  assert(runs[0].impactEvents>0,"radial color demonstration must reach real 3D colliders");
  assert(runs[0].geneticChanges>0,"color station must alter genomes on actual Rapier contacts");
  console.log("PASS real Rapier 3D WASM planar constraints, radial symmetry, contacts, mutations, finite energy and stable motion");
