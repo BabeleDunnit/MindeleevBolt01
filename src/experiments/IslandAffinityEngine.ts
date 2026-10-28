@@ -50,14 +50,14 @@ function computeAffinity(a:string,b:string){
  const aa=spectrum(a),bb=spectrum(b);
  if(aa&&bb){
   const distance=spectrumDistance(aa,bb);
-  if(Number.isFinite(distance)){const similarity=Math.exp(-(distance/.42)**2);
+  if(Number.isFinite(distance)){const similarity=Math.exp(-((distance/.42)**2));
    return {distance,similarity,rest:15+78*(1-similarity),fallback:false};}
  }
  // Explicitly flagged fallback for meshes outside the FEM solver limit.
  const pa=dnaToPoly(a),pb=dnaToPoly(b);
  const distance=Math.abs(Math.log(pa.vertices.length/pb.vertices.length))+
    Math.abs(Math.log(pa.faces.length/pb.faces.length));
- const similarity=Math.exp(-(distance/.6)**2);
+ const similarity=Math.exp(-((distance/.6)**2));
  return {distance,similarity,rest:15+78*(1-similarity),fallback:true};
 }
 export function affinity(a:string,b:string){
