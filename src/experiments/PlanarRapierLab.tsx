@@ -1,6 +1,7 @@
 import {useEffect,useRef,useState,type CSSProperties} from "react";
 import * as THREE from "three";
 import {polytronGeometry,dnaToPoly} from "@/polytron/polytron";
+import {rankPickCandidates,nextPick,outlineRadius,type PickCandidate} from "./rapierPicking";
 import {PlanarRapierEngine,DEFAULT_PLAN,DEFAULT_DYNAMICS,FIXED_STEP,SINK_HEIGHT,isCollisionEvent,
  type Plan,type Stats,type Impact,type AgentView,type Scenario} from "./PlanarRapierEngine";
 import {VERBS,decode} from "./IslandAffinityEngine";
@@ -75,11 +76,29 @@ function IslandScene({plan,playing,view,onReport,onSelect,selectedId,pauseOnColl
   let removePick:(()=>void)|undefined;
   let accumulator=0,last=0,reportedEvents=0,lastSnapshot=0;
   const objects=new Map<string,THREE.Group>(),raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2();
-  const selectedRing=new THREE.Mesh(new THREE.RingGeometry(.32,.37,40),
-   new THREE.MeshBasicMaterial({color:0xf4d08b,transparent:true,opacity:.85,side:THREE.DoubleSide}));
-  selectedRing.rotation.x=-Math.PI/2;selectedRing.visible=false;
+  const bounds=new Map<string,number>();
+  let lastPick:ReturnType<typeof nextPick>["state"]=null;
+  const getRadius=(dna:string,kind:"controller"|"traveler")=>{
+   const key=kind+":"+dna+":"+plan.sizes[kind];
+   let radius=bounds.get(key);
+   if(radius===undefined){radius=outlineRadius(dnaToPoly(dna).vertices,
+    plan.sizes[kind],kind);bounds.set(key,radius);}
+   return radius;
+  };
+  // Ground-projected glyph, intentionally outside the body's true circumscribed
+  // footprint. Render over all meshes so large controllers cannot hide it.
+  const selectedRing=new THREE.Mesh(new THREE.RingGeometry(1,1.115,72),
+   new THREE.MeshBasicMaterial({color:0xffd073,transparent:true,opacity:1,
+    depthTest:false,depthWrite:false,side:THREE.DoubleSide}));
+  selectedRing.rotation.x=-Math.PI/2;
+  selectedRing.renderOrder=700;
+  selectedRing.visible=false;
+  const outerRing=new THREE.Mesh(new THREE.RingGeometry(1.185,1.22,72),
+   new THREE.MeshBasicMaterial({color:0xf5f8ff,transparent:true,opacity:.94,
+    depthTest:false,depthWrite:false,side:THREE.DoubleSide}));
+  outerRing.rotation.x=-Math.PI/2;outerRing.renderOrder=701;outerRing.visible=false;
   const scene=new THREE.Scene();scene.background=new THREE.Color("#071a29");
-  scene.fog=new THREE.FogExp2(0x071a29,.018);scene.add(selectedRing);
+  scene.fog=new THREE.FogExp2(0x071a29,.018);scene.add(selectedRing,outerRing);
   const top=new THREE.OrthographicCamera(-9.3,9.3,9.3,-9.3,.1,90);
   top.position.set(0,28,.001);top.up.set(0,0,-1);top.lookAt(0,0,0);
   const orbit=new THREE.PerspectiveCamera(42,1,.1,90);
@@ -114,16 +133,45 @@ function IslandScene({plan,playing,view,onReport,onSelect,selectedId,pauseOnColl
     renderer.domElement.style.width="100%";renderer.domElement.style.height="100%";renderer.domElement.style.display="block";
     root.appendChild(renderer.domElement);
     const onPick=(evt:PointerEvent)=>{
-     if(!renderer)return;
+     if(!renderer||!engine)return;
      const box=renderer.domElement.getBoundingClientRect();
-     pointer.set((evt.clientX-box.left)/box.width*2-1,-(evt.clientY-box.top)/box.height*2+1);
-     raycaster.setFromCamera(pointer,viewRef.current==="top"?top:orbit);
+     if(box.width<=0||box.height<=0)return;
+     const pt={x:evt.clientX-box.left,y:evt.clientY-box.top};
+     pointer.set(pt.x/box.width*2-1,-(pt.y/box.height*2-1));
+     const camera=viewRef.current==="top"?top:orbit;
+     camera.updateMatrixWorld(true);
+     scene.updateMatrixWorld(true);
+     raycaster.setFromCamera(pointer,camera);
+     // Exact frontmost mesh intersections are used first, with a generous
+     // screen-space fallback for fast, small or highly faceted carriers.
      const hits=raycaster.intersectObjects([...objects.values()],true);
+     const hitIds:string[]=[];
      for(const hit of hits){
       let o:THREE.Object3D|null=hit.object;
-      while(o&&!(o.userData.agentId as string|undefined))o=o.parent;
-      if(o?.userData.agentId){pick.current(String(o.userData.agentId));return;}
+      while(o&&!o.userData.agentId)o=o.parent;
+      if(o?.userData.agentId){
+       const id=String(o.userData.agentId);
+       if(!hitIds.includes(id))hitIds.push(id);
+      }
      }
+     const right=new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,0).normalize();
+     const projected:PickCandidate[]=[];
+     for(const a of engine.agentsView()){
+      const radius=getRadius(a.dna,a.type);
+      const origin=new THREE.Vector3(a.x,a.y,a.z);
+      const centre=origin.clone().project(camera);
+      if(centre.z < -1||centre.z>1)continue;
+      const edge=origin.addScaledVector(right,radius).project(camera);
+      projected.push({
+       id:a.id,x:(centre.x+1)*box.width/2,y:(1-centre.y)*box.height/2,
+       radiusPx:Math.abs(edge.x-centre.x)*box.width/2,
+       depth:centre.z,kind:a.type
+      });
+     }
+     const ids=rankPickCandidates(projected,pt,hitIds);
+     const choice=nextPick(ids,pt,lastPick);
+     lastPick=choice.state;
+     if(choice.chosen)pick.current(choice.chosen);
     };
     renderer.domElement.addEventListener("pointerdown",onPick);
     removePick=()=>renderer?.domElement.removeEventListener("pointerdown",onPick);
@@ -172,7 +220,14 @@ function IslandScene({plan,playing,view,onReport,onSelect,selectedId,pauseOnColl
      for(const [id,g] of objects)if(!seen.has(id)){scene.remove(g);disposeGroup(g);objects.delete(id);}
      const chosen=agents.find(a=>a.id===selected.current);
      selectedRing.visible=!!chosen;
-     if(chosen){selectedRing.position.set(chosen.x,.11,chosen.z);}
+     outerRing.visible=!!chosen;
+     if(chosen){
+      const radius=getRadius(chosen.dna,chosen.type);
+      selectedRing.position.set(chosen.x,.11,chosen.z);
+      selectedRing.scale.setScalar(radius);
+      outerRing.position.set(chosen.x,.115,chosen.z);
+      outerRing.scale.setScalar(radius);
+     }
      source.rotation.y+=seconds*.08;
      renderer.render(scene,viewRef.current==="top"?top:orbit);
      if(now-lastSnapshot>160){
@@ -192,6 +247,7 @@ function IslandScene({plan,playing,view,onReport,onSelect,selectedId,pauseOnColl
    if(renderer&&renderer.domElement.parentElement===root)root.removeChild(renderer.domElement);
    objects.forEach(g=>{scene.remove(g);disposeGroup(g);});
    selectedRing.geometry.dispose();(selectedRing.material as THREE.Material).dispose();
+   outerRing.geometry.dispose();(outerRing.material as THREE.Material).dispose();
    trackers.forEach(g=>disposeGroup(g));disposeGroup(core);
    source.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();(o.material as THREE.Material).dispose();}});
    for(const child of scene.children)if(child instanceof THREE.Line){
