@@ -80,3 +80,7 @@ Le sei figure qui sono **prospettive critiche simulate da ChatGPT**; non sono co
 **MS non deve** attribuire per convenzione ogni lettera Conway a una nota, ogni colore a una frequenza o ogni salto su griglia a un beat, senza test. Progettare schemi *provvisori e facilmente sostituibili*, e verificare che una situazione energeticamente perdente possa comunque comporre un frammento bello, distinguendo musica come strumento di feedback, musica come output creativo ed ENERGY come economia fisica.
 
 **Equipe ora di sette prospettive critiche simulate:** PA, SE, GC, PG, FE, LU, MS. ChatGPT ne è portavoce/moderatore; non sono sette agenti esterni autonomi. Questa aggiunta non contraddice le responsabilità musicali già condivise con le sei competenze.
+
+
+## Convenzione espositiva (richiesta dell'autore, Sprint 18)
+**Quando ChatGPT riporta pareri o dissensi del Design Team, deve scrivere sempre i titoli dei ruoli PER ESTESO**: **Architetto del Puzzle**, **Progettista di Sistemi Emergenti**, **Genetista**, **Psicologo del Giocatore**, **Fisico-Matematico**, **Ludologo**, **Compositore di Sistemi Musicali**. Non usare soltanto le iniziali, poiché l'autore non vuole doverle memorizzare. Abbreviazioni possono restare soltanto in tabelle tecniche o nomi di variabili, mai in sostituzione dei nomi quando si citano i pareri degli esperti. Il Design Team resta simulato da ChatGPT, non sette persone/agent indipendenti.
