@@ -48,6 +48,9 @@ try{
    if(mode==="party")results[scenario]={peak:run.peak,returns:run.returnedCount,events:run.events.length,harvested:run.summary.harvested};
   }
  }
+ assert(results.R0.events>6,"R0 default must demonstrate island collisions, not only emission");
+ assert(results.R2.peak>1,"R2 default must demonstrate split/clone branching");
+ assert(results.R3.events>2,"R3 default must demonstrate at least one transformation");
  const once=e.runIslands({...trial,wave:"probe",count:1});
  const radial=e.runIslands(trial);
  assert.equal(once.events.filter(x=>x.kind==="emit").length,1);
