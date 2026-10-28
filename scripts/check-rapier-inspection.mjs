@@ -77,6 +77,22 @@ try{
    "new world must replay the selected original DNA, not retain live changes");
   assert.equal(replay.agentsView().find(x=>x.id==="v1").dna,"ad01C");
  }finally{replay.dispose();}
+ // "OFF" must truly disable all Shape-DNA interaction forces, including
+ // pairwise springs, independently of the configured pairSpring slider.
+ const off=e.DEFAULT_PLAN;
+ const withPair=await e.PlanarRapierEngine.create({...off,physics:"off",
+  dynamics:{...off.dynamics,pairSpring:1.8}});
+ const noPair=await e.PlanarRapierEngine.create({...off,physics:"off",
+  dynamics:{...off.dynamics,pairSpring:0}});
+ try{
+  for(let i=0;i<140;i++){withPair.tick();noPair.tick();}
+  const p1=withPair.agentsView(),p2=noPair.agentsView();
+  assert.equal(p1.length,p2.length);
+  for(let i=0;i<p1.length;i++){
+   assert(Math.abs(p1[i].x-p2[i].x)<1e-6&&Math.abs(p1[i].z-p2[i].z)<1e-6,
+    "physics OFF must not retain a hidden Shape-DNA pair force");
+  }
+ }finally{withPair.dispose();noPair.dispose();}
  const defaultRun=await e.PlanarRapierEngine.create(e.DEFAULT_PLAN);
  try{
   for(let i=0;i<1200;i++)defaultRun.tick();
