@@ -270,7 +270,7 @@ export class PlanarRapierEngine{
     t.body.addForce(vec(-p.x/r*pull,0,-p.z/r*pull),true);
    }
   }
-  if(pairSpring>0){
+  if(this.plan.physics==="shape"&&pairSpring>0){
    for(let i=0;i<travelers.length;i++)for(let j=i+1;j<travelers.length;j++){
     const a=travelers[i],b=travelers[j],p=a.body.translation(),q=b.body.translation();
     const dx=q.x-p.x,dz=q.z-p.z,d=Math.max(.0001,Math.hypot(dx,dz));
