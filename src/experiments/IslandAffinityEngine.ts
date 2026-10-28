@@ -26,12 +26,15 @@ export type Run={setup:Setup;frames:Frame[];events:Ev[];summary:Ledger;peak:numb
 const MAX_OPS=4,STEPS=240,DT=.13,EDGE=245,CONTACT=22,MAX_AGENTS=36,COOLDOWN=15;
 const VALID=new Set("d a k g p r c w q n x l u e b o m t j s".split(" "));
 const SPECTRA=new Map<string,SurfaceSpectrum|null>();
+const VALIDATED=new Map<string,Parts>();
+const AFFINITIES=new Map<string,ReturnType<typeof computeAffinity>>();
 export function encode(p:Parts):string{return p.ops+String(p.palette).padStart(2,"0")+p.seed;}
 export function decode(s:string):Parts{
+ const cached=VALIDATED.get(s);if(cached)return cached;
  const m=/^([a-z]*?)(\d{2})?([TOCID])$/.exec(s);
  if(!m||m[1].length>MAX_OPS||![...m[1]].every(x=>VALID.has(x)))throw Error("DNA non valido o operatore non supportato: "+s);
  const p={ops:m[1],palette:Number(m[2]??0),seed:m[3] as Seed};
- dnaToPoly(encode(p));return p;
+ dnaToPoly(encode(p));VALIDATED.set(s,p);return p;
 }
 export function wrapDNA(dna:string,ops:string):string|null{
  try{const d=decode(dna);if(d.ops.length+ops.length>MAX_OPS)return null;
@@ -43,7 +46,7 @@ function spectrum(dna:string){
  if(!SPECTRA.has(key))SPECTRA.set(key,surfaceShapeDNA(dnaToPoly(dna),80,10));
  return SPECTRA.get(key)??null;
 }
-export function affinity(a:string,b:string){
+function computeAffinity(a:string,b:string){
  const aa=spectrum(a),bb=spectrum(b);
  if(aa&&bb){
   const distance=spectrumDistance(aa,bb);
@@ -56,6 +59,11 @@ export function affinity(a:string,b:string){
    Math.abs(Math.log(pa.faces.length/pb.faces.length));
  const similarity=Math.exp(-(distance/.6)**2);
  return {distance,similarity,rest:15+78*(1-similarity),fallback:true};
+}
+export function affinity(a:string,b:string){
+ const key=[a.replace(/\d{2}(?=[TOCID]$)/,""),b.replace(/\d{2}(?=[TOCID]$)/,"")].sort().join("|");
+ let result=AFFINITIES.get(key);
+ if(!result){result=computeAffinity(a,b);AFFINITIES.set(key,result);}return result;
 }
 export function randomGenerator(seed:number){
  let s=seed|0;return ()=>{s=(s+0x6D2B79F5)|0;
