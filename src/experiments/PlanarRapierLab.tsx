@@ -214,21 +214,58 @@ export default function PlanarRapierLab(){
  const [playing,setPlaying]=useState(true),[view,setView]=useState<"top"|"zoom">("top");
  const [stats,setStats]=useState<Stats|null>(null),[agents,setAgents]=useState<AgentView[]>([]);
  const [events,setEvents]=useState<Impact[]>([]);
- const update=(p:Partial<Plan>)=>setDraft(s=>({...s,...p}));
+ const [selectedId,setSelectedId]=useState<string|null>("P01");
+ const [pauseOnCollision,setPauseOnCollision]=useState(false);
+ const [lastCollision,setLastCollision]=useState<Impact|null>(null);
+ const [manualEdit,setManualEdit]=useState<DNAManualEdit|null>(null);
+ const [dnaText,setDnaText]=useState("");
+ const selectedAgent=agents.find(a=>a.id===selectedId);
+ const canPersist=!!selectedAgent&&(selectedAgent.type==="controller"||
+  (selectedAgent.type==="traveler"&&Number(selectedAgent.id.slice(1))<=plan.count));
+ const dnaError=(()=>{try{if(!dnaText)return "Ricetta vuota";decode(dnaText);return "";}catch(e){return String(e);}})();
+ const clearRun=()=>{setStats(null);setAgents([]);setEvents([]);setLastCollision(null);setPlaying(true);setManualEdit(null);};
+ // Dropdowns are immediate: there is no second "Apply" button.
+ const update=(p:Partial<Plan>)=>{
+  const next={...draft,...p};
+  setDraft(next);setPlan(next);clearRun();
+ };
+ // Dragging sliders is debounced to avoid building a new WebGL/Rapier world
+ // dozens of times per second. The new values apply automatically on release.
  const dyn=(key:keyof Plan["dynamics"],value:number)=>setDraft(s=>({...s,dynamics:{...s.dynamics,[key]:value}}));
+ useEffect(()=>{
+  if(JSON.stringify(draft)===JSON.stringify(plan))return;
+  const timer=window.setTimeout(()=>{setPlan(draft);clearRun();},200);
+  return ()=>window.clearTimeout(timer);
+ },[draft,plan]);
+ useEffect(()=>{setDnaText(selectedAgent?.dna??"");},[selectedId,selectedAgent?.dna]);
  const report=(s:Stats,a:AgentView[],e:Impact[])=>{
-  setStats(s);setAgents(a);if(e.length)setEvents(previous=>[...e,...previous].slice(0,60));
+  setStats(s);setAgents(a);if(e.length)setEvents(previous=>[...e,...previous].slice(0,90));
  };
  const launch=()=>{
-  setStats(null);setAgents([]);setEvents([]);
-  setPlan({...draft,dynamics:{...draft.dynamics}});
-  setPlaying(true);
+  clearRun();
+  setPlan({...draft,dynamics:{...draft.dynamics},sizes:{...draft.sizes},
+   stationDNA:{...draft.stationDNA},travelerDNA:{...draft.travelerDNA}});
+ };
+ const collisionPause=(e:Impact)=>{
+  setPlaying(false);setSelectedId(e.subject);setLastCollision(e);
+ };
+ const changeDNA=(dna:string)=>{
+  if(!selectedAgent)return;
+  try{decode(dna);}catch{return;}
+  if(selectedAgent.type==="controller"){
+   update({stationDNA:{...draft.stationDNA,[selectedAgent.id]:dna}});
+  }else if(canPersist){
+   update({travelerDNA:{...draft.travelerDNA,[selectedAgent.id]:dna}});
+  }else{
+   setPlaying(false);
+   setManualEdit(old=>({id:selectedAgent.id,dna,seq:(old?.seq??0)+1}));
+  }
  };
  const changed=JSON.stringify(draft)!==JSON.stringify(plan);
  return <main style={{background:UI.bg,color:UI.fg,minHeight:"100vh",padding:"clamp(12px,2vw,24px)",fontFamily:"system-ui,sans-serif"}}>
   <style>{".rapier-cols{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(300px,.78fr);gap:14px;align-items:start}.rapier-controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px}@media(max-width:1000px){.rapier-cols{grid-template-columns:1fr}}"}</style>
   <header style={{maxWidth:970,marginBottom:15}}>
-   <div style={{fontSize:11,color:UI.mint,letterSpacing:2}}>MINDELEEV · SPRINT 27 · 2.5D PHYSICS LAB</div>
+   <div style={{fontSize:11,color:UI.mint,letterSpacing:2}}>MINDELEEV · SPRINT 28 · INSPECTION LAB</div>
    <h1 style={{fontSize:"clamp(24px,3vw,37px)",margin:"7px 0"}}>Planar Rapier Mutatron</h1>
    <p style={{fontSize:14,color:UI.muted,lineHeight:1.6,margin:0}}>Il campo rimane orizzontale e l'emissione è radiale. I poliedri sono corpi rigidi tridimensionali: possono urtarsi, ruotare e sollevarsi temporaneamente, ma ritornano verso la quota dei PolytronSink. Il cambio camera non cambia le regole fisiche.</p>
    <div style={{marginTop:9,fontSize:12,display:"flex",gap:15}}>
@@ -246,11 +283,20 @@ export default function PlanarRapierLab(){
        <button style={{...btn,background:view==="zoom"?"#2b7368":"#245065"}} onClick={()=>setView("zoom")}>Zoom-to-3D · osservazione</button>
       </div>
      </div>
-     <IslandScene plan={plan} playing={playing} view={view} onReport={report}/>
+     <IslandScene plan={plan} playing={playing} view={view} onReport={report}
+       onSelect={setSelectedId} selectedId={selectedId} pauseOnCollision={pauseOnCollision}
+       onCollision={collisionPause} manualEdit={manualEdit}/>
      <div className="rapier-controls" style={{marginTop:12}}>
-      <button style={{...btn,background:"#2d7867"}} onClick={()=>setPlaying(s=>!s)}>{playing?"Pausa":"Riprendi"}</button>
+      <button style={{...btn,background:"#2d7867"}} onClick={()=>{setPlaying(s=>!s);setLastCollision(null);}}>{playing?"Pausa":"Riprendi"}</button>
+      <label style={{display:"inline-flex",gap:5,alignItems:"center",fontSize:12,color:UI.muted}}>
+       <input type="checkbox" checked={pauseOnCollision} onChange={e=>setPauseOnCollision(e.target.checked)}/>
+       Pausa alla collisione
+      </label>
       <button style={btn} onClick={launch}>Rilancia / Ripeti</button>
-      {changed&&<span style={{fontSize:12,color:UI.gold}}>Parametri modificati: premi Rilancia per applicarli.</span>}
+      {lastCollision&&<span role="status" style={{fontSize:12,color:UI.gold}}>
+       Collisione al passo {lastCollision.step}: {lastCollision.subject} · {lastCollision.kind}
+      </span>}
+      {changed&&<span style={{fontSize:12,color:UI.gold}}>Aggiornamento automatico in corso…</span>}
      </div>
     </section>
     <section style={panel}>
@@ -266,7 +312,8 @@ export default function PlanarRapierLab(){
    <aside style={{display:"grid",gap:14}}>
     <section style={panel}>
      <h3 style={{fontSize:16,margin:"0 0 11px"}}>Protocollo di emissione</h3>
-     <label style={{fontSize:12,color:UI.muted,display:"grid",gap:5}}>Disposizione isole<select style={control} value={draft.scenario} onChange={e=>update({scenario:e.target.value as Scenario})}>
+     <label style={{fontSize:12,color:UI.muted,display:"grid",gap:5}}>Disposizione isole<select style={control} value={draft.scenario}
+      onChange={e=>update({scenario:e.target.value as Scenario,stationDNA:{},travelerDNA:{}})}>
       {PRESET.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}
      </select></label>
      <p style={{fontSize:12,color:UI.muted,lineHeight:1.5}}>{PRESET.find(p=>p.id===draft.scenario)?.desc}</p>
@@ -296,11 +343,71 @@ export default function PlanarRapierLab(){
       <NumberSlider label="Accoppiamento fra viaggiatori" value={draft.dynamics.pairSpring} min={0} max={2} step={.05} onChange={v=>dyn("pairSpring",v)}/>
       <NumberSlider label="Damping angolare" value={draft.dynamics.angularDamping} min={0} max={1.5} step={.05} onChange={v=>dyn("angularDamping",v)}/>
       <NumberSlider label="Quota di equilibrio PolytronSink" value={draft.dynamics.hoverHeight} min={.75} max={1.7} step={.05} unit=" m" onChange={v=>dyn("hoverHeight",v)}/>
+      <div style={{borderTop:"1px solid "+UI.stroke,paddingTop:9,fontSize:12,color:UI.mint}}>Dimensioni reali dei collider e dei poliedri 3D</div>
+      <NumberSlider label="Dimensione transformer" value={draft.sizes.controller} min={.35} max={1.05} step={.05}
+       onChange={v=>setDraft(p=>({...p,sizes:{...p.sizes,controller:v}}))}/>
+      <NumberSlider label="Dimensione viaggiatori" value={draft.sizes.traveler} min={.12} max={.55} step={.01}
+       onChange={v=>setDraft(p=>({...p,sizes:{...p.sizes,traveler:v}}))}/>
+      <p style={{fontSize:11,color:UI.muted,margin:0}}>Rapporto grandezze: {(draft.sizes.controller/draft.sizes.traveler).toFixed(1)}:1.
+       Anche le collisioni vengono ricalcolate con le nuove dimensioni.</p>
      </div>
      <div className="rapier-controls" style={{marginTop:12}}>
-      <button style={btn} onClick={()=>setDraft(s=>({...s,dynamics:{...DEFAULT_DYNAMICS}}))}>Ripristina valori iniziali</button>
+      <button style={btn} onClick={()=>update({dynamics:{...DEFAULT_DYNAMICS}})}>Ripristina valori iniziali</button>
       <button style={{...btn,background:"#25776c"}} onClick={launch}>Applica e rilancia</button>
      </div>
+    </section>
+    <section style={panel}>
+     <h3 style={{fontSize:17,margin:"0 0 9px"}}>Inspector · Polytrone selezionato</h3>
+     <p style={{fontSize:12,color:UI.muted,margin:"0 0 8px"}}>Clicca su un poliedro nella scena, oppure scegli qui un individuo. I viaggiatori possono essere molto piccoli.</p>
+     <select aria-label="Scegli viaggiatore o transformer" style={{...control,width:"100%"}}
+      value={selectedAgent?.id??""} onChange={e=>setSelectedId(e.target.value)}>
+      <option value="">Seleziona un individuo…</option>
+      <optgroup label="Controller · Polytroni nominati">
+       {agents.filter(a=>a.type==="controller").map(a=><option key={a.id} value={a.id}>{a.id} · {a.name} · {a.dna}</option>)}
+      </optgroup>
+      <optgroup label="Viaggiatori · Sciame">
+       {agents.filter(a=>a.type==="traveler").map(a=><option key={a.id} value={a.id}>{a.id} · {a.dna} · {a.status}</option>)}
+      </optgroup>
+     </select>
+     {selectedAgent?<div style={{fontSize:12,lineHeight:1.85,marginTop:9}}>
+      <div><b>{selectedAgent.name}</b> · {selectedAgent.type==="controller"?"Transformer nominato":"Viaggiatore anonimo"}</div>
+      <div>DNA attivo: <code>{selectedAgent.dna}</code> · Stato: {selectedAgent.status}</div>
+      <div>Seme: <b>{decode(selectedAgent.dna).seed}</b> — {VERBS[decode(selectedAgent.dna).seed]}</div>
+      <div>Operatori Conway: <code>{decode(selectedAgent.dna).ops||"nessuno"}</code> · Palette: {decode(selectedAgent.dna).palette}</div>
+      <div>Posizione: ({fmt(selectedAgent.x)}, {fmt(selectedAgent.y)}, {fmt(selectedAgent.z)})</div>
+      <div>Velocità: {fmt(Math.hypot(selectedAgent.vx,selectedAgent.vy,selectedAgent.vz))} · Contatti: {selectedAgent.touches} · ENERGY: {fmt(selectedAgent.energy)}</div>
+      <div>Geometria: {(()=>{const p=polytronGeometry(selectedAgent.dna);const x="Vertici "+p.solid.getAttribute("position").count+" (triangolati)";
+       p.solid.dispose();p.edges.dispose();return x;})()}</div>
+      <div style={{marginTop:10,display:"grid",gap:7}}>
+       <label style={{color:UI.muted}}>DNA Conway · preset
+        <select style={{...control,width:"100%",marginTop:4}} value={DNA_OPTS.includes(selectedAgent.dna)?selectedAgent.dna:""}
+         onChange={e=>changeDNA(e.target.value)}>
+         {!DNA_OPTS.includes(selectedAgent.dna)&&<option value="">Ricetta corrente personalizzata</option>}
+         {DNA_OPTS.map(d=><option key={d} value={d}>{d} · {VERBS[decode(d).seed]}</option>)}
+        </select>
+       </label>
+       <label style={{color:UI.muted}}>DNA Conway · immissione libera
+        <input style={{...control,width:"100%",boxSizing:"border-box",marginTop:4}} spellCheck={false} value={dnaText}
+         onChange={e=>setDnaText(e.target.value)} placeholder="es. k02T"/>
+       </label>
+       {dnaError&&<span style={{color:"#f4b29a",fontSize:11}}>DNA non valido: {dnaError}</span>}
+       <button style={{...btn,background:"#28746a"}} disabled={!!dnaError||dnaText===selectedAgent.dna}
+        onClick={()=>changeDNA(dnaText)}>Applica Conway-DNA</button>
+       <span style={{fontSize:11,color:UI.muted}}>{canPersist
+        ?"La modifica viene salvata nel protocollo iniziale e la simulazione riparte automaticamente."
+        :"Figlio generato durante la simulazione: la modifica è locale alla prova corrente e mette in pausa."}</span>
+      </div>
+     </div>:<p style={{fontSize:12,color:UI.muted}}>Nessun individuo attualmente selezionato. Puoi scegliere un altro Polytrone dalla lista.</p>}
+     <details style={{marginTop:12}}>
+      <summary style={{cursor:"pointer",color:UI.mint,fontSize:13}}>Legenda semi e cinque verbi</summary>
+      <div style={{display:"grid",gap:7,marginTop:9}}>
+       {PLATONIC_LEGEND.map(([seed,name,verb,description])=><div key={seed} style={{fontSize:12,borderLeft:"2px solid "+UI.stroke,paddingLeft:9}}>
+        <b>{seed} · {name} → {verb}</b>
+        <div style={{color:UI.muted}}>{description}</div>
+       </div>)}
+      </div>
+      <p style={{fontSize:11,color:UI.gold}}>Il seme sceglie il verbo; gli operatori Conway della stazione si applicano anche al DNA dei prodotti. Es. k02T colora e applica k.</p>
+     </details>
     </section>
     <section style={panel}>
      <h3 style={{fontSize:16,margin:"0 0 9px"}}>Telemetria Rapier</h3>
