@@ -84,15 +84,15 @@ const ring=SINKS.filter(x=>x.ring===1);
 export function initialIslands(scenario:Scenario="R0"):Setup{
  const seeds:Seed[]=scenario==="R0"||scenario==="R4"?["T","T","T","T","T","T"]:
   scenario==="R1"?["T","I","T","I","T","I"]:
-  scenario==="R2"?["O","D","T","C","I","T"]:["T","C","O","D","I","T"];
+  scenario==="R2"?["T","D","O","C","I","T"]:["T","C","O","D","I","T"];
  const nodes=ring.map((p,i)=>{
   const palette=(scenario==="R1"&&i%2?3:scenario==="R2"&&i===3?1:2);
   const ops=scenario==="R3"&&i===0?"a":"";
   const dna=encode({ops,palette,seed:seeds[i]});
   return {id:"P"+String(i+1).padStart(2,"0"),name:names[i]??extraNames[i-3]??"Individual "+i,
-   dna,x:p.x*1.42,y:p.y*1.42,reserve:1.4,known:[dna],history:[]};
+   dna,x:p.x*.84,y:p.y*.84,reserve:1.4,known:[dna],history:[]};
  });
- return {scenario,nodes,emission:scenario==="R2"?"ad01C":"01C",returnPalette:2,
+ return {scenario,nodes,emission:scenario==="R2"||scenario==="R3"?"ad01C":"01C",returnPalette:2,
   wave:scenario==="R0"?"radial":"probe",count:scenario==="R0"?6:1,
   physics:scenario==="R1"?"boids":"party",seed:227,budget:6};
 }
