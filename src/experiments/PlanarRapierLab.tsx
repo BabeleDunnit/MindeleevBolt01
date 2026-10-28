@@ -420,7 +420,7 @@ export default function PlanarRapierLab(){
     </section>
     <section style={panel}>
      <h3 style={{fontSize:17,margin:"0 0 9px"}}>Inspector · Polytrone selezionato</h3>
-     <p style={{fontSize:12,color:UI.muted,margin:"0 0 8px"}}>Clicca su un poliedro nella scena, oppure scegli qui un individuo. Puoi esaminare e modificare il suo DNA Conway; i viaggiatori possono essere molto piccoli.</p>
+     <p style={{fontSize:12,color:UI.muted,margin:"0 0 8px"}}>Clicca su un poliedro nella scena oppure scegli dalla lista. Per distinguere individui sovrapposti, clicca più volte nello stesso punto. Puoi modificare il DNA Conway anche dei viaggiatori più piccoli.</p>
      <select aria-label="Scegli viaggiatore o transformer" style={{...control,width:"100%"}}
       value={selectedAgent?.id??""} onChange={e=>setSelectedId(e.target.value)}>
       <option value="">Seleziona un individuo…</option>
