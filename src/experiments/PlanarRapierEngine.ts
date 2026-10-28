@@ -9,7 +9,7 @@
  */
 import * as RAPIER from "@dimforge/rapier3d-compat";
 import {dnaToPoly} from "@/polytron/polytron";
-import {initialIslands,decode,encode,wrapDNA,cutDNA,affinity,randomGenerator,type Seed} from "./IslandAffinityEngine";
+import {initialIslands,decode,encode,wrapDNA,cutDNA,affinity,randomGenerator} from "./IslandAffinityEngine";
 
 export const FIXED_STEP=1/120;
 export const SINK_HEIGHT=1.03,AREA_RADIUS=8.2;
@@ -80,7 +80,7 @@ export class PlanarRapierEngine{
   for(let i=0;i<6;i++){
    const layout=samples[i],dna=NODE_SCENARIOS[plan.scenario][i];
    engine.makeAgent("controller",layout.id,layout.name,dna,
-    layout.x/35,plan.dynamics.hoverHeight,layout.y/35,0,0,0,0);
+    layout.x/22,plan.dynamics.hoverHeight,layout.y/22,0,0,0,0);
   }
   for(let i=0;i<plan.count;i++){
    const theta=RADIAL+i*2*Math.PI/plan.count,speed=plan.dynamics.launchSpeed;
