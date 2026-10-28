@@ -72,6 +72,7 @@ function IslandScene({plan,playing,view,onReport,onSelect,selectedId,pauseOnColl
  useEffect(()=>{
   const root=mount.current;if(!root)return;
   let alive=true,raf=0,engine:PlanarRapierEngine|undefined,renderer:THREE.WebGLRenderer|undefined,observer:ResizeObserver|undefined;
+  let removePick:(()=>void)|undefined;
   let accumulator=0,last=0,reportedEvents=0,lastSnapshot=0;
   const objects=new Map<string,THREE.Group>(),raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2();
   const selectedRing=new THREE.Mesh(new THREE.RingGeometry(.32,.37,40),
@@ -125,6 +126,7 @@ function IslandScene({plan,playing,view,onReport,onSelect,selectedId,pauseOnColl
      }
     };
     renderer.domElement.addEventListener("pointerdown",onPick);
+    removePick=()=>renderer?.domElement.removeEventListener("pointerdown",onPick);
     const resize=()=>{
      if(!renderer)return;
      const w=Math.max(1,root.clientWidth),h=Math.max(1,root.clientHeight);
@@ -149,6 +151,8 @@ function IslandScene({plan,playing,view,onReport,onSelect,selectedId,pauseOnColl
        // pauses before the next frame; preserve the complete event and select
        // its traveling subject for the inspector.
        accumulator=0;playingRef.current=false;
+       report.current(engine.stats(),engine.agentsView(),engine.events.slice(reportedEvents));
+       reportedEvents=engine.events.length;
        collision.current(collisionEvent);
        break;
       }
@@ -184,7 +188,7 @@ function IslandScene({plan,playing,view,onReport,onSelect,selectedId,pauseOnColl
   void boot();
   return ()=>{
    alive=false;cancelAnimationFrame(raf);observer?.disconnect();engineRef.current=null;
-   if(renderer)renderer.domElement.removeEventListener("pointerdown",onPick);
+   removePick?.();
    if(renderer&&renderer.domElement.parentElement===root)root.removeChild(renderer.domElement);
    objects.forEach(g=>{scene.remove(g);disposeGroup(g);});
    selectedRing.geometry.dispose();(selectedRing.material as THREE.Material).dispose();
