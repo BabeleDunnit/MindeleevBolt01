@@ -1,0 +1,52 @@
+name: Pages · Real Polyhedron Visual Lab (Sprint 19)
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experiments/sprint19-visible-polyhedra
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: mindeleev-pages
+  cancel-in-progress: false
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: phase-lab
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - name: Verify Conway mesh geometry and SVG render
+        run: node scripts/check-visible-polyhedra.mjs
+      - name: Regression tests
+        run: |
+          node scripts/check-musical-return.mjs
+          node scripts/check-phenotype.mjs
+          node scripts/check-shape-dna.mjs
+          node scripts/check-phase.mjs
+      - name: Existing phenotype atlas
+        run: |
+          node scripts/build-phenotype-atlas.mjs
+          node scripts/check-atlas.mjs
+      - run: npm run build
+      - name: Confirm standalone entry points
+        run: |
+          test -f dist/index.html
+          test -f dist/phenotype-atlas.json
+          grep -r -q 'Poliedri reali' dist/assets/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+      - id: deployment
+        uses: actions/deploy-pages@v4
