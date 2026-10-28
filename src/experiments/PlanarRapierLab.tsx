@@ -144,7 +144,11 @@ function IslandScene({plan,playing,view,onReport,onSelect,selectedId,pauseOnColl
      raycaster.setFromCamera(pointer,camera);
      // Exact frontmost mesh intersections are used first, with a generous
      // screen-space fallback for fast, small or highly faceted carriers.
-     const hits=raycaster.intersectObjects([...objects.values()],true);
+     // Edge LineSegments have a generous default raycast threshold in Three.js:
+     // their invisible hit area caused selection of unrelated nearby bodies.
+     // Exact phase uses solid surfaces only; screen-space picks small carriers.
+     const solids=[...objects.values()].flatMap(g=>g.children.filter(c=>c instanceof THREE.Mesh));
+     const hits=raycaster.intersectObjects(solids,false);
      const hitIds:string[]=[];
      for(const hit of hits){
       let o:THREE.Object3D|null=hit.object;
