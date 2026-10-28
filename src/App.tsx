@@ -5,6 +5,7 @@ import PhenotypeGeometryLab from "@/experiments/PhenotypeGeometryLab";
 import PhenotypeAtlasLab from "@/experiments/PhenotypeAtlasLab";
 import MusicalReturnLab from "@/experiments/MusicalReturnLab";
 import IslandAffinityLab from "@/experiments/IslandAffinityLab";
+import PlanarRapierLab from "@/experiments/PlanarRapierLab";
 import HexWorld, { PALETTE_SETS } from "@/components/HexWorld";
 import { runCodecSelfTests } from "@/polytron/mapping";
 import { runInterestingSelfTests } from "@/polytron/interesting";
@@ -82,6 +83,7 @@ function App() {
   if (new URLSearchParams(window.location.search).get("experiment") === "atlas") return <PhenotypeAtlasLab />;
   if (new URLSearchParams(window.location.search).get("experiment") === "musical-return") return <MusicalReturnLab />;
   if (new URLSearchParams(window.location.search).get("experiment") === "island-affinity") return <IslandAffinityLab />;
+  if (new URLSearchParams(window.location.search).get("experiment") === "planar-rapier") return <PlanarRapierLab />;
   if (new URLSearchParams(window.location.search).get("experiment") === "phase-shift") return <MutatronPhaseLab />;
   if (new URLSearchParams(window.location.search).get("experiment") === "conway-ring") return <ConwayRingLab />;
   const runTestsParam = new URLSearchParams(window.location.search).has("run-tests");
