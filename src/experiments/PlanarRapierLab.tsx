@@ -247,7 +247,7 @@ export default function PlanarRapierLab(){
    stationDNA:{...draft.stationDNA},travelerDNA:{...draft.travelerDNA}});
  };
  const collisionPause=(e:Impact)=>{
-  setPlaying(false);setSelectedId(e.subject);setLastCollision(e);
+  setPlaying(false);setSelectedId(e.successors?.[0]??e.subject);setLastCollision(e);
  };
  const changeDNA=(dna:string)=>{
   if(!selectedAgent)return;
@@ -293,9 +293,14 @@ export default function PlanarRapierLab(){
        Pausa alla collisione
       </label>
       <button style={btn} onClick={launch}>Rilancia / Ripeti</button>
-      {lastCollision&&<span role="status" style={{fontSize:12,color:UI.gold}}>
-       Collisione al passo {lastCollision.step}: {lastCollision.subject} · {lastCollision.kind}
-      </span>}
+      {lastCollision&&<div role="status" style={{fontSize:12,color:UI.gold,padding:"7px 10px",
+        border:"1px solid "+UI.stroke,borderRadius:8,flexBasis:"100%"}}>
+       <strong>Collisione al passo {lastCollision.step} · {lastCollision.kind.toUpperCase()}</strong>
+       <div>{lastCollision.subject}{lastCollision.station?" ↔ "+lastCollision.station:""}</div>
+       <div>{lastCollision.note}</div>
+       {lastCollision.before&&<div>Prima: <code>{lastCollision.before}</code> · Dopo: <code>{lastCollision.after??lastCollision.before}</code></div>}
+       {!!lastCollision.successors?.length&&<div>Figli generati: {lastCollision.successors.join(", ")} · Inspector sul primo figlio.</div>}
+      </div>}
       {changed&&<span style={{fontSize:12,color:UI.gold}}>Aggiornamento automatico in corso…</span>}
      </div>
     </section>
@@ -304,7 +309,8 @@ export default function PlanarRapierLab(){
      <div style={{maxHeight:190,overflowY:"auto",display:"grid",gap:5}}>
       {events.length?events.map((e,i)=><div key={e.step+"-"+e.subject+"-"+i} style={{background:"#1d3a4d",borderLeft:"3px solid "+(e.kind==="return"?UI.mint:e.kind==="null"?"#e1a382":"#8db4cb"),padding:8,fontSize:12}}>
        <b>{e.kind.toUpperCase()}</b> · {e.subject}{e.station?" ↔ "+e.station:""} · passo {e.step}
-       <div style={{fontSize:11,color:UI.muted,marginTop:3}}>{e.note}{e.before&&e.after&&e.before!==e.after?" · "+e.before+" → "+e.after:""}</div>
+       <div style={{fontSize:11,color:UI.muted,marginTop:3}}>{e.note}{e.before&&e.after&&e.before!==e.after?" · "+e.before+" → "+e.after:""}
+        {e.successors?.length?" · Figli: "+e.successors.join(", "):""}</div>
       </div>):<p style={{fontSize:12,color:UI.muted}}>Gli eventi appariranno al primo contatto reale fra collider tridimensionali.</p>}
      </div>
     </section>
