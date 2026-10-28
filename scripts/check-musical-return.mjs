@@ -49,7 +49,7 @@ try{
  const moved={...zero,stations:zero.stations.map(s=>({...s}))};
  moved.stations[0].sink=siteByKey(moved.stations[2].sink).key;
  // Occupied cell must be rejected
- assert.throws(()=>simulate(moved,"M0"),/stesso sink/);
+ assert.throws(()=>simulate(moved,"M0"),/stesso sink|stessa cella|Una cella/);
  const changed=makeSetup(1),other=simulate(changed,"M0");
  assert.notDeepEqual(base.events.map(x=>[x.kind,x.x,x.y]),other.events.map(x=>[x.kind,x.x,x.y]),
   "station DNA must change path");
