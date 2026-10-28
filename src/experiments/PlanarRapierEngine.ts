@@ -15,7 +15,7 @@ export const FIXED_STEP=1/120;
 export const SINK_HEIGHT=1.03,AREA_RADIUS=8.2;
 export type Dynamics={period:number;dampingRatio:number;launchSpeed:number;attraction:number;
  restitution:number;pairSpring:number;hoverHeight:number;angularDamping:number};
-export const DEFAULT_DYNAMICS:Dynamics={period:2.5,dampingRatio:.32,launchSpeed:3.5,
+export const DEFAULT_DYNAMICS:Dynamics={period:1.25,dampingRatio:.58,launchSpeed:3.5,
  attraction:1.0,restitution:.72,pairSpring:.22,hoverHeight:SINK_HEIGHT,angularDamping:.16};
 export type Scenario="color"|"five"|"quiet";
 export type Plan={scenario:Scenario;count:1|6|12;dna:string;returnPalette:number;
@@ -235,7 +235,7 @@ export class PlanarRapierEngine{
    }
    const r=lengthXZ(p);
    if(t.touches>0&&decode(t.dna).palette===this.plan.returnPalette&&r>0.2){
-    const pull=attraction*1.1;
+    const pull=attraction*(3.0+1.3*r);
     t.body.addForce(vec(-p.x/r*pull,0,-p.z/r*pull),true);
    }
   }
