@@ -30,7 +30,7 @@ export type AgentView={id:string;type:AgentType;name:string;dna:string;energy:nu
  x:number;y:number;z:number;qx:number;qy:number;qz:number;qw:number;
  vx:number;vy:number;vz:number;touches:number;status:string};
 export type Impact={step:number;kind:"color"|"fuse"|"split"|"clone"|"filter"|"null"|"buffer"|"return"|"escape"|"impact"|"edit";
- subject:string;station?:string;stationId?:string;otherId?:string;before?:string;after?:string;note:string};
+ subject:string;station?:string;stationId?:string;otherId?:string;successors?:string[];before?:string;after?:string;note:string};
 export const isCollisionEvent=(event:Impact):boolean=>
  ["color","fuse","split","clone","filter","null","buffer","impact"].includes(event.kind);
 export type Stats={step:number;impacts:number;geneticChanges:number;returns:number;escaped:number;
@@ -161,7 +161,8 @@ export class PlanarRapierEngine{
    this.world.removeRigidBody(agent.body);
   }
  }
- private createChildren(parent:Internal,products:string[],energyShares:number[]){
+ private createChildren(parent:Internal,products:string[],energyShares:number[]):string[]{
+  const newIds:string[]=[];
   const pos=parent.body.translation(),vel=parent.body.linvel(),ang=parent.body.angvel();
   // In the planar game, a clone/split is separated tangent to the trajectory;
   // upward impulse permits brief overpasses. Any kinetic work during splitting
@@ -169,6 +170,7 @@ export class PlanarRapierEngine{
   for(let j=0;j<products.length;j++){
    const s=j===0?-1:1,rad=Math.max(.01,Math.hypot(vel.x,vel.z)),tx=-vel.z/rad,tz=vel.x/rad;
    const id="v"+this.nextId++;
+   newIds.push(id);
    this.makeAgent("traveler",id,"Viaggiatore "+id,products[j],
     pos.x+s*.25*tx,pos.y+.08,pos.z+s*.25*tz,
     vel.x+s*.4*tx,.4,vel.z+s*.4*tz,energyShares[j]);
@@ -177,6 +179,7 @@ export class PlanarRapierEngine{
   }
   this.remove(parent,"escaped");parent.state="returned"; // retired carrier, ENERGY moved to children
   parent.energy=0;
+  return newIds;
  }
  private handleContact(subject:Internal,station:Internal){
   if(subject.state!=="flying"||station.kind!=="controller")return;
@@ -185,6 +188,7 @@ export class PlanarRapierEngine{
   this.impacts++;
   const before=subject.dna,p=decode(station.dna),incoming=decode(before);
   let kind:Impact["kind"]="null",after=before,note="Trasformazione nulla";
+  let successors:string[]|undefined;
   const wrapped=(base:string)=>wrapDNA(base,p.ops);
   try{
    if(p.seed==="T"){
@@ -201,14 +205,14 @@ export class PlanarRapierEngine{
     if(parts&&subject.energy>.28){
      const dna=parts.map(x=>wrapped(x));
      if(dna.every((x):x is string=>x!==null)){
-      const energy=subject.energy/2;this.createChildren(subject,dna,[energy,energy]);
+      const energy=subject.energy/2;successors=this.createChildren(subject,dna,[energy,energy]);
       after=dna.join(" + ");kind="split";note="Fissione genetica: due DNA diversi";
      }
     }
    }else if(p.seed==="D"&&this.activeWalkers()<MAX_AGENTS-1&&subject.energy>.28){
     const dna=wrapped(before);
     if(dna){
-     this.createChildren(subject,[dna,dna],[subject.energy/2,subject.energy/2]);
+     successors=this.createChildren(subject,[dna,dna],[subject.energy/2,subject.energy/2]);
      after=dna+" ×2";kind="clone";note="Clonazione: due DNA identici";
     }
    }else if(p.seed==="C"){
@@ -232,7 +236,7 @@ export class PlanarRapierEngine{
   }catch(e){note="Operazione non applicabile: "+String(e);}
   if((kind==="color"||kind==="filter"||kind==="fuse")&&after!==before||
     kind==="split"||kind==="clone")this.geneticChanges++;
-  this.events.push({step:this.stepIndex,kind,subject:subject.id,station:station.name,stationId:station.id,before,after,note});
+  this.events.push({step:this.stepIndex,kind,subject:subject.id,station:station.name,stationId:station.id,successors,before,after,note});
  }
  private activeWalkers(){return [...this.agents.values()].filter(a=>a.kind==="traveler"&&a.state==="flying").length;}
  tick(){
