@@ -52,7 +52,7 @@ export function springCoefficients(mass:number,period:number,dampingRatio:number
  const omega=2*Math.PI/Math.max(.25,period);
  return {stiffness:mass*omega*omega,damping:2*dampingRatio*omega*mass};
 }
-function hull(dna:string,scale:number):Float32Array{
+export function polytronHull(dna:string,scale:number):Float32Array{
  const p=dnaToPoly(dna);
  return Float32Array.from(p.vertices.flatMap(v=>[v[0]*scale,v[1]*scale,v[2]*scale]));
 }
@@ -109,7 +109,7 @@ export class PlanarRapierEngine{
     .setLinvel(vx,vy,vz).setLinearDamping(.025)
     .setAngularDamping(this.plan.dynamics.angularDamping).setCcdEnabled(true).setCanSleep(false);
   const body=this.world.createRigidBody(d);
-  const shape=RAPIER.ColliderDesc.convexHull(hull(dna,this.plan.sizes[kind]));
+  const shape=RAPIER.ColliderDesc.convexHull(polytronHull(dna,this.plan.sizes[kind]));
   if(!shape)throw Error("Impossibile creare convex hull: "+dna);
   shape.setRestitution(this.plan.dynamics.restitution).setFriction(.22)
    .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS);
@@ -127,7 +127,7 @@ export class PlanarRapierEngine{
   const old=agent.collider;
   this.colliders.delete(old.handle);
   this.world.removeCollider(old,true);
-  const colliderDesc=RAPIER.ColliderDesc.convexHull(hull(nextDNA,this.plan.sizes[agent.kind]));
+  const colliderDesc=RAPIER.ColliderDesc.convexHull(polytronHull(nextDNA,this.plan.sizes[agent.kind]));
   if(!colliderDesc)throw Error("Convex hull genotipo risultante impossibile: "+nextDNA);
   colliderDesc.setRestitution(this.plan.dynamics.restitution).setFriction(.22)
    .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS);
