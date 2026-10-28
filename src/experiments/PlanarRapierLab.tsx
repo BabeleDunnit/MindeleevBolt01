@@ -1,6 +1,6 @@
 import {useEffect,useRef,useState,type CSSProperties} from "react";
 import * as THREE from "three";
-import {polytronGeometry} from "@/polytron/polytron";
+import {polytronGeometry,dnaToPoly} from "@/polytron/polytron";
 import {PlanarRapierEngine,DEFAULT_PLAN,DEFAULT_DYNAMICS,FIXED_STEP,SINK_HEIGHT,isCollisionEvent,
  type Plan,type Stats,type Impact,type AgentView,type Scenario} from "./PlanarRapierEngine";
 import {VERBS,decode} from "./IslandAffinityEngine";
@@ -376,8 +376,7 @@ export default function PlanarRapierLab(){
       <div>Operatori Conway: <code>{decode(selectedAgent.dna).ops||"nessuno"}</code> · Palette: {decode(selectedAgent.dna).palette}</div>
       <div>Posizione: ({fmt(selectedAgent.x)}, {fmt(selectedAgent.y)}, {fmt(selectedAgent.z)})</div>
       <div>Velocità: {fmt(Math.hypot(selectedAgent.vx,selectedAgent.vy,selectedAgent.vz))} · Contatti: {selectedAgent.touches} · ENERGY: {fmt(selectedAgent.energy)}</div>
-      <div>Geometria: {(()=>{const p=polytronGeometry(selectedAgent.dna);const x="Vertici "+p.solid.getAttribute("position").count+" (triangolati)";
-       p.solid.dispose();p.edges.dispose();return x;})()}</div>
+      <div>Geometria: {(()=>{const p=dnaToPoly(selectedAgent.dna);return p.vertices.length+" vertici · "+p.faces.length+" facce";})()}</div>
       <div style={{marginTop:10,display:"grid",gap:7}}>
        <label style={{color:UI.muted}}>DNA Conway · preset
         <select style={{...control,width:"100%",marginTop:4}} value={DNA_OPTS.includes(selectedAgent.dna)?selectedAgent.dna:""}
