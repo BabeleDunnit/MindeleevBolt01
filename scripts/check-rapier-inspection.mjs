@@ -99,6 +99,17 @@ try{
   assert(defaultRun.stats().geneticChanges>0,
     "smaller default travelers must still make meaningful physical contact with transformers");
  }finally{defaultRun.dispose();}
+ const splitPlan={...e.DEFAULT_PLAN,scenario:"five",dna:"ad01C",stationDNA:
+  Object.fromEntries(["P01","P02","P03","P04","P05","P06"].map(id=>[id,"02O"]))};
+ const splitWorld=await e.PlanarRapierEngine.create(splitPlan);
+ try{
+  for(let i=0;i<1300;i++)splitWorld.tick();
+  const events=splitWorld.events.filter(x=>x.kind==="split");
+  assert(events.length>0,"all-O station setup must generate genuine fissions");
+  assert(events.every(x=>x.successors?.length===2),
+   "each split event must identify both surviving children for the collision Inspector");
+  assert(events.every(x=>x.successors.every(id=>id!==x.subject)),"children have new anonymous identities");
+ }finally{splitWorld.dispose();}
  console.log(JSON.stringify({passed:true,checks:["SSR Inspector","raycast-facing controls",
   "collision classification","independent convex hull scales","per-station DNA presets",
   "per-traveler DNA presets","live genome edits","repeatable resets","physical collision contacts"]},null,2));
