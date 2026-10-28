@@ -12,7 +12,8 @@ try{
  for(const [entry,outfile] of [["src/experiments/PlanarRapierEngine.ts",enginePath],
    ["src/experiments/PlanarRapierLab.tsx",uiPath]]){
   await build({entryPoints:[entry],outfile,format:"esm",platform:"node",
-   bundle:true,packages:"external",tsconfig:"tsconfig.app.json",logLevel:"warning"});
+   bundle:true,packages:"external",tsconfig:"tsconfig.app.json",logLevel:"warning",
+   define:{"import.meta.env.BASE_URL":JSON.stringify("/MindeleevBolt01/")}});
  }
  const e=await import(pathToFileURL(enginePath).href);
  const ui=await import(pathToFileURL(uiPath).href);
@@ -60,7 +61,7 @@ try{
   assert.equal(engine.agentsView().find(x=>x.id==="P01").dna,"d02O");
   assert.throws(()=>engine.editDNA("P01","invalid"),/non valido|non supportato/i);
   let lastEvent=engine.events.length;
-  let collision:unknown;
+  let collision;
   for(let i=0;i<1400;i++){
    engine.tick();
    collision??=engine.events.slice(lastEvent).find(e.isCollisionEvent);
