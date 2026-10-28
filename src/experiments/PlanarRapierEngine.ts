@@ -219,6 +219,9 @@ export class PlanarRapierEngine{
   const travelers=[...this.agents.values()].filter(a=>a.kind==="traveler"&&a.state==="flying");
   const stations=[...this.agents.values()].filter(a=>a.kind==="controller");
   for(const t of travelers){
+   // Rapier user forces persist between world steps. Without reset this is
+   // cumulative acceleration, NOT a Hooke spring or a controlled 3D field.
+   t.body.resetForces(true);
    const p=t.body.translation(),v=t.body.linvel(),m=Math.max(.01,t.body.mass());
    const {stiffness:k,damping:c}=springCoefficients(m,period,dampingRatio);
    // Counteracts gravity at the equilibrium height. No free vertical flight.
