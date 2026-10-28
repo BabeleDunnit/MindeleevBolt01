@@ -16,7 +16,7 @@ export const SINK_HEIGHT=1.03,AREA_RADIUS=8.2;
 export type Dynamics={period:number;dampingRatio:number;launchSpeed:number;attraction:number;
  restitution:number;pairSpring:number;hoverHeight:number;angularDamping:number};
 export const DEFAULT_DYNAMICS:Dynamics={period:1.25,dampingRatio:.58,launchSpeed:3.5,
- attraction:1.0,restitution:.72,pairSpring:.22,hoverHeight:SINK_HEIGHT,angularDamping:.16};
+ attraction:1.0,restitution:.72,pairSpring:.12,hoverHeight:SINK_HEIGHT,angularDamping:.16};
 export type Scenario="color"|"five"|"quiet";
 export type Plan={scenario:Scenario;count:1|6|12;dna:string;returnPalette:number;
  seed:number;physics:"shape"|"off";dynamics:Dynamics};
@@ -85,8 +85,11 @@ export class PlanarRapierEngine{
    // Radial directions are aligned to the physical hexagonal island axes.
    const theta=Math.atan2(samples[0].y,samples[0].x)+i*2*Math.PI/plan.count;
    const speed=plan.dynamics.launchSpeed;
+   // Spawn clear of the source and each other. For 12 carriers use two
+   // interleaved concentric hex rings, not twelve overlapping hulls.
+   const startRadius=plan.count===12?(i%2===0?1.1:1.8):1.07;
    engine.makeAgent("traveler","v"+engine.nextId++,"Viaggiatore "+(i+1),plan.dna,
-    .76*Math.cos(theta),plan.dynamics.hoverHeight,.76*Math.sin(theta),
+    startRadius*Math.cos(theta),plan.dynamics.hoverHeight,startRadius*Math.sin(theta),
     speed*Math.cos(theta),0,speed*Math.sin(theta),6/plan.count);
   }
   return engine;
@@ -232,9 +235,12 @@ export class PlanarRapierEngine{
      const s=st.body.translation(),dx=s.x-p.x,dz=s.z-p.z,dist=Math.max(.0001,Math.hypot(dx,dz));
      const {similarity,rest}=affinity(t.dna,st.dna);
      const ideal=Math.max(.58,Math.min(1.7,rest/32));
-     // The potential is authored to encourage encounters while still
-     // allowing noncontact equilibria for some shape pairs.
-     const strength=Math.max(-9,Math.min(9,(dist-ideal)*(1.8+2*similarity)*attraction));
+     // Softened gravity-like attraction acts at long range. In contrast,
+     // preferred distances influence a mild local spring; the actual
+     // collision impulse comes ONLY from Rapier's convex-hull solver.
+     const grav=(4+5*similarity)*attraction/(.7+dist*dist);
+     const local=(dist-ideal)*.15*attraction;
+     const strength=Math.max(-12,Math.min(12,grav+local));
      t.body.addForce(vec(strength*dx/dist,0,strength*dz/dist),true);
     }
    }
