@@ -31,6 +31,8 @@ export type AgentView={id:string;type:AgentType;name:string;dna:string;energy:nu
  vx:number;vy:number;vz:number;touches:number;status:string};
 export type Impact={step:number;kind:"color"|"fuse"|"split"|"clone"|"filter"|"null"|"buffer"|"return"|"escape"|"impact"|"edit";
  subject:string;station?:string;stationId?:string;otherId?:string;before?:string;after?:string;note:string};
+export const isCollisionEvent=(event:Impact):boolean=>
+ ["color","fuse","split","clone","filter","null","buffer","impact"].includes(event.kind);
 export type Stats={step:number;impacts:number;geneticChanges:number;returns:number;escaped:number;
  peakHeight:number;peakSpeed:number;active:number;retained:number;inputEnergy:number;returnedEnergy:number;
  escapedEnergy:number;carriedEnergy:number};
