@@ -1,0 +1,54 @@
+name: Pages · Planar Rapier Mutatron (Sprint 27)
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experiments/sprint27-planar-rapier
+    paths-ignore:
+      - research/**
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: mindeleev-pages
+  cancel-in-progress: false
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: phase-lab
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - name: Physics headless tests (real Rapier WASM)
+        run: node scripts/check-planar-rapier.mjs
+      - name: Previous experiments and visuals regression
+        run: |
+          node scripts/check-island-affinity.mjs
+          node scripts/check-musical-return.mjs
+          node scripts/check-visible-polyhedra.mjs
+          node scripts/check-shape-dna.mjs
+          node scripts/check-phase.mjs
+      - name: Phenotype Atlas
+        run: |
+          node scripts/build-phenotype-atlas.mjs
+          node scripts/check-atlas.mjs
+      - run: npm run build
+      - name: Ensure standalone Rapier route is bundled
+        run: |
+          test -f dist/index.html
+          grep -r -q 'Planar Rapier Mutatron' dist/assets/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+      - id: deployment
+        uses: actions/deploy-pages@v4
