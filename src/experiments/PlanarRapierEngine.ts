@@ -323,7 +323,9 @@ export class PlanarRapierEngine{
    const relation=affinity(a.dna,b.dna);
    const rest=desiredPairDistance(relation.similarity,this.plan.dynamics);
    const gap=d-rest;
-   const falloff=gap>0?Math.exp(-Math.pow(gap/1.1,2)):1;
+   // Attractive tail is deliberately local: distant third/fourth neighbors
+   // must not compress a ring below its intended nearest-neighbor spacing.
+   const falloff=gap>0?Math.exp(-Math.pow(gap/.4,2)):1;
    const intensity=Math.max(0,this.plan.forceChannels.travelers);
    const k=intensity*(.35+.65*relation.similarity);
    const av=a.body.linvel(),bv=b.body.linvel();
