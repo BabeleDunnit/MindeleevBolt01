@@ -1,0 +1,49 @@
+name: Pages · Shape-DNA Equilibrium (Sprint 31)
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experiments/sprint31-shape-equilibrium
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: mindeleev-pages
+  cancel-in-progress: false
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: phase-lab
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - name: Shape-DNA equilibrium and force calibrations
+        run: node scripts/check-shape-equilibrium.mjs
+      - name: Core picking and shape regressions
+        run: |
+          node scripts/check-rapier-picking.mjs
+          node scripts/check-shape-dna.mjs
+          node scripts/check-phase.mjs
+      - name: Production build
+        run: |
+          node scripts/build-phenotype-atlas.mjs
+          npm run build
+      - name: Verify browser-facing controls
+        run: |
+          test -f dist/index.html
+          grep -r -q 'Equilibrio Shape-DNA' dist/assets/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+      - id: deployment
+        uses: actions/deploy-pages@v4
