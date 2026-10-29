@@ -92,6 +92,28 @@ try{
   assert.equal(d.travelers.magnitude,0);
   assert.equal(d.stations.length,6);
  }finally{off.dispose();}
+ // Source attraction is conditional, and must become nonzero after a
+ // successful encounter changes palette to the requested target.
+ const sourceRun=await e.PlanarRapierEngine.create({...e.DEFAULT_PLAN,
+  physics:"shape",forceChannels:{transformers:true,travelers:false,source:true}});
+ try{
+  let reachedSourceState=false;
+  for(let i=0;i<950;i++){
+   const old=sourceRun.events.length;
+   sourceRun.tick();
+   const colorHit=sourceRun.events.slice(old).find(ev=>ev.kind==="color");
+   if(!colorHit)continue;
+   sourceRun.tick();
+   const colored=sourceRun.agentsView().find(x=>x.id===colorHit.subject);
+   if(colored?.forces?.source.magnitude>0){
+    reachedSourceState=true;
+    assert.equal(colored.forces.travelers.magnitude,0);
+    break;
+   }
+  }
+  assert(reachedSourceState,
+   "Source channel must produce a measurable force after an eligible color encounter");
+ }finally{sourceRun.dispose();}
  // Full-Cube field gives a real buffer, not merely an aesthetic pileup.
  const everyCube=Object.fromEntries(["P01","P02","P03","P04","P05","P06"].map(id=>[id,"02C"]));
  const cube=await e.PlanarRapierEngine.create({...e.DEFAULT_PLAN,stationDNA:everyCube});
