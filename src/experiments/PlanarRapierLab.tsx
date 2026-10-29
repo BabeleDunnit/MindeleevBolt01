@@ -471,9 +471,16 @@ export default function PlanarRapierLab(){
       <NumberSlider label="Periodo naturale del ritorno al piano" value={draft.dynamics.period} min={.7} max={6} step={.1} unit=" s" onChange={v=>dyn("period",v)}/>
       <NumberSlider label="Smorzamento ζ" value={draft.dynamics.dampingRatio} min={0} max={1.3} step={.05} onChange={v=>dyn("dampingRatio",v)}/>
       <NumberSlider label="Impulso iniziale radiale" value={draft.dynamics.launchSpeed} min={.5} max={9} step={.25} unit=" m/s" onChange={v=>dyn("launchSpeed",v)}/>
-      <NumberSlider label="Attrazione fra forme" value={draft.dynamics.attraction} min={0} max={3} step={.1} onChange={v=>dyn("attraction",v)}/>
       <NumberSlider label="Restituzione degli urti" value={draft.dynamics.restitution} min={0} max={1} step={.05} onChange={v=>dyn("restitution",v)}/>
-      <NumberSlider label="Accoppiamento fra viaggiatori" value={draft.dynamics.pairSpring} min={0} max={2} step={.05} onChange={v=>dyn("pairSpring",v)}/>
+     <div style={{borderTop:"1px solid "+UI.stroke,paddingTop:9,fontSize:12,color:UI.mint}}>Equilibrio spaziale Shape-DNA</div>
+     <NumberSlider label="Distanza desiderata per forme identiche" value={draft.dynamics.pairRestMin} min={.6} max={3} step={.01} unit=" m" onChange={v=>dyn("pairRestMin",v)}/>
+     <NumberSlider label="Distanza extra per forme differenti" value={draft.dynamics.pairRestSpread} min={0} max={4} step={.01} unit=" m" onChange={v=>dyn("pairRestSpread",v)}/>
+     <NumberSlider label="Smorzamento delle molle fra viaggiatori" value={draft.dynamics.pairDamping} min={0} max={2} step={.01} onChange={v=>dyn("pairDamping",v)}/>
+     <NumberSlider label="Resistenza del piano (damping)" value={draft.dynamics.planarDrag} min={0} max={3} step={.01} onChange={v=>dyn("planarDrag",v)}/>
+     <p style={{fontSize:11,color:UI.muted,margin:0}}>
+      Distanza desiderata = minima + extra × (1 − somiglianza geometrica).
+      Lo smorzamento dissipa oscillazioni, favorendo configurazioni ferme.
+     </p>
       <NumberSlider label="Damping angolare" value={draft.dynamics.angularDamping} min={0} max={1.5} step={.05} onChange={v=>dyn("angularDamping",v)}/>
       <NumberSlider label="Quota di equilibrio PolytronSink" value={draft.dynamics.hoverHeight} min={.75} max={1.7} step={.05} unit=" m" onChange={v=>dyn("hoverHeight",v)}/>
       <div style={{borderTop:"1px solid "+UI.stroke,paddingTop:9,fontSize:12,color:UI.mint}}>Dimensioni reali dei collider e dei poliedri 3D</div>
@@ -551,8 +558,20 @@ export default function PlanarRapierLab(){
          </div>)}
         </div>
        </details>
+       <details style={{marginTop:10}}>
+        <summary style={{cursor:"pointer",fontSize:12,color:UI.mint}}>Distanze desiderate fra viaggiatori</summary>
+        <div style={{maxHeight:225,overflowY:"auto",marginTop:6}}>
+         {selectedForces.pairs.map(p=><div key={p.id} style={{fontSize:11,padding:"6px 0",borderBottom:"1px solid "+UI.stroke}}>
+          <b>{p.id}</b> · <code>{p.dna}</code> · somiglianza {p.similarity.toFixed(3)}
+          <div>Distanza reale {fmt(p.distance)} m · desiderata {fmt(p.rest)} m ·
+           scarto {fmt(p.distance-p.rest)} m · forza {p.force.magnitude.toFixed(4)} N</div>
+         </div>)}
+         {selectedForces.pairs.length===0&&<div>Nessun altro viaggiatore in volo.</div>}
+        </div>
+       </details>
        <p style={{fontSize:11,color:UI.gold,lineHeight:1.5,marginBottom:0}}>
-        Questa compatibilità NON governa ancora l'attrazione. Il test C0/C1 serve a osservare il problema.
+        Compatibilità genetica e attrazione verso i transformer restano separate;
+        la somiglianza Shape-DNA governa le distanze fra viaggiatori.
        </p>
       </div>}
       <div style={{marginTop:10,display:"grid",gap:7}}>
