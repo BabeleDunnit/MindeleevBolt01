@@ -484,6 +484,51 @@ export default function PlanarRapierLab(){
       <div>Posizione: ({fmt(selectedAgent.x)}, {fmt(selectedAgent.y)}, {fmt(selectedAgent.z)})</div>
       <div>Velocità: {fmt(Math.hypot(selectedAgent.vx,selectedAgent.vy,selectedAgent.vz))} · Contatti: {selectedAgent.touches} · ENERGY: {fmt(selectedAgent.energy)}</div>
       <div>Geometria: {(()=>{const p=dnaToPoly(selectedAgent.dna);return p.vertices.length+" vertici · "+p.faces.length+" facce";})()}</div>
+      {selectedAgent.type==="controller"&&decode(selectedAgent.dna).seed==="C"&&
+       <div style={{marginTop:11,padding:10,border:"1px solid "+UI.stroke,borderRadius:10,background:"#1d384b"}}>
+        <strong style={{color:UI.mint}}>Buffer Cubo · Combina</strong>
+        {selectedAgent.buffer?
+         <div>Occupato da <b>{selectedAgent.buffer.id}</b> · DNA <code>{selectedAgent.buffer.dna}</code>
+          <div>In attesa: {selectedAgent.buffer.elapsedSteps} passi · Rilascio previsto fra {selectedAgent.buffer.remainingSteps} passi
+           ({fmt(selectedAgent.buffer.remainingSteps*FIXED_STEP)} s fisici).</div></div>:
+         <div>Cubo libero · il prossimo viaggiatore verrà trattenuto in attesa di un partner.</div>}
+        <div style={{fontSize:11,color:UI.muted,marginTop:8}}>
+         Compatibilità dei viaggiatori attualmente in volo:
+        </div>
+        <div style={{maxHeight:115,overflowY:"auto"}}>
+         {cubeCandidates.length?cubeCandidates.map(c=><div key={c.id} style={{fontSize:11,marginTop:5}}>
+          <b>{c.id} · {c.dna}</b>: <span style={{color:c.test.state==="ready"?UI.mint:c.test.state==="blocked"?"#f5b3a2":UI.gold}}>{c.test.state}</span>
+          <div style={{color:UI.muted}}>{c.test.reason}{c.test.product?" → "+c.test.product:""}</div>
+         </div>):<span style={{fontSize:11,color:UI.muted}}>Nessun viaggiatore in volo.</span>}
+        </div>
+       </div>}
+      {selectedAgent.type==="traveler"&&selectedForces&&<div style={{marginTop:11,padding:10,border:"1px solid "+UI.stroke,borderRadius:10,background:"#1d384b"}}>
+       <strong style={{color:UI.mint}}>Forze istantanee sul viaggiatore</strong>
+       <div style={{color:UI.muted,fontSize:11}}>Valori applicati al passo {selectedForces.step},
+        prima degli impulsi da collisione. Modulo dei vettori risultanti sul piano XZ.</div>
+       {([["Transformer",selectedForces.transformers],["Altri viaggiatori",selectedForces.travelers],
+         ["Sorgente",selectedForces.source]] as const).map(([name,value])=><div key={name} style={{fontSize:12,marginTop:6}}>
+          <b>{name}:</b> {fmt(value.magnitude)} N
+          <span style={{color:UI.muted}}> (Fx {fmt(value.x)}, Fz {fmt(value.z)})</span>
+         </div>)}
+       <div style={{fontSize:12,marginTop:7}}>Richiamo verticale: {fmt(selectedForces.vertical)} N (asse Y).</div>
+       <details style={{marginTop:10}}>
+        <summary style={{cursor:"pointer",fontSize:12,color:UI.mint}}>Forze dei singoli transformer e compatibilità</summary>
+        <div style={{maxHeight:190,overflowY:"auto",marginTop:6}}>
+         {selectedForces.stations.map(st=><div key={st.id} style={{fontSize:11,padding:"6px 0",borderBottom:"1px solid "+UI.stroke}}>
+          <b>{st.id} · {st.name}</b> · <code>{st.dna}</code>
+          <div>Forza {fmt(st.force.magnitude)} N · Distanza {fmt(st.distance)} · Equilibrio {fmt(st.rest)}
+           · Affinità {st.similarity.toFixed(3)}</div>
+          <div style={{color:st.compatibility.state==="blocked"?"#f5b3a2":UI.muted}}>
+           Reazione: {st.compatibility.state} — {st.compatibility.reason}
+          </div>
+         </div>)}
+        </div>
+       </details>
+       <p style={{fontSize:11,color:UI.gold,lineHeight:1.5,marginBottom:0}}>
+        Questa compatibilità NON governa ancora l'attrazione. Il test C0/C1 serve a osservare il problema.
+       </p>
+      </div>}
       <div style={{marginTop:10,display:"grid",gap:7}}>
        <label style={{color:UI.muted}}>DNA Conway · preset
         <select style={{...control,width:"100%",marginTop:4}} value={DNA_OPTS.includes(selectedAgent.dna)?selectedAgent.dna:""}
