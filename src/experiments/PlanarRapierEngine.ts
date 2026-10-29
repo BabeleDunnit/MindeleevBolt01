@@ -31,7 +31,7 @@ export type ForceVector={x:number;z:number;magnitude:number};
 export type StationForce={id:string;name:string;dna:string;distance:number;
  similarity:number;rest:number;force:ForceVector;compatibility:Feasibility};
 export type PairForce={id:string;dna:string;distance:number;similarity:number;
- rest:number;force:ForceVector};
+ rest:number;spring:number;damping:number;force:ForceVector};
 export type ForceDiagnostics={step:number;transformers:ForceVector;travelers:ForceVector;
  source:ForceVector;vertical:number;stations:StationForce[];pairs:PairForce[]};
 export type BufferView={id:string;dna:string;elapsedSteps:number;remainingSteps:number};
@@ -330,7 +330,9 @@ export class PlanarRapierEngine{
    const radialSpeed=(bv.x-av.x)*nx+(bv.z-av.z)*nz;
    const reducedMass=Math.max(.01,(a.body.mass()*b.body.mass())/(a.body.mass()+b.body.mass()));
    const damping=2*this.plan.dynamics.pairDamping*Math.sqrt(k*reducedMass);
-   const magnitude=k>0?Math.max(-9,Math.min(9,(k*gap+damping*radialSpeed)*falloff)):0;
+   const springForce=k*gap*falloff;
+   const dampForce=damping*radialSpeed*falloff;
+   const magnitude=k>0?Math.max(-9,Math.min(9,springForce+dampForce)):0;
    const fx=nx*magnitude,fz=nz*magnitude;
    if(magnitude!==0){
     a.body.addForce(vec(fx,0,fz),true);
@@ -340,9 +342,9 @@ export class PlanarRapierEngine{
    fa.travelers=accumulate(fa.travelers,fx,fz);
    fb.travelers=accumulate(fb.travelers,-fx,-fz);
    fa.pairs.push({id:b.id,dna:b.dna,distance:d,similarity:relation.similarity,rest,
-    force:forceVec(fx,fz)});
+    spring:springForce,damping:dampForce,force:forceVec(fx,fz)});
    fb.pairs.push({id:a.id,dna:a.dna,distance:d,similarity:relation.similarity,rest,
-    force:forceVec(-fx,-fz)});
+    spring:springForce,damping:dampForce,force:forceVec(-fx,-fz)});
   }
   for(const [id,reading] of forceNotes){
    reading.stations.sort((a,b)=>b.force.magnitude-a.force.magnitude);
