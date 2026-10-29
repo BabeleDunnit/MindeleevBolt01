@@ -44,7 +44,7 @@ try{
   try{
    run.tick();
    const force=run.agentsView().find(a=>a.id==="v1").forces;
-   readings.push(force.travelers.magnitude);
+   readings.push({resultant:force.travelers.magnitude,spring:force.pairs[0].spring});
    assert(force.pairs.every(p=>p.rest>0&&Number.isFinite(p.similarity)));
    const nearest=force.pairs[0];
    if(nearest.distance<nearest.rest-.02)
@@ -53,8 +53,9 @@ try{
     assert(nearest.spring>0,"Beyond rest length the spring must attract");
   }finally{run.dispose();}
  }
- assert(readings[0]>0&&readings[1]>readings[0]);
- assert(close(readings[1],readings[0]*2,1e-4),"Force is continuously tunable at 0.025");
+ assert(readings[0].resultant>0&&readings[1].resultant>0);
+ assert(close(readings[1].spring,readings[0].spring*2,1e-4),
+  "The signed spring is continuously tunable at 0.025 (damping scales with sqrt(k))");
  const changed=await e.PlanarRapierEngine.create({...e.DEFAULT_PLAN,
   forceChannels:{transformers:0,travelers:1,source:0}});
  try{
@@ -80,6 +81,7 @@ try{
    minSpacing=Math.min(minSpacing,Math.hypot(travelers[i].x-travelers[j].x,
     travelers[i].z-travelers[j].z));
   }
+  console.log("SETTLING METRICS:",JSON.stringify({count:travelers.length,minSpacing,meanSpeed}));
   assert.equal(travelers.length,6,"All six travelers should remain inside the reactor");
   assert(minSpacing>.45,"Swarm should not collapse to one point");
   assert(meanSpeed<.4,"After damping, traveling Polytrons should nearly stop");
