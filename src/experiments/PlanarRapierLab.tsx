@@ -570,7 +570,9 @@ export default function PlanarRapierLab(){
          {selectedForces.pairs.map(p=><div key={p.id} style={{fontSize:11,padding:"6px 0",borderBottom:"1px solid "+UI.stroke}}>
           <b>{p.id}</b> · <code>{p.dna}</code> · somiglianza {p.similarity.toFixed(3)}
           <div>Distanza reale {fmt(p.distance)} m · desiderata {fmt(p.rest)} m ·
-           scarto {fmt(p.distance-p.rest)} m · forza {p.force.magnitude.toFixed(4)} N</div>
+           scarto {fmt(p.distance-p.rest)} m · risultante {p.force.magnitude.toFixed(4)} N
+           <div>Molla: {p.spring.toFixed(4)} N (negativa = repulsione) ·
+            smorzamento: {p.damping.toFixed(4)} N</div></div>
          </div>)}
          {selectedForces.pairs.length===0&&<div>Nessun altro viaggiatore in volo.</div>}
         </div>
