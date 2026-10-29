@@ -10,6 +10,7 @@
 import * as RAPIER from "@dimforge/rapier3d-compat";
 import {dnaToPoly} from "@/polytron/polytron";
 import {initialIslands,decode,encode,wrapDNA,cutDNA,affinity,randomGenerator} from "./IslandAffinityEngine";
+import {cubeFusion,analyzeEncounter,type Feasibility} from "./rapierCompatibility";
 
 export const FIXED_STEP=1/120;
 export const SINK_HEIGHT=1.03,AREA_RADIUS=8.2;
@@ -19,16 +20,24 @@ export const DEFAULT_DYNAMICS:Dynamics={period:1.25,dampingRatio:.58,launchSpeed
  attraction:1.0,restitution:.72,pairSpring:.12,hoverHeight:SINK_HEIGHT,angularDamping:.16};
 export type Scenario="color"|"five"|"quiet";
 export type FamilySizes={controller:number;traveler:number};
+export type ForceChannels={transformers:boolean;travelers:boolean;source:boolean};
+export const DEFAULT_FORCE_CHANNELS:ForceChannels={transformers:true,travelers:true,source:true};
+export type ForceVector={x:number;z:number;magnitude:number};
+export type StationForce={id:string;name:string;dna:string;distance:number;
+ similarity:number;rest:number;force:ForceVector;compatibility:Feasibility};
+export type ForceDiagnostics={step:number;transformers:ForceVector;travelers:ForceVector;
+ source:ForceVector;vertical:number;stations:StationForce[]};
+export type BufferView={id:string;dna:string;elapsedSteps:number;remainingSteps:number};
 export const DEFAULT_SIZES:FamilySizes={controller:.68,traveler:.26};
 export type Plan={scenario:Scenario;count:1|6|12;dna:string;returnPalette:number;
- seed:number;physics:"shape"|"off";dynamics:Dynamics;sizes:FamilySizes;
+ seed:number;physics:"shape"|"off";dynamics:Dynamics;sizes:FamilySizes;forceChannels:ForceChannels;
  stationDNA:Record<string,string>;travelerDNA:Record<string,string>};
 export const DEFAULT_PLAN:Plan={scenario:"color",count:6,dna:"01C",returnPalette:2,
- seed:47,physics:"shape",dynamics:DEFAULT_DYNAMICS,sizes:DEFAULT_SIZES,stationDNA:{},travelerDNA:{}};
+ seed:47,physics:"shape",dynamics:DEFAULT_DYNAMICS,sizes:DEFAULT_SIZES,forceChannels:DEFAULT_FORCE_CHANNELS,stationDNA:{},travelerDNA:{}};
 export type AgentType="controller"|"traveler";
 export type AgentView={id:string;type:AgentType;name:string;dna:string;energy:number;
  x:number;y:number;z:number;qx:number;qy:number;qz:number;qw:number;
- vx:number;vy:number;vz:number;touches:number;status:string};
+ vx:number;vy:number;vz:number;touches:number;status:string;forces?:ForceDiagnostics;buffer?:BufferView};
 export type Impact={step:number;kind:"color"|"fuse"|"split"|"clone"|"filter"|"null"|"buffer"|"return"|"escape"|"impact"|"edit";
  subject:string;station?:string;stationId?:string;otherId?:string;successors?:string[];before?:string;after?:string;note:string};
 export const isCollisionEvent=(event:Impact):boolean=>
@@ -57,6 +66,8 @@ export function polytronHull(dna:string,scale:number):Float32Array{
  return Float32Array.from(p.vertices.flatMap(v=>[v[0]*scale,v[1]*scale,v[2]*scale]));
 }
 const vec=(x:number,y:number,z:number)=>({x,y,z});
+const forceVec=(x=0,z=0):ForceVector=>({x,z,magnitude:Math.hypot(x,z)});
+const accumulate=(a:ForceVector,x:number,z:number):ForceVector=>forceVec(a.x+x,a.z+z);
 export class PlanarRapierEngine{
  readonly world:RAPIER.World;
  readonly eventQueue:RAPIER.EventQueue;
@@ -65,6 +76,7 @@ export class PlanarRapierEngine{
  private agents=new Map<string,Internal>();
  private colliders=new Map<number,string>();
  private rng:()=>number;
+ private lastForces=new Map<string,ForceDiagnostics>();
  private nextId=1;
  stepIndex=0;
  impacts=0; geneticChanges=0;returns=0;escaped=0;peakHeight=SINK_HEIGHT;peakSpeed=0;
@@ -222,9 +234,8 @@ export class PlanarRapierEngine{
      subject.state="buffered";subject.body.setLinvel(vec(0,0,0),true);
      subject.body.setEnabled(false);kind="buffer";note="In attesa di un secondo viaggiatore";
     }else{
-     const a=decode(other.dna),b=decode(before);
-     const merged=a.seed===b.seed&&a.palette===b.palette&&a.ops.length+b.ops.length>0?
-      wrapped(encode({...a,ops:a.ops+b.ops})):null;
+     const feasibility=cubeFusion(station.dna,other.dna,before);
+     const merged=feasibility.product??null;
      if(merged){this.replaceDNA(subject,merged);subject.energy+=other.energy;
       other.energy=0;this.colliders.delete(other.collider.handle);this.world.removeRigidBody(other.body);
       other.state="returned";after=merged;kind="fuse";note="Fusione con "+other.id;}
@@ -246,6 +257,12 @@ export class PlanarRapierEngine{
   // but vertical spring + gravity bring them back to the same plane.
   const travelers=[...this.agents.values()].filter(a=>a.kind==="traveler"&&a.state==="flying");
   const stations=[...this.agents.values()].filter(a=>a.kind==="controller");
+  this.lastForces.clear();
+  const forceNotes=new Map<string,ForceDiagnostics>();
+  for(const t of travelers)forceNotes.set(t.id,{
+   step:this.stepIndex,transformers:forceVec(),travelers:forceVec(),
+   source:forceVec(),vertical:0,stations:[]
+  });
   for(const t of travelers){
    // Rapier user forces persist between world steps. Without reset this is
    // cumulative acceleration, NOT a Hooke spring or a controlled 3D field.
@@ -253,8 +270,10 @@ export class PlanarRapierEngine{
    const p=t.body.translation(),v=t.body.linvel(),m=Math.max(.01,t.body.mass());
    const {stiffness:k,damping:c}=springCoefficients(m,period,dampingRatio);
    // Counteracts gravity at the equilibrium height. No free vertical flight.
-   t.body.addForce(vec(0,m*9.81-k*(p.y-hoverHeight)-c*v.y,0),true);
-   if(this.plan.physics==="shape"){
+   const vertical=m*9.81-k*(p.y-hoverHeight)-c*v.y;
+   t.body.addForce(vec(0,vertical,0),true);
+   forceNotes.get(t.id)!.vertical=vertical;
+   if(this.plan.physics==="shape"&&this.plan.forceChannels.transformers){
     for(const st of stations){
      const s=st.body.translation(),dx=s.x-p.x,dz=s.z-p.z,dist=Math.max(.0001,Math.hypot(dx,dz));
      const {similarity,rest}=affinity(t.dna,st.dna);
@@ -265,24 +284,41 @@ export class PlanarRapierEngine{
      const grav=(4+5*similarity)*attraction/(.7+dist*dist);
      const local=(dist-ideal)*.15*attraction;
      const strength=Math.max(-12,Math.min(12,grav+local));
-     t.body.addForce(vec(strength*dx/dist,0,strength*dz/dist),true);
+     const fx=strength*dx/dist,fz=strength*dz/dist;
+     t.body.addForce(vec(fx,0,fz),true);
+     const d=forceNotes.get(t.id)!;
+     d.transformers=accumulate(d.transformers,fx,fz);
+     const candidate=st.bufferId?this.agents.get(st.bufferId):undefined;
+     const waiting=candidate?.state==="buffered"?candidate.dna:undefined;
+     d.stations.push({id:st.id,name:st.name,dna:st.dna,distance:dist,
+      similarity,rest:ideal,force:forceVec(fx,fz),
+      compatibility:analyzeEncounter(st.dna,t.dna,waiting,t.energy,travelers.length)});
     }
    }
    const r=lengthXZ(p);
-   if(t.touches>0&&decode(t.dna).palette===this.plan.returnPalette&&r>0.2){
+   if(this.plan.forceChannels.source&&t.touches>0&&decode(t.dna).palette===this.plan.returnPalette&&r>0.2){
     const pull=attraction*(3.0+1.3*r);
-    t.body.addForce(vec(-p.x/r*pull,0,-p.z/r*pull),true);
+    const sx=-p.x/r*pull,sz=-p.z/r*pull;
+    t.body.addForce(vec(sx,0,sz),true);
+    forceNotes.get(t.id)!.source=forceVec(sx,sz);
    }
   }
-  if(this.plan.physics==="shape"&&pairSpring>0){
+  if(this.plan.physics==="shape"&&this.plan.forceChannels.travelers&&pairSpring>0){
    for(let i=0;i<travelers.length;i++)for(let j=i+1;j<travelers.length;j++){
     const a=travelers[i],b=travelers[j],p=a.body.translation(),q=b.body.translation();
     const dx=q.x-p.x,dz=q.z-p.z,d=Math.max(.0001,Math.hypot(dx,dz));
     const rest=Math.max(.5,Math.min(1.6,affinity(a.dna,b.dna).rest/32));
     const value=Math.max(-3,Math.min(3,(d-rest)*pairSpring));
-    a.body.addForce(vec(dx/d*value,0,dz/d*value),true);
-    b.body.addForce(vec(-dx/d*value,0,-dz/d*value),true);
+    const fx=dx/d*value,fz=dz/d*value;
+    a.body.addForce(vec(fx,0,fz),true);
+    b.body.addForce(vec(-fx,0,-fz),true);
+    forceNotes.get(a.id)!.travelers=accumulate(forceNotes.get(a.id)!.travelers,fx,fz);
+    forceNotes.get(b.id)!.travelers=accumulate(forceNotes.get(b.id)!.travelers,-fx,-fz);
    }
+  }
+  for(const [id,reading] of forceNotes){
+   reading.stations.sort((a,b)=>b.force.magnitude-a.force.magnitude);
+   this.lastForces.set(id,reading);
   }
   this.world.step(this.eventQueue);
   const contacts:{walker:Internal;station:Internal}[]=[];
@@ -324,9 +360,14 @@ export class PlanarRapierEngine{
  agentsView():AgentView[]{
   return [...this.agents.values()].filter(a=>a.state==="flying"||a.state==="station"||a.state==="buffered").map(a=>{
    const p=a.body.translation(),q=a.body.rotation(),v=a.body.linvel();
+   const partner=a.bufferId?this.agents.get(a.bufferId):undefined;
+   const buffer=a.kind==="controller"&&partner?.state==="buffered"?{
+    id:partner.id,dna:partner.dna,elapsedSteps:this.stepIndex-(a.bufferStep??this.stepIndex),
+    remainingSteps:Math.max(0,361-(this.stepIndex-(a.bufferStep??this.stepIndex)))}:undefined;
    return {id:a.id,type:a.kind,name:a.name,dna:a.dna,energy:a.energy,
     x:p.x,y:p.y,z:p.z,qx:q.x,qy:q.y,qz:q.z,qw:q.w,
-    vx:v.x,vy:v.y,vz:v.z,touches:a.touches,status:a.state};
+    vx:v.x,vy:v.y,vz:v.z,touches:a.touches,status:a.state,
+    forces:this.lastForces.get(a.id),buffer};
   });
  }
  stats():Stats{
