@@ -273,8 +273,9 @@ export class PlanarRapierEngine{
    const vertical=m*9.81-k*(p.y-hoverHeight)-c*v.y;
    t.body.addForce(vec(0,vertical,0),true);
    forceNotes.get(t.id)!.vertical=vertical;
-   if(this.plan.physics==="shape"&&this.plan.forceChannels.transformers){
-    for(const st of stations){
+   // Inspect ALL stations even when their forces are switched off:
+   // genetic compatibility must not disappear from the inspector.
+   for(const st of stations){
      const s=st.body.translation(),dx=s.x-p.x,dz=s.z-p.z,dist=Math.max(.0001,Math.hypot(dx,dz));
      const {similarity,rest}=affinity(t.dna,st.dna);
      const ideal=Math.max(.58,Math.min(1.7,rest/32));
@@ -283,7 +284,8 @@ export class PlanarRapierEngine{
      // collision impulse comes ONLY from Rapier's convex-hull solver.
      const grav=(4+5*similarity)*attraction/(.7+dist*dist);
      const local=(dist-ideal)*.15*attraction;
-     const strength=Math.max(-12,Math.min(12,grav+local));
+     const strength=this.plan.physics==="shape"&&this.plan.forceChannels.transformers?
+      Math.max(-12,Math.min(12,grav+local)):0;
      const fx=strength*dx/dist,fz=strength*dz/dist;
      t.body.addForce(vec(fx,0,fz),true);
      const d=forceNotes.get(t.id)!;
@@ -293,7 +295,6 @@ export class PlanarRapierEngine{
      d.stations.push({id:st.id,name:st.name,dna:st.dna,distance:dist,
       similarity,rest:ideal,force:forceVec(fx,fz),
       compatibility:analyzeEncounter(st.dna,t.dna,waiting,t.energy,travelers.length)});
-    }
    }
    const r=lengthXZ(p);
    if(this.plan.forceChannels.source&&t.touches>0&&decode(t.dna).palette===this.plan.returnPalette&&r>0.2){
