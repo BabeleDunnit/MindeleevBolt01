@@ -264,8 +264,11 @@ function IslandScene({plan,playing,view,onReport,onSelect,selectedId,pauseOnColl
  },[plan]);
  return <div ref={mount} style={{width:"100%",height:"clamp(370px,59vw,645px)",background:"#071827",borderRadius:13,overflow:"hidden"}} aria-label="Mutatron planare con corpi rigidi 3D e vera fisica Rapier"/>;
 }
-function NumberSlider({label,value,min,max,step,onChange,unit=""}:{label:string;value:number;min:number;max:number;step:number;onChange:(v:number)=>void;unit?:string}){
+function NumberSlider({label,value,min,max,step,onChange,unit="",fine=false}:{label:string;value:number;min:number;max:number;step:number;onChange:(v:number)=>void;unit?:string;fine?:boolean}){
  const [text,setText]=useState(String(value));
+ // Quadratic slider mapping allocates extra physical travel near zero.
+ const normalized=Math.min(1,Math.max(0,(value-min)/(max-min)));
+ const rangeValue=fine?1000*Math.sqrt(normalized):value;
  useEffect(()=>{setText(String(value));},[value]);
  const commit=()=>{
   const numeric=Number(text);
@@ -275,8 +278,11 @@ function NumberSlider({label,value,min,max,step,onChange,unit=""}:{label:string;
  return <label style={{display:"grid",gap:5,fontSize:12,color:UI.muted}}>
   <span>{label}</span>
   <span style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) 108px",alignItems:"center",gap:9}}>
-   <input type="range" min={min} max={max} step={step} value={Math.min(max,Math.max(min,value))}
-    onChange={e=>onChange(Number(e.target.value))} aria-label={label+" slider"}/>
+   <input type="range" min={fine?0:min} max={fine?1000:max} step={fine?1:step} value={rangeValue}
+    onChange={e=>{
+     const n=Number(e.target.value);
+     onChange(fine?Math.round((min+(max-min)*(n/1000)**2)*1e6)/1e6:n);
+    }} aria-label={label+" slider"}/>
    <span style={{display:"flex",alignItems:"center",gap:4}}>
     <input type="number" inputMode="decimal" min={min} max={max} step="any" value={text}
      onChange={e=>setText(e.target.value)} onBlur={commit}
@@ -452,11 +458,11 @@ export default function PlanarRapierLab(){
       </button>
      </div>
      <div style={{display:"grid",gap:11}}>
-      <NumberSlider label="Transformer → viaggiatori" value={draft.forceChannels.transformers}
+      <NumberSlider label="Transformer → viaggiatori" value={draft.forceChannels.transformers} fine
        min={0} max={3} step={.005} onChange={v=>setForce("transformers",v)}/>
-      <NumberSlider label="Viaggiatori ↔ viaggiatori" value={draft.forceChannels.travelers}
+      <NumberSlider label="Viaggiatori ↔ viaggiatori" value={draft.forceChannels.travelers} fine
        min={0} max={3} step={.0005} onChange={v=>setForce("travelers",v)}/>
-      <NumberSlider label="Sorgente → viaggiatori (dopo contatto)" value={draft.forceChannels.source}
+      <NumberSlider label="Sorgente → viaggiatori (dopo contatto)" value={draft.forceChannels.source} fine
        min={0} max={3} step={.005} onChange={v=>setForce("source",v)}/>
      </div>
      <p style={{fontSize:11,color:UI.gold,lineHeight:1.6}}>
