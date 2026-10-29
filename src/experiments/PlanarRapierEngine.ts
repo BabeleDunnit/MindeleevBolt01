@@ -14,26 +14,33 @@ import {cubeFusion,analyzeEncounter,type Feasibility} from "./rapierCompatibilit
 
 export const FIXED_STEP=1/120;
 export const SINK_HEIGHT=1.03,AREA_RADIUS=8.2;
-export type Dynamics={period:number;dampingRatio:number;launchSpeed:number;attraction:number;
- restitution:number;pairSpring:number;hoverHeight:number;angularDamping:number};
+export type Dynamics={period:number;dampingRatio:number;launchSpeed:number;
+ restitution:number;hoverHeight:number;angularDamping:number;planarDrag:number;
+ pairRestMin:number;pairRestSpread:number;pairDamping:number};
 export const DEFAULT_DYNAMICS:Dynamics={period:1.25,dampingRatio:.58,launchSpeed:3.5,
- attraction:1.0,restitution:.72,pairSpring:.12,hoverHeight:SINK_HEIGHT,angularDamping:.16};
+ restitution:.72,hoverHeight:SINK_HEIGHT,angularDamping:.16,planarDrag:.7,
+ pairRestMin:1.25,pairRestSpread:1.5,pairDamping:.95};
+export const desiredPairDistance=(similarity:number,dynamics:Dynamics):number=>
+ dynamics.pairRestMin+dynamics.pairRestSpread*(1-Math.max(0,Math.min(1,similarity)));
 export type Scenario="color"|"five"|"quiet";
 export type FamilySizes={controller:number;traveler:number};
-export type ForceChannels={transformers:boolean;travelers:boolean;source:boolean};
-export const DEFAULT_FORCE_CHANNELS:ForceChannels={transformers:true,travelers:true,source:true};
+/** Independent force strengths; zero turns the corresponding field off. */
+export type ForceChannels={transformers:number;travelers:number;source:number};
+export const DEFAULT_FORCE_CHANNELS:ForceChannels={transformers:.08,travelers:.85,source:.25};
 export type ForceVector={x:number;z:number;magnitude:number};
 export type StationForce={id:string;name:string;dna:string;distance:number;
  similarity:number;rest:number;force:ForceVector;compatibility:Feasibility};
+export type PairForce={id:string;dna:string;distance:number;similarity:number;
+ rest:number;force:ForceVector};
 export type ForceDiagnostics={step:number;transformers:ForceVector;travelers:ForceVector;
- source:ForceVector;vertical:number;stations:StationForce[]};
+ source:ForceVector;vertical:number;stations:StationForce[];pairs:PairForce[]};
 export type BufferView={id:string;dna:string;elapsedSteps:number;remainingSteps:number};
 export const DEFAULT_SIZES:FamilySizes={controller:.68,traveler:.26};
 export type Plan={scenario:Scenario;count:1|6|12;dna:string;returnPalette:number;
- seed:number;physics:"shape"|"off";dynamics:Dynamics;sizes:FamilySizes;forceChannels:ForceChannels;
+ seed:number;dynamics:Dynamics;sizes:FamilySizes;forceChannels:ForceChannels;
  stationDNA:Record<string,string>;travelerDNA:Record<string,string>};
 export const DEFAULT_PLAN:Plan={scenario:"color",count:6,dna:"01C",returnPalette:2,
- seed:47,physics:"shape",dynamics:DEFAULT_DYNAMICS,sizes:DEFAULT_SIZES,forceChannels:DEFAULT_FORCE_CHANNELS,stationDNA:{},travelerDNA:{}};
+ seed:47,dynamics:DEFAULT_DYNAMICS,sizes:DEFAULT_SIZES,forceChannels:DEFAULT_FORCE_CHANNELS,stationDNA:{},travelerDNA:{}};
 export type AgentType="controller"|"traveler";
 export type AgentView={id:string;type:AgentType;name:string;dna:string;energy:number;
  x:number;y:number;z:number;qx:number;qy:number;qz:number;qw:number;
@@ -118,7 +125,7 @@ export class PlanarRapierEngine{
   const d=kind==="controller"
    ?RAPIER.RigidBodyDesc.fixed().setTranslation(x,y,z)
    :RAPIER.RigidBodyDesc.dynamic().setTranslation(x,y,z)
-    .setLinvel(vx,vy,vz).setLinearDamping(.025)
+    .setLinvel(vx,vy,vz).setLinearDamping(this.plan.dynamics.planarDrag)
     .setAngularDamping(this.plan.dynamics.angularDamping).setCcdEnabled(true).setCanSleep(false);
   const body=this.world.createRigidBody(d);
   const shape=RAPIER.ColliderDesc.convexHull(polytronHull(dna,this.plan.sizes[kind]));
@@ -252,7 +259,7 @@ export class PlanarRapierEngine{
  private activeWalkers(){return [...this.agents.values()].filter(a=>a.kind==="traveler"&&a.state==="flying").length;}
  tick(){
   this.stepIndex++;
-  const {period,dampingRatio,attraction,pairSpring,hoverHeight}=this.plan.dynamics;
+  const {period,dampingRatio,hoverHeight}=this.plan.dynamics;
   // Controller positions are fixed near sink y≈1. Travelers briefly jump,
   // but vertical spring + gravity bring them back to the same plane.
   const travelers=[...this.agents.values()].filter(a=>a.kind==="traveler"&&a.state==="flying");
@@ -261,7 +268,7 @@ export class PlanarRapierEngine{
   const forceNotes=new Map<string,ForceDiagnostics>();
   for(const t of travelers)forceNotes.set(t.id,{
    step:this.stepIndex,transformers:forceVec(),travelers:forceVec(),
-   source:forceVec(),vertical:0,stations:[]
+   source:forceVec(),vertical:0,stations:[],pairs:[]
   });
   for(const t of travelers){
    // Rapier user forces persist between world steps. Without reset this is
@@ -282,10 +289,11 @@ export class PlanarRapierEngine{
      // Softened gravity-like attraction acts at long range. In contrast,
      // preferred distances influence a mild local spring; the actual
      // collision impulse comes ONLY from Rapier's convex-hull solver.
-     const grav=(4+5*similarity)*attraction/(.7+dist*dist);
-     const local=(dist-ideal)*.15*attraction;
-     const strength=this.plan.physics==="shape"&&this.plan.forceChannels.transformers?
-      Math.max(-12,Math.min(12,grav+local)):0;
+     const intensity=Math.max(0,this.plan.forceChannels.transformers);
+     const grav=(4+5*similarity)/(.7+dist*dist);
+     const local=(dist-ideal)*.15;
+     const strength=intensity>0?
+      Math.max(-12,Math.min(12,(grav+local)*intensity)):0;
      const fx=strength*dx/dist,fz=strength*dz/dist;
      t.body.addForce(vec(fx,0,fz),true);
      const d=forceNotes.get(t.id)!;
@@ -297,28 +305,48 @@ export class PlanarRapierEngine{
       compatibility:analyzeEncounter(st.dna,t.dna,waiting,t.energy,travelers.length)});
    }
    const r=lengthXZ(p);
-   if(this.plan.forceChannels.source&&t.touches>0&&decode(t.dna).palette===this.plan.returnPalette&&r>0.2){
-    const pull=attraction*(3.0+1.3*r);
+   if(this.plan.forceChannels.source>0&&t.touches>0&&decode(t.dna).palette===this.plan.returnPalette&&r>0.2){
+    const pull=this.plan.forceChannels.source*(3.0+1.3*r);
     const sx=-p.x/r*pull,sz=-p.z/r*pull;
     t.body.addForce(vec(sx,0,sz),true);
     forceNotes.get(t.id)!.source=forceVec(sx,sz);
    }
   }
-  if(this.plan.physics==="shape"&&this.plan.forceChannels.travelers&&pairSpring>0){
-   for(let i=0;i<travelers.length;i++)for(let j=i+1;j<travelers.length;j++){
-    const a=travelers[i],b=travelers[j],p=a.body.translation(),q=b.body.translation();
-    const dx=q.x-p.x,dz=q.z-p.z,d=Math.max(.0001,Math.hypot(dx,dz));
-    const rest=Math.max(.5,Math.min(1.6,affinity(a.dna,b.dna).rest/32));
-    const value=Math.max(-3,Math.min(3,(d-rest)*pairSpring));
-    const fx=dx/d*value,fz=dz/d*value;
+  // Shape-DNA sets a signed equilibrium spring: repulsive inside d0, attractive
+  // beyond d0, with a short attractive tail to avoid globally contracting clumps.
+  // Relative radial damping dissipates oscillations as the flock settles.
+  for(let i=0;i<travelers.length;i++)for(let j=i+1;j<travelers.length;j++){
+   const a=travelers[i],b=travelers[j],p=a.body.translation(),q=b.body.translation();
+   const dx=q.x-p.x,dz=q.z-p.z,d=Math.hypot(dx,dz);
+   const angle=(i*17+j*37)*2.399963229728653;
+   const nx=d>1e-5?dx/d:Math.cos(angle),nz=d>1e-5?dz/d:Math.sin(angle);
+   const relation=affinity(a.dna,b.dna);
+   const rest=desiredPairDistance(relation.similarity,this.plan.dynamics);
+   const gap=d-rest;
+   const falloff=gap>0?Math.exp(-Math.pow(gap/1.1,2)):1;
+   const intensity=Math.max(0,this.plan.forceChannels.travelers);
+   const k=intensity*(.35+.65*relation.similarity);
+   const av=a.body.linvel(),bv=b.body.linvel();
+   const radialSpeed=(bv.x-av.x)*nx+(bv.z-av.z)*nz;
+   const reducedMass=Math.max(.01,(a.body.mass()*b.body.mass())/(a.body.mass()+b.body.mass()));
+   const damping=2*this.plan.dynamics.pairDamping*Math.sqrt(k*reducedMass);
+   const magnitude=k>0?Math.max(-9,Math.min(9,(k*gap+damping*radialSpeed)*falloff)):0;
+   const fx=nx*magnitude,fz=nz*magnitude;
+   if(magnitude!==0){
     a.body.addForce(vec(fx,0,fz),true);
     b.body.addForce(vec(-fx,0,-fz),true);
-    forceNotes.get(a.id)!.travelers=accumulate(forceNotes.get(a.id)!.travelers,fx,fz);
-    forceNotes.get(b.id)!.travelers=accumulate(forceNotes.get(b.id)!.travelers,-fx,-fz);
    }
+   const fa=forceNotes.get(a.id)!,fb=forceNotes.get(b.id)!;
+   fa.travelers=accumulate(fa.travelers,fx,fz);
+   fb.travelers=accumulate(fb.travelers,-fx,-fz);
+   fa.pairs.push({id:b.id,dna:b.dna,distance:d,similarity:relation.similarity,rest,
+    force:forceVec(fx,fz)});
+   fb.pairs.push({id:a.id,dna:a.dna,distance:d,similarity:relation.similarity,rest,
+    force:forceVec(-fx,-fz)});
   }
   for(const [id,reading] of forceNotes){
    reading.stations.sort((a,b)=>b.force.magnitude-a.force.magnitude);
+   reading.pairs.sort((a,b)=>a.distance-b.distance);
    this.lastForces.set(id,reading);
   }
   this.world.step(this.eventQueue);
