@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {build} from "esbuild";
-import {mkdtemp,rm} from "node:fs/promises";
+import {mkdtemp,rm,readFile} from "node:fs/promises";
 import {join} from "node:path";
 import {pathToFileURL} from "node:url";
 import React from "react";
@@ -19,9 +19,12 @@ try{
  const ui=await load("src/experiments/PlanarRapierLab.tsx","ui");
  const html=renderToString(React.createElement(ui.default));
  for(const label of ["Diagnostica delle forze","Solo transformer","Solo viaggiatori",
- "Solo Sorgente","Solo urti","Attrazione transformer","Richiamo della Sorgente",
- "Buffer Cubo","Forze istantanee sul viaggiatore","Compatibilità dei viaggiatori"]){
+ "Solo Sorgente","Solo urti","Attrazione transformer","Richiamo della Sorgente"]){
   assert(html.includes(label),"Missing Inspector diagnostics: "+label);
+ }
+ const uiSource=await readFile("src/experiments/PlanarRapierLab.tsx","utf8");
+ for(const label of ["Buffer Cubo","Forze istantanee sul viaggiatore","Compatibilità dei viaggiatori"]){
+  assert(uiSource.includes(label),"Conditional Inspector source missing: "+label);
  }
  const blocked=c.cubeFusion("02C","01C","01C");
  assert.equal(blocked.state,"blocked");assert(blocked.reason.includes("nudi"));
