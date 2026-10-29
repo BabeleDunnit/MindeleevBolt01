@@ -45,12 +45,12 @@ try{
    run.tick();
    const force=run.agentsView().find(a=>a.id==="v1").forces;
    readings.push(force.travelers.magnitude);
-   const pos=run.agentsView().find(a=>a.id==="v1");
    assert(force.pairs.every(p=>p.rest>0&&Number.isFinite(p.similarity)));
    const nearest=force.pairs[0];
-   const other=run.agentsView().find(a=>a.id===nearest.id);
-   const toward=(other.x-pos.x)*nearest.force.x+(other.z-pos.z)*nearest.force.z;
-   if(nearest.distance<nearest.rest-.02)assert(toward<0,"Too-close particles must repel");
+   if(nearest.distance<nearest.rest-.02)
+    assert(nearest.spring<0,"Below the Shape-DNA rest length the spring must repel");
+   if(nearest.distance>nearest.rest+.02)
+    assert(nearest.spring>0,"Beyond rest length the spring must attract");
   }finally{run.dispose();}
  }
  assert(readings[0]>0&&readings[1]>readings[0]);
