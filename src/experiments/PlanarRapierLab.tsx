@@ -265,9 +265,27 @@ function IslandScene({plan,playing,view,onReport,onSelect,selectedId,pauseOnColl
  return <div ref={mount} style={{width:"100%",height:"clamp(370px,59vw,645px)",background:"#071827",borderRadius:13,overflow:"hidden"}} aria-label="Mutatron planare con corpi rigidi 3D e vera fisica Rapier"/>;
 }
 function NumberSlider({label,value,min,max,step,onChange,unit=""}:{label:string;value:number;min:number;max:number;step:number;onChange:(v:number)=>void;unit?:string}){
+ const [text,setText]=useState(String(value));
+ useEffect(()=>{setText(String(value));},[value]);
+ const commit=()=>{
+  const numeric=Number(text);
+  if(text.trim()!==""&&Number.isFinite(numeric))onChange(Math.min(max,Math.max(min,numeric)));
+  else setText(String(value));
+ };
  return <label style={{display:"grid",gap:5,fontSize:12,color:UI.muted}}>
-  <span style={{display:"flex",justifyContent:"space-between",gap:8}}><span>{label}</span><b style={{color:UI.fg}}>{value.toFixed(step<.1?2:1)}{unit}</b></span>
-  <input type="range" min={min} max={max} step={step} value={value} onChange={e=>onChange(Number(e.target.value))}/>
+  <span>{label}</span>
+  <span style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) 108px",alignItems:"center",gap:9}}>
+   <input type="range" min={min} max={max} step={step} value={Math.min(max,Math.max(min,value))}
+    onChange={e=>onChange(Number(e.target.value))} aria-label={label+" slider"}/>
+   <span style={{display:"flex",alignItems:"center",gap:4}}>
+    <input type="number" inputMode="decimal" min={min} max={max} step="any" value={text}
+     onChange={e=>setText(e.target.value)} onBlur={commit}
+     onKeyDown={e=>{if(e.key==="Enter")e.currentTarget.blur();if(e.key==="Escape"){setText(String(value));e.currentTarget.blur();}}}
+     aria-label={label+" valore numerico"}
+     style={{...control,width:"100%",minWidth:0,boxSizing:"border-box",fontVariantNumeric:"tabular-nums"}}/>
+    {unit&&<span>{unit}</span>}
+   </span>
+  </span>
  </label>;
 }
 export default function PlanarRapierLab(){
@@ -286,15 +304,20 @@ export default function PlanarRapierLab(){
  const cubeCandidates=selectedAgent?.type==="controller"&&decode(selectedAgent.dna).seed==="C"?
   activeTravelers.map(t=>({id:t.id,dna:t.dna,
    test:analyzeEncounter(selectedAgent.dna,t.dna,selectedAgent.buffer?.dna,t.energy,activeTravelers.length)})):[];
- const forces=draft.forceChannels;
- const toggleForce=(name:keyof Plan["forceChannels"],value:boolean)=>
-  update({physics:"shape",forceChannels:{...draft.forceChannels,[name]:value}});
+ const setForce=(key:keyof Plan["forceChannels"],value:number)=>
+  setDraft(p=>({...p,forceChannels:{...p.forceChannels,[key]:value}}));
  const applyForcePreset=(name:"all"|"none"|"transformer"|"pairs"|"source")=>
-  update({physics:"shape",forceChannels:{
-   transformers:name==="all"||name==="transformer",
-   travelers:name==="all"||name==="pairs",
-   source:name==="all"||name==="source"
+  update({forceChannels:{
+   transformers:name==="all"||name==="transformer"?1:0,
+   travelers:name==="all"||name==="pairs"?1:0,
+   source:name==="all"||name==="source"?1:0
   }});
+ const applyEquilibriumPreset=()=>update({
+  scenario:"quiet",count:6,stationDNA:{},travelerDNA:{},
+  forceChannels:{transformers:0,travelers:1.25,source:0},
+  dynamics:{...draft.dynamics,launchSpeed:.65,planarDrag:1.35,
+   pairRestMin:1.35,pairRestSpread:1.5,pairDamping:1.1}
+ });
  const canPersist=!!selectedAgent&&(selectedAgent.type==="controller"||
   (selectedAgent.type==="traveler"&&Number(selectedAgent.id.slice(1))<=plan.count));
  const dnaError=(()=>{try{if(!dnaText)return "Ricetta vuota";decode(dnaText);return "";}catch(e){return String(e);}})();
@@ -340,7 +363,7 @@ export default function PlanarRapierLab(){
  return <main style={{background:UI.bg,color:UI.fg,minHeight:"100vh",padding:"clamp(12px,2vw,24px)",fontFamily:"system-ui,sans-serif"}}>
   <style>{".rapier-cols{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(300px,.78fr);gap:14px;align-items:start}.rapier-controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px}@media(max-width:1000px){.rapier-cols{grid-template-columns:1fr}}"}</style>
   <header style={{maxWidth:970,marginBottom:15}}>
-   <div style={{fontSize:11,color:UI.mint,letterSpacing:2}}>MINDELEEV · SPRINT 30 · FORCE DIAGNOSTICS</div>
+   <div style={{fontSize:11,color:UI.mint,letterSpacing:2}}>MINDELEEV · SPRINT 31 · SHAPE EQUILIBRIUM</div>
    <h1 style={{fontSize:"clamp(24px,3vw,37px)",margin:"7px 0"}}>Planar Rapier Mutatron</h1>
    <p style={{fontSize:14,color:UI.muted,lineHeight:1.6,margin:0}}>Il campo rimane orizzontale e l'emissione è radiale. I poliedri sono corpi rigidi tridimensionali: possono urtarsi, ruotare e sollevarsi temporaneamente, ma ritornano verso la quota dei PolytronSink. Il cambio camera non cambia le regole fisiche.</p>
    <div style={{marginTop:9,fontSize:12,display:"flex",gap:15}}>
@@ -409,34 +432,37 @@ export default function PlanarRapierLab(){
      <div className="rapier-controls">
       <label style={{fontSize:12,color:UI.muted}}>Filtro Sorgente <select value={draft.returnPalette} style={{...control,marginLeft:5}}
        onChange={e=>update({returnPalette:Number(e.target.value)})}>{[0,1,2,3,4].map(n=><option key={n} value={n}>Palette {n}</option>)}</select></label>
-      <label style={{fontSize:12,color:UI.muted}}>Forze Shape-DNA <select style={{...control,marginLeft:5}} value={draft.physics} onChange={e=>update({physics:e.target.value as Plan["physics"]})}>
-       <option value="shape">Attive</option><option value="off">Spente (controllo)</option></select></label>
+      
      </div>
     </section>
     <section style={panel}>
-     <h3 style={{fontSize:16,margin:"0 0 10px"}}>Diagnostica delle forze · C0/C1</h3>
+     <h3 style={{fontSize:16,margin:"0 0 10px"}}>Intensità delle forze · Shape-DNA</h3>
      <p style={{fontSize:12,color:UI.muted,lineHeight:1.5,marginTop:0}}>
-      Isola i tre campi senza cambiare la fisica degli urti Rapier. Ogni modifica
-      riavvia il mondo dalla stessa scarica e dallo stesso seed.
+      Tre intensità indipendenti. <b>0 = disattivato</b>. Gli urti Rapier
+      e il ritorno verticale rimangono attivi. Per i valori intermedi usa
+      il campo numerico: gli slider sono solo una scorciatoia.
      </p>
-     <div className="rapier-controls" style={{marginBottom:10}}>
-      {([["all","Tutte"],["none","Solo urti"],["transformer","Solo transformer"],
-        ["pairs","Solo viaggiatori"],["source","Solo Sorgente"]] as const).map(([id,label])=>
+     <div className="rapier-controls" style={{marginBottom:12}}>
+      {([["all","Tutte (1)"],["none","Solo urti"],
+       ["transformer","Solo transformer"],["pairs","Solo viaggiatori"],
+       ["source","Solo Sorgente"]] as const).map(([id,label])=>
        <button key={id} style={btn} onClick={()=>applyForcePreset(id)}>{label}</button>)}
+      <button style={{...btn,background:"#28746a"}} onClick={applyEquilibriumPreset}>
+       Equilibrio Shape-DNA · prova guidata
+      </button>
      </div>
-     <div style={{display:"grid",gap:9}}>
-      {([["transformers","Attrazione transformer ↔ viaggiatori"],
-        ["travelers","Molle fra viaggiatori (Shape-DNA)"],
-        ["source","Richiamo della Sorgente verso Architron"]] as const).map(([key,label])=>
-        <label key={key} style={{fontSize:13,display:"flex",alignItems:"center",gap:9,cursor:"pointer"}}>
-         <input type="checkbox" checked={forces[key]} onChange={e=>toggleForce(key,e.target.checked)}/>
-         {label}
-        </label>)}
+     <div style={{display:"grid",gap:11}}>
+      <NumberSlider label="Transformer → viaggiatori" value={draft.forceChannels.transformers}
+       min={0} max={3} step={.005} onChange={v=>setForce("transformers",v)}/>
+      <NumberSlider label="Viaggiatori ↔ viaggiatori" value={draft.forceChannels.travelers}
+       min={0} max={3} step={.0005} onChange={v=>setForce("travelers",v)}/>
+      <NumberSlider label="Sorgente → viaggiatori (dopo contatto)" value={draft.forceChannels.source}
+       min={0} max={3} step={.005} onChange={v=>setForce("source",v)}/>
      </div>
      <p style={{fontSize:11,color:UI.gold,lineHeight:1.6}}>
-      Il richiamo verticale alla quota PolytronSink resta sempre attivo. Forze Shape-DNA «Spente»
-      nel menu generale disabilita transformer e molle fra viaggiatori; il richiamo
-      della Sorgente rimane controllabile a parte.
+      Fra viaggiatori la forza è repulsiva sotto la distanza desiderata e
+      attrattiva sopra: lo Shape-DNA governa entrambe. Ogni modifica riavvia
+      la stessa scarica con lo stesso seed.
      </p>
     </section>
     <section style={panel}>
