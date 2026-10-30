@@ -1,0 +1,27 @@
+name: ShapeDNA v2 independent regression checks
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experiments/sprint35-shapedna-corrected
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: node scripts/check-shapedna-v2.mjs
+      - run: node scripts/check-shape-dna.mjs
+      - run: node scripts/check-polytron-periodic.mjs
+      - run: node scripts/build-phenotype-atlas.mjs
+      - run: |
+          test -f public/phenotype-atlas.json
+          grep -q '"version":2' public/phenotype-atlas.json
