@@ -10,6 +10,8 @@ import {visibleHexGrid,stationWorld,worldStationCell,canPlaceStation,
  nextStationId,GRID_MAX_RING} from "./rapierHexGrid";
 import type {Axial} from "@/hex/hexGrid";
 import {chooseAgents,translateStations,withoutStations} from "./rapierMultiSelection";
+import {DEFAULT_FORCE_CHANNELS} from "./PlanarRapierEngine";
+import {DEFAULT_ORBITAL,type MotionLaw,type ReactionTrigger} from "./orbitalMechanics";
 const UI={bg:"#071524",panel:"#102a3a",stroke:"#3e6074",fg:"#ecf8ff",muted:"#acc9d8",mint:"#88ead0",gold:"#f0ca8b"};
 const panel:CSSProperties={border:"1px solid "+UI.stroke,background:UI.panel,borderRadius:15,padding:15};
 const control:CSSProperties={color:UI.fg,background:"#1e4b61",border:"1px solid #588197",borderRadius:9,padding:"8px 10px",fontSize:13};
@@ -423,13 +425,25 @@ function NumberSlider({label,value,min,max,step,onChange,unit="",fine=false}:{la
   </span>
  </label>;
 }
-export default function PlanarRapierLab(){
- const [plan,setPlan]=useState<Plan>(()=>({...DEFAULT_PLAN,
-  dynamics:{...DEFAULT_PLAN.dynamics},sizes:{...DEFAULT_PLAN.sizes},
-  forceChannels:{...DEFAULT_PLAN.forceChannels},stationDNA:{},travelerDNA:{}}));
+export default function PlanarRapierLab({initialMode="springs"}:{initialMode?:MotionLaw}){
+ const [plan,setPlan]=useState<Plan>(()=>{
+  const orbital=initialMode==="gravity";
+  return {...DEFAULT_PLAN,
+   count:orbital?1:DEFAULT_PLAN.count,
+   stationLayout:orbital?DEFAULT_PLAN.stationLayout.slice(0,1):
+    DEFAULT_PLAN.stationLayout.map(s=>({...s})),
+   orbital:{...DEFAULT_ORBITAL,motion:initialMode,
+    trigger:orbital?"orbits":"collision"},
+   dynamics:{...DEFAULT_PLAN.dynamics,planarDrag:orbital?0:DEFAULT_PLAN.dynamics.planarDrag},
+   sizes:{...DEFAULT_PLAN.sizes},
+   forceChannels:orbital?{transformers:1,travelers:0,source:0}:
+    {...DEFAULT_PLAN.forceChannels},
+   stationDNA:{},travelerDNA:{}
+  };
+ });
  const draft=plan;
  const [replayKey,setReplayKey]=useState(0);
- const [launchedCount,setLaunchedCount]=useState<1|6|12>(DEFAULT_PLAN.count);
+ const [launchedCount,setLaunchedCount]=useState<1|6|12>(initialMode==="gravity"?1:DEFAULT_PLAN.count);
  const [playing,setPlaying]=useState(true),[view,setView]=useState<"top"|"zoom">("top");
  const [stats,setStats]=useState<Stats|null>(null),[agents,setAgents]=useState<AgentView[]>([]);
  const [events,setEvents]=useState<Impact[]>([]);
@@ -452,6 +466,20 @@ export default function PlanarRapierLab(){
  const cubeCandidates=selectedAgent?.type==="controller"&&decode(selectedAgent.dna).seed==="C"?
   activeTravelers.map(t=>({id:t.id,dna:t.dna,
    test:analyzeEncounter(selectedAgent.dna,t.dna,selectedAgent.buffer?.dna,t.energy,activeTravelers.length)})):[];
+ const updateOrbit=(key:keyof Plan["orbital"],value:number|string)=>
+  setPlan(p=>({...p,orbital:{...p.orbital,[key]:value}}));
+ const orbitalPreset=()=>{
+  setPlan(p=>({...p,scenario:"color",count:1,
+   stationLayout:DEFAULT_PLAN.stationLayout.slice(0,1).map(x=>({...x})),
+   stationDNA:{},orbital:{...DEFAULT_ORBITAL,motion:"gravity",trigger:"orbits"},
+   dynamics:{...p.dynamics,planarDrag:0},
+   forceChannels:{transformers:1,travelers:0,source:0}}));
+ };
+ const compareOriginal=()=>{
+  setPlan(p=>({...p,orbital:{...p.orbital,motion:"springs",trigger:"collision"},
+   dynamics:{...p.dynamics,planarDrag:DEFAULT_DYNAMICS.planarDrag},
+   forceChannels:{...DEFAULT_FORCE_CHANNELS}}));
+ };
  const setForce=(key:keyof Plan["forceChannels"],value:number)=>
   setPlan(p=>({...p,forceChannels:{...p.forceChannels,[key]:value}}));
  const applyForcePreset=(name:"all"|"none"|"transformer"|"pairs"|"source")=>
@@ -553,12 +581,17 @@ export default function PlanarRapierLab(){
  return <main style={{background:UI.bg,color:UI.fg,minHeight:"100vh",padding:"clamp(12px,2vw,24px)",fontFamily:"system-ui,sans-serif"}}>
   <style>{".rapier-cols{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(300px,.78fr);gap:14px;align-items:start}.rapier-controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px}@media(max-width:1000px){.rapier-cols{grid-template-columns:1fr}}"}</style>
   <header style={{maxWidth:970,marginBottom:15}}>
-   <div style={{fontSize:11,color:UI.mint,letterSpacing:2}}>MINDELEEV · SPRINT 33b · INSPECTOR MULTI-SELECTION</div>
-   <h1 style={{fontSize:"clamp(24px,3vw,37px)",margin:"7px 0"}}>Planar Rapier Mutatron</h1>
-   <p style={{fontSize:14,color:UI.muted,lineHeight:1.6,margin:0}}>Il campo rimane orizzontale e l'emissione è radiale. I poliedri sono corpi rigidi tridimensionali: possono urtarsi, ruotare e sollevarsi temporaneamente, ma ritornano verso la quota dei PolytronSink. Il cambio camera non cambia le regole fisiche.</p>
+   <div style={{fontSize:11,color:UI.mint,letterSpacing:2}}>MINDELEEV · SPRINT 34 · ORBITAL MUTATRON</div>
+   <h1 style={{fontSize:"clamp(24px,3vw,37px)",margin:"7px 0"}}>{plan.orbital.motion==="gravity"?"Orbital Mutatron":"Planar Rapier Mutatron"}</h1>
+   <p style={{fontSize:14,color:UI.muted,lineHeight:1.6,margin:0}}>I transformer restano ancorati alla griglia; i viaggiatori si muovono liberamente.
+    Nella modalità orbitale vengono emessi tangenzialmente e seguono la gravità dei transformer.
+    Le trasformazioni possono dipendere dalla permanenza o dalle rivoluzioni, non dagli urti.
+    Passare da un modello all'altro non rilancia automaticamente la simulazione.</p>
    <div style={{marginTop:9,fontSize:12,display:"flex",gap:15}}>
     <a style={{color:UI.mint}} href={import.meta.env.BASE_URL+"?experiment=island-affinity"}>Island Affinity precedente</a>
     <a style={{color:UI.mint}} href={import.meta.env.BASE_URL+"?experiment=musical-return"}>Musical Return</a>
+    <a style={{color:UI.mint}} href={import.meta.env.BASE_URL+"?experiment=planar-rapier"}>Mutatron a molle</a>
+    <a style={{color:UI.mint}} href={import.meta.env.BASE_URL+"?experiment=orbital-mut"}>Orbital Mutatron</a>
    </div>
   </header>
   <div className="rapier-cols">
@@ -688,6 +721,19 @@ export default function PlanarRapierLab(){
       <div>Posizione: ({fmt(selectedAgent.x)}, {fmt(selectedAgent.y)}, {fmt(selectedAgent.z)})</div>
       <div>Velocità: {fmt(Math.hypot(selectedAgent.vx,selectedAgent.vy,selectedAgent.vz))} · Contatti: {selectedAgent.touches} · ENERGY: {fmt(selectedAgent.energy)}</div>
       <div>Geometria: {(()=>{const p=dnaToPoly(selectedAgent.dna);return p.vertices.length+" vertici · "+p.faces.length+" facce";})()}</div>
+      {selectedAgent.type==="controller"&&plan.orbital.trigger!=="collision"&&<div
+       style={{marginTop:8,padding:9,background:"#1b3849",borderRadius:8,
+        border:"1px solid "+UI.stroke,fontSize:11}}>
+       <strong style={{color:UI.mint}}>Interazioni orbitali dei viaggiatori</strong>
+       {agents.filter(a=>a.type==="traveler").map(t=>{
+        const st=t.forces?.stations.find(x=>x.id===selectedAgent.id);
+        return st?.orbital?.inside?<div key={t.id}>
+         {t.id} · {st.orbital.seconds.toFixed(2)} s ·
+         {st.orbital.revolutions.toFixed(2)} rivoluzioni
+         {st.orbital.activated?" · già attivato":""}
+        </div>:null;
+       })}
+      </div>}
       {selectedAgent.type==="controller"&&decode(selectedAgent.dna).seed==="C"&&
        <div style={{marginTop:11,padding:10,border:"1px solid "+UI.stroke,borderRadius:10,background:"#1d384b"}}>
         <strong style={{color:UI.mint}}>Buffer Cubo · Combina</strong>
@@ -721,8 +767,14 @@ export default function PlanarRapierLab(){
         <div style={{maxHeight:190,overflowY:"auto",marginTop:6}}>
          {selectedForces.stations.map(st=><div key={st.id} style={{fontSize:11,padding:"6px 0",borderBottom:"1px solid "+UI.stroke}}>
           <b>{st.id} · {st.name}</b> · <code>{st.dna}</code>
-          <div>Forza {fmt(st.force.magnitude)} N · Distanza {fmt(st.distance)} · Equilibrio {fmt(st.rest)}
+          <div>Forza {fmt(st.force.magnitude)} N · Distanza {fmt(st.distance)}
            · Affinità {st.similarity.toFixed(3)}</div>
+          {plan.orbital.trigger!=="collision"&&st.orbital&&<div style={{color:UI.mint}}>
+           {st.orbital.inside?"Nel campo":"Fuori campo"} ·
+           permanenza {st.orbital.seconds.toFixed(2)} s ·
+           {st.orbital.revolutions.toFixed(2)} orbite
+           {st.orbital.activated?" · trasformazione già tentata":""}
+          </div>}
           <div style={{color:st.compatibility.state==="blocked"?"#f5b3a2":UI.muted}}>
            Reazione: {st.compatibility.state} — {st.compatibility.reason}
           </div>
@@ -777,6 +829,58 @@ export default function PlanarRapierLab(){
       </div>
       <p style={{fontSize:11,color:UI.gold}}>Il seme sceglie il verbo; gli operatori Conway della stazione si applicano anche al DNA dei prodotti. Es. k02T colora e applica k.</p>
      </details>
+    </section>
+    <section style={panel}>
+     <h3 style={{fontSize:16,margin:"0 0 10px"}}>Orbital Mutatron · leggi del moto</h3>
+     <p style={{fontSize:12,color:UI.muted,lineHeight:1.55,marginTop:0}}>
+      Il modello gravitazionale usa un'attrazione centrale a distanza attenuata.
+      Non applica lo smorzamento lineare del modello a molle. La forma Shape-DNA
+      modifica la massa gravitazionale efficace; la griglia vincola solo i transformer.
+     </p>
+     <div style={{display:"grid",gap:10}}>
+      <label style={{display:"grid",gap:5,fontSize:12,color:UI.muted}}>
+       Dinamica del movimento
+       <select aria-label="Dinamica del movimento" style={control} value={plan.orbital.motion}
+        onChange={e=>updateOrbit("motion",e.target.value as MotionLaw)}>
+        <option value="gravity">Gravità · orbite</option>
+        <option value="springs">Molle Shape-DNA · modello precedente</option>
+       </select>
+      </label>
+      <label style={{display:"grid",gap:5,fontSize:12,color:UI.muted}}>
+       Condizione per trasformarsi
+       <select aria-label="Condizione di trasformazione" style={control} value={plan.orbital.trigger}
+        onChange={e=>updateOrbit("trigger",e.target.value as ReactionTrigger)}>
+        <option value="collision">Collisione fisica (confronto)</option>
+        <option value="dwell">Permanenza nel campo</option>
+        <option value="orbits">Rivoluzioni attorno al transformer</option>
+       </select>
+      </label>
+      <NumberSlider label="Gravità dei transformer · G×M" value={plan.orbital.gravity}
+       min={0} max={12} step={.1} fine onChange={v=>updateOrbit("gravity",v)}/>
+      <NumberSlider label="Softening della gravità" value={plan.orbital.softening}
+       min={.05} max={1.5} step={.01} unit=" m" onChange={v=>updateOrbit("softening",v)}/>
+      <NumberSlider label="Raggio di influenza (campo)" value={plan.orbital.influenceRadius}
+       min={.8} max={5} step={.05} unit=" m" onChange={v=>updateOrbit("influenceRadius",v)}/>
+      {plan.orbital.trigger==="dwell"&&<NumberSlider label="Permanenza richiesta"
+       value={plan.orbital.dwellSeconds} min={.1} max={15} step={.1} unit=" s"
+       onChange={v=>updateOrbit("dwellSeconds",v)}/>}
+      {plan.orbital.trigger==="orbits"&&<NumberSlider label="Rivoluzioni richieste"
+       value={plan.orbital.revolutions} min={.1} max={4} step={.05}
+       onChange={v=>updateOrbit("revolutions",v)}/>}
+      <NumberSlider label="Raggio dell'orbita all'emissione" value={plan.orbital.launchRadius}
+       min={1.05} max={3.3} step={.05} unit=" m" onChange={v=>updateOrbit("launchRadius",v)}/>
+     </div>
+     <div className="rapier-controls" style={{marginTop:12}}>
+      <button style={{...btn,background:"#28746a"}} onClick={orbitalPreset}>
+       Preset · orbita singola
+      </button>
+      <button style={btn} onClick={compareOriginal}>Confronta con collisioni + molle</button>
+     </div>
+     <p style={{fontSize:11,color:UI.gold,lineHeight:1.55}}>
+      I cambi di legge e soglia sono immediati. Il raggio e la velocità
+      tangenziale di emissione si applicano premendo «Rilancia / Ripeti».
+      Più centri gravitazionali perturbano le orbite: non garantiscono stabilità.
+     </p>
     </section>
     <section style={panel}>
      <h3 style={{fontSize:16,margin:"0 0 10px"}}>Editor transformer · griglia esagonale</h3>
@@ -844,7 +948,7 @@ export default function PlanarRapierLab(){
        min={0} max={3} step={.005} onChange={v=>setForce("source",v)}/>
      </div>
      <p style={{fontSize:11,color:UI.gold,lineHeight:1.6}}>
-      Fra viaggiatori la forza è repulsiva sotto la distanza desiderata e
+      Nel modello a molle, fra viaggiatori la forza è repulsiva sotto la distanza desiderata e
       attrattiva sopra: lo Shape-DNA governa entrambe. Ogni modifica aggiorna il campo attuale senza una nuova emissione.
      </p>
     </section>
