@@ -239,6 +239,8 @@ export class PlanarRapierEngine{
   const resizedController=previous.sizes.controller!==next.sizes.controller;
   const resizedTraveler=previous.sizes.traveler!==next.sizes.traveler;
   const changedGlobalDNA=previous.dna!==next.dna;
+  if(previous.orbital.trigger!==next.orbital.trigger||
+     previous.orbital.motion!==next.orbital.motion)this.orbitTracks.clear();
   const oldStationDNA=(id:string)=>stationPresetDNA(previous,id);
   const desiredDNA=(id:string)=>stationPresetDNA(next,id);
   // Remove obsolete stations, never touching the traveling population.
@@ -404,6 +406,7 @@ export class PlanarRapierEngine{
  tick(){
   this.stepIndex++;
   const {period,dampingRatio,hoverHeight}=this.plan.dynamics;
+  const orbital=this.plan.orbital,gravityMode=orbital.motion==="gravity";
   // Controller positions are fixed near sink y≈1. Travelers briefly jump,
   // but vertical spring + gravity bring them back to the same plane.
   const travelers=[...this.agents.values()].filter(a=>a.kind==="traveler"&&a.state==="flying");
@@ -434,11 +437,18 @@ export class PlanarRapierEngine{
      // preferred distances influence a mild local spring; the actual
      // collision impulse comes ONLY from Rapier's convex-hull solver.
      const intensity=Math.max(0,this.plan.forceChannels.transformers);
-     const grav=(4+5*similarity)/(.7+dist*dist);
-     const local=(dist-ideal)*.15;
-     const strength=intensity>0?
-      Math.max(-12,Math.min(12,(grav+local)*intensity)):0;
-     const fx=strength*dx/dist,fz=strength*dz/dist;
+     let fx=0,fz=0;
+     if(gravityMode){
+      const mu=orbital.gravity*intensity*shapeGravityFactor(similarity);
+      const acc=orbitalAcceleration(dx,dz,mu,orbital.softening);
+      fx=m*acc.x;fz=m*acc.z;
+     }else{
+      const grav=(4+5*similarity)/(.7+dist*dist);
+      const local=(dist-ideal)*.15;
+      const strength=intensity>0?
+       Math.max(-12,Math.min(12,(grav+local)*intensity)):0;
+      fx=strength*dx/dist;fz=strength*dz/dist;
+     }
      t.body.addForce(vec(fx,0,fz),true);
      const d=forceNotes.get(t.id)!;
      d.transformers=accumulate(d.transformers,fx,fz);
@@ -512,7 +522,40 @@ export class PlanarRapierEngine{
    }
   });
   contacts.sort((a,b)=>a.walker.id.localeCompare(b.walker.id)||a.station.id.localeCompare(b.station.id));
-  for(const {walker,station} of contacts)this.handleContact(walker,station);
+  if(orbital.trigger==="collision"){
+   for(const {walker,station} of contacts)this.handleContact(walker,station);
+  }else{
+   // A single genetic activation for each continuous encounter, driven by
+   // residence time or signed angular travel, never by physical contact.
+   for(const t of travelers)if(t.state==="flying"){
+    const p=t.body.translation();
+    for(const st of stations){
+     const center=st.body.translation(),key=t.id+"::"+st.id;
+     const track=orbitTrackStep(this.orbitTracks.get(key)??EMPTY_ORBITAL_TRACK,
+      p.x,p.z,center.x,center.z,orbital.influenceRadius,FIXED_STEP);
+     if(encounterReady(track,orbital)){
+      track.activated=true;
+      const before=this.events.length;
+      this.handleContact(t,st);
+      if(this.events.length>before){
+       const last=this.events[this.events.length-1];
+       last.note=(orbital.trigger==="dwell"?
+        "Permanenza "+track.seconds.toFixed(2)+" s · ":
+        "Rivoluzioni "+track.revolutions.toFixed(2)+" · ")+last.note;
+      }
+     }
+     if(track.inside)this.orbitTracks.set(key,track);
+     else this.orbitTracks.delete(key);
+     if(t.state!=="flying")break;
+    }
+   }
+  }
+  for(const [id,reading] of forceNotes)for(const st of reading.stations){
+   const track=this.orbitTracks.get(id+"::"+st.id);
+   st.orbital=track?{seconds:track.seconds,revolutions:track.revolutions,
+    inside:track.inside,activated:track.activated}:
+    {seconds:0,revolutions:0,inside:false,activated:false};
+  }
   for(const st of stations)if(st.bufferId&&this.stepIndex-(st.bufferStep??0)>360){
    const w=this.agents.get(st.bufferId);
    if(w&&w.state==="buffered"){
