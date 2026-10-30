@@ -469,6 +469,7 @@ export default function PlanarRapierLab(){
  const canPersist=!!selectedAgent&&(selectedAgent.type==="controller"||
   (selectedAgent.type==="traveler"&&Number(selectedAgent.id.slice(1))<=launchedCount));
  const dnaError=(()=>{try{if(!dnaText)return "Ricetta vuota";decode(dnaText);return "";}catch(e){return String(e);}})();
+ const bulkDNAError=(()=>{try{decode(bulkDNA);return "";}catch(e){return String(e);}})();
  const addStationAt=(cell:Axial)=>{
   if(!canPlaceStation(plan.stationLayout,cell)){
    setGridError("Cella occupata, centrale o fuori dalla griglia.");return;
@@ -604,111 +605,62 @@ export default function PlanarRapierLab(){
     </section>
    </div>
    <aside style={{display:"grid",gap:14}}>
-    <section style={panel}>
-     <h3 style={{fontSize:16,margin:"0 0 10px"}}>Editor transformer · griglia esagonale</h3>
-     <p style={{fontSize:12,color:UI.muted,lineHeight:1.5,marginTop:0}}>
-      Trascina un transformer su una cella libera, oppure aggiungine nuovi.
-      I transformer sono vincolati alle celle; i viaggiatori si muovono liberamente.
+    <section style={{...panel,maxHeight:"min(80vh,780px)",overflowY:"auto"}}>
+     <h3 style={{fontSize:17,margin:"0 0 9px"}}>Inspector · selezione Polytroni</h3>
+     <p style={{fontSize:12,color:UI.muted,margin:"0 0 8px"}}>
+      Clic per selezionare, Maiusc/Cmd/Ctrl + clic per aggiungere o togliere elementi.
+      Trascina un transformer selezionato per spostare il gruppo sulla griglia.
      </p>
-     <div className="rapier-controls">
-      <button style={{...btn,background:addingStation?"#2b7368":"#245065"}}
-       onClick={()=>{setAddingStation(v=>!v);setGridError("");}}>
-       {addingStation?"Fine inserimento":"+ Aggiungi cliccando la griglia"}
+     <div className="rapier-controls" style={{marginBottom:9}}>
+      <button style={btn} disabled={!plan.stationLayout.length}
+       onClick={()=>setSelectedIds(plan.stationLayout.map(p=>p.id))}>Seleziona tutti i transformer</button>
+      <button style={btn} disabled={!selectedIds.length}
+       onClick={()=>selectOne(null)}>Deseleziona</button>
+      <button style={{...btn,background:"#713b42"}} disabled={!selectedStationIds.length}
+       onClick={deleteSelectedStations}>Elimina selezionati ({selectedStationIds.length})</button>
+      <button style={{...btn,background:"#873943"}} disabled={!plan.stationLayout.length}
+       onClick={clearTransformers}>Pulisci Mutatron</button>
+     </div>
+     <details style={{marginBottom:10}}>
+      <summary style={{fontSize:12,color:UI.mint,cursor:"pointer"}}>
+       Multi-selezione dalla lista · {selectedIds.length} selezionati
+      </summary>
+      <div style={{maxHeight:195,overflowY:"auto",display:"grid",gap:5,marginTop:9}}>
+       {agents.filter(a=>a.type==="controller").map(a=>
+        <label key={a.id} style={{fontSize:12,display:"flex",alignItems:"center",gap:7}}>
+         <input type="checkbox" checked={selectedIds.includes(a.id)}
+          onChange={()=>selectAgent(a.id,true)}/>
+         <b>{a.id}</b> · <code>{a.dna}</code> · cella {a.cell?.q},{a.cell?.r}
+        </label>)}
+       {agents.filter(a=>a.type==="traveler").map(a=>
+        <label key={a.id} style={{fontSize:12,display:"flex",alignItems:"center",gap:7}}>
+         <input type="checkbox" checked={selectedIds.includes(a.id)}
+          onChange={()=>selectAgent(a.id,true)}/>
+         {a.id} · <code>{a.dna}</code> · {a.status}
+        </label>)}
+      </div>
+     </details>
+     {selectedStationIds.length>1&&<div style={{padding:9,marginBottom:10,
+      background:"#1c3b4b",border:"1px solid "+UI.stroke,borderRadius:9}}>
+      <strong style={{fontSize:12,color:UI.mint}}>
+       DNA comune · {selectedStationIds.length} transformer selezionati
+      </strong>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginTop:8}}>
+       <select aria-label="Preset DNA multiplo" style={{...control,width:"100%"}}
+        value={DNA_OPTS.includes(bulkDNA)?bulkDNA:""}
+        onChange={e=>setBulkDNA(e.target.value)}>
+        {!DNA_OPTS.includes(bulkDNA)&&<option value="">Personalizzato</option>}
+        {DNA_OPTS.map(d=><option key={d} value={d}>{d}</option>)}
+       </select>
+       <input aria-label="DNA multiplo" style={{...control,width:"100%",boxSizing:"border-box"}}
+        value={bulkDNA} onChange={e=>setBulkDNA(e.target.value)} spellCheck={false}/>
+      </div>
+      <button style={{...btn,marginTop:8,background:"#28746a"}}
+       disabled={!!bulkDNAError} onClick={applyBulkDNA}>
+       Applica DNA ai transformer selezionati
       </button>
-      <button style={btn} onClick={addAtFirstFree}>+ Inserisci in prima cella libera</button>
-     </div>
-     <p style={{fontSize:11,color:UI.muted,marginTop:8}}>
-      {plan.stationLayout.length} transformer · anello massimo {GRID_MAX_RING} ·
-      Sorgente al centro non occupabile
-     </p>
-     {gridError&&<div role="alert" style={{fontSize:12,color:"#f1a995"}}>{gridError}</div>}
-    </section>
-    <section style={panel}>
-     <h3 style={{fontSize:16,margin:"0 0 11px"}}>Configurazione in diretta</h3>
-     <p style={{fontSize:11,color:UI.mint}}>Scenario, DNA e forze modificano il mondo in corso. Il numero di viaggiatori si applica solo al prossimo «Rilancia / Ripeti».</p>
-     <label style={{fontSize:12,color:UI.muted,display:"grid",gap:5}}>Disposizione isole<select style={control} value={draft.scenario}
-      onChange={e=>update({scenario:e.target.value as Scenario,stationDNA:{}})}>
-      {PRESET.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}
-     </select></label>
-     <p style={{fontSize:12,color:UI.muted,lineHeight:1.5}}>{PRESET.find(p=>p.id===draft.scenario)?.desc}</p>
-     <div className="rapier-controls" style={{marginBottom:10}}>
-      <label style={{fontSize:12,color:UI.muted}}>Prossima emissione <select style={{...control,marginLeft:5}} value={draft.count} onChange={e=>update({count:Number(e.target.value) as 1|6|12})}>
-       <option value={1}>Una sonda</option><option value={6}>Sei radiali</option><option value={12}>Dodici radiali</option>
-      </select></label>
-      <label style={{fontSize:12,color:UI.muted}}>DNA viaggiatori attuali <select style={{...control,marginLeft:5}} value={draft.dna} onChange={e=>update({dna:e.target.value})}>
-       {DNA_OPTS.map(d=><option key={d} value={d}>{d}</option>)}
-      </select></label>
-     </div>
-     <div className="rapier-controls">
-      <label style={{fontSize:12,color:UI.muted}}>Filtro Sorgente <select value={draft.returnPalette} style={{...control,marginLeft:5}}
-       onChange={e=>update({returnPalette:Number(e.target.value)})}>{[0,1,2,3,4].map(n=><option key={n} value={n}>Palette {n}</option>)}</select></label>
-      
-     </div>
-    </section>
-    <section style={panel}>
-     <h3 style={{fontSize:16,margin:"0 0 10px"}}>Intensità delle forze · Shape-DNA</h3>
-     <p style={{fontSize:12,color:UI.muted,lineHeight:1.5,marginTop:0}}>
-      Tre intensità indipendenti. <b>0 = disattivato</b>. Gli urti Rapier
-      e il ritorno verticale rimangono attivi. Per i valori intermedi usa
-      il campo numerico: gli slider sono solo una scorciatoia.
-     </p>
-     <div className="rapier-controls" style={{marginBottom:12}}>
-      {([["all","Tutte (1)"],["none","Solo urti"],
-       ["transformer","Solo transformer"],["pairs","Solo viaggiatori"],
-       ["source","Solo Sorgente"]] as const).map(([id,label])=>
-       <button key={id} style={btn} onClick={()=>applyForcePreset(id)}>{label}</button>)}
-      <button style={{...btn,background:"#28746a"}} onClick={applyEquilibriumPreset}>
-       Equilibrio Shape-DNA · prova guidata
-      </button>
-     </div>
-     <div style={{display:"grid",gap:11}}>
-      <NumberSlider label="Transformer → viaggiatori" value={draft.forceChannels.transformers} fine
-       min={0} max={3} step={.005} onChange={v=>setForce("transformers",v)}/>
-      <NumberSlider label="Viaggiatori ↔ viaggiatori" value={draft.forceChannels.travelers} fine
-       min={0} max={3} step={.0005} onChange={v=>setForce("travelers",v)}/>
-      <NumberSlider label="Sorgente → viaggiatori (dopo contatto)" value={draft.forceChannels.source} fine
-       min={0} max={3} step={.005} onChange={v=>setForce("source",v)}/>
-     </div>
-     <p style={{fontSize:11,color:UI.gold,lineHeight:1.6}}>
-      Fra viaggiatori la forza è repulsiva sotto la distanza desiderata e
-      attrattiva sopra: lo Shape-DNA governa entrambe. Ogni modifica aggiorna il campo attuale senza una nuova emissione.
-     </p>
-    </section>
-    <section style={panel}>
-     <h3 style={{fontSize:16,margin:"0 0 12px"}}>Calibrazione fisica</h3>
-     <div style={{display:"grid",gap:10}}>
-      <NumberSlider label="Periodo naturale del ritorno al piano" value={draft.dynamics.period} min={.7} max={6} step={.1} unit=" s" onChange={v=>dyn("period",v)}/>
-      <NumberSlider label="Smorzamento ζ" value={draft.dynamics.dampingRatio} min={0} max={1.3} step={.05} onChange={v=>dyn("dampingRatio",v)}/>
-      <p style={{fontSize:11,color:UI.muted,margin:0}}>L'impulso iniziale agisce solo sul prossimo rilancio; i viaggiatori già in moto mantengono la propria velocità.</p>
-      <NumberSlider label="Impulso iniziale radiale" value={draft.dynamics.launchSpeed} min={.5} max={9} step={.25} unit=" m/s" onChange={v=>dyn("launchSpeed",v)}/>
-      <NumberSlider label="Restituzione degli urti" value={draft.dynamics.restitution} min={0} max={1} step={.05} onChange={v=>dyn("restitution",v)}/>
-     <div style={{borderTop:"1px solid "+UI.stroke,paddingTop:9,fontSize:12,color:UI.mint}}>Equilibrio spaziale Shape-DNA</div>
-     <NumberSlider label="Distanza desiderata per forme identiche" value={draft.dynamics.pairRestMin} min={.6} max={3} step={.01} unit=" m" onChange={v=>dyn("pairRestMin",v)}/>
-     <NumberSlider label="Distanza extra per forme differenti" value={draft.dynamics.pairRestSpread} min={0} max={4} step={.01} unit=" m" onChange={v=>dyn("pairRestSpread",v)}/>
-     <NumberSlider label="Smorzamento delle molle fra viaggiatori" value={draft.dynamics.pairDamping} min={0} max={2} step={.01} onChange={v=>dyn("pairDamping",v)}/>
-     <NumberSlider label="Resistenza del piano (damping)" value={draft.dynamics.planarDrag} min={0} max={3} step={.01} onChange={v=>dyn("planarDrag",v)}/>
-     <p style={{fontSize:11,color:UI.muted,margin:0}}>
-      Distanza desiderata = minima + extra × (1 − somiglianza geometrica).
-      Lo smorzamento dissipa oscillazioni, favorendo configurazioni ferme.
-     </p>
-      <NumberSlider label="Damping angolare" value={draft.dynamics.angularDamping} min={0} max={1.5} step={.05} onChange={v=>dyn("angularDamping",v)}/>
-      <NumberSlider label="Quota di equilibrio PolytronSink" value={draft.dynamics.hoverHeight} min={.75} max={1.7} step={.05} unit=" m" onChange={v=>dyn("hoverHeight",v)}/>
-      <div style={{borderTop:"1px solid "+UI.stroke,paddingTop:9,fontSize:12,color:UI.mint}}>Dimensioni reali dei collider e dei poliedri 3D</div>
-      <NumberSlider label="Dimensione transformer" value={draft.sizes.controller} min={.35} max={1.05} step={.05}
-       onChange={v=>setPlan(p=>({...p,sizes:{...p.sizes,controller:v}}))}/>
-      <NumberSlider label="Dimensione viaggiatori" value={draft.sizes.traveler} min={.12} max={.55} step={.01}
-       onChange={v=>setPlan(p=>({...p,sizes:{...p.sizes,traveler:v}}))}/>
-      <p style={{fontSize:11,color:UI.muted,margin:0}}>Rapporto grandezze: {(draft.sizes.controller/draft.sizes.traveler).toFixed(1)}:1.
-       Anche le collisioni vengono ricalcolate con le nuove dimensioni.</p>
-     </div>
-     <div className="rapier-controls" style={{marginTop:12}}>
-      <button style={btn} onClick={()=>update({dynamics:{...DEFAULT_DYNAMICS}})}>Ripristina valori iniziali</button>
-      <span style={{fontSize:12,color:UI.mint}}>Parametri applicati in tempo reale</span>
-     </div>
-    </section>
-    <section style={panel}>
-     <h3 style={{fontSize:17,margin:"0 0 9px"}}>Inspector · Polytrone selezionato</h3>
-     <p style={{fontSize:12,color:UI.muted,margin:"0 0 8px"}}>Clicca su un poliedro nella scena oppure scegli dalla lista. Per distinguere individui sovrapposti, clicca più volte nello stesso punto. Puoi modificare il DNA Conway anche dei viaggiatori più piccoli.</p>
+      {bulkDNAError&&<p style={{fontSize:11,color:"#f1a995"}}>{bulkDNAError}</p>}
+     </div>}
      <select aria-label="Scegli viaggiatore o transformer" style={{...control,width:"100%"}}
       value={selectedAgent?.id??""} onChange={e=>selectOne(e.target.value||null)}>
       <option value="">Seleziona un individuo…</option>
@@ -826,6 +778,109 @@ export default function PlanarRapierLab(){
       <p style={{fontSize:11,color:UI.gold}}>Il seme sceglie il verbo; gli operatori Conway della stazione si applicano anche al DNA dei prodotti. Es. k02T colora e applica k.</p>
      </details>
     </section>
+    <section style={panel}>
+     <h3 style={{fontSize:16,margin:"0 0 10px"}}>Editor transformer · griglia esagonale</h3>
+     <p style={{fontSize:12,color:UI.muted,lineHeight:1.5,marginTop:0}}>
+      Trascina un transformer su una cella libera, oppure aggiungine nuovi.
+      I transformer sono vincolati alle celle; i viaggiatori si muovono liberamente.
+     </p>
+     <div className="rapier-controls">
+      <button style={{...btn,background:addingStation?"#2b7368":"#245065"}}
+       onClick={()=>{setAddingStation(v=>!v);setGridError("");}}>
+       {addingStation?"Fine inserimento":"+ Aggiungi cliccando la griglia"}
+      </button>
+      <button style={btn} onClick={addAtFirstFree}>+ Inserisci in prima cella libera</button>
+     </div>
+     <p style={{fontSize:11,color:UI.muted,marginTop:8}}>
+      {plan.stationLayout.length} transformer · anello massimo {GRID_MAX_RING} ·
+      Sorgente al centro non occupabile
+     </p>
+     {gridError&&<div role="alert" style={{fontSize:12,color:"#f1a995"}}>{gridError}</div>}
+    </section>
+    <section style={panel}>
+     <h3 style={{fontSize:16,margin:"0 0 11px"}}>Configurazione in diretta</h3>
+     <p style={{fontSize:11,color:UI.mint}}>Scenario, DNA e forze modificano il mondo in corso. Il numero di viaggiatori si applica solo al prossimo «Rilancia / Ripeti».</p>
+     <label style={{fontSize:12,color:UI.muted,display:"grid",gap:5}}>Disposizione isole<select style={control} value={draft.scenario}
+      onChange={e=>update({scenario:e.target.value as Scenario,stationDNA:{}})}>
+      {PRESET.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}
+     </select></label>
+     <p style={{fontSize:12,color:UI.muted,lineHeight:1.5}}>{PRESET.find(p=>p.id===draft.scenario)?.desc}</p>
+     <div className="rapier-controls" style={{marginBottom:10}}>
+      <label style={{fontSize:12,color:UI.muted}}>Prossima emissione <select style={{...control,marginLeft:5}} value={draft.count} onChange={e=>update({count:Number(e.target.value) as 1|6|12})}>
+       <option value={1}>Una sonda</option><option value={6}>Sei radiali</option><option value={12}>Dodici radiali</option>
+      </select></label>
+      <label style={{fontSize:12,color:UI.muted}}>DNA viaggiatori attuali <select style={{...control,marginLeft:5}} value={draft.dna} onChange={e=>update({dna:e.target.value})}>
+       {DNA_OPTS.map(d=><option key={d} value={d}>{d}</option>)}
+      </select></label>
+     </div>
+     <div className="rapier-controls">
+      <label style={{fontSize:12,color:UI.muted}}>Filtro Sorgente <select value={draft.returnPalette} style={{...control,marginLeft:5}}
+       onChange={e=>update({returnPalette:Number(e.target.value)})}>{[0,1,2,3,4].map(n=><option key={n} value={n}>Palette {n}</option>)}</select></label>
+      
+     </div>
+    </section>
+    <section style={panel}>
+     <h3 style={{fontSize:16,margin:"0 0 10px"}}>Intensità delle forze · Shape-DNA</h3>
+     <p style={{fontSize:12,color:UI.muted,lineHeight:1.5,marginTop:0}}>
+      Tre intensità indipendenti. <b>0 = disattivato</b>. Gli urti Rapier
+      e il ritorno verticale rimangono attivi. Per i valori intermedi usa
+      il campo numerico: gli slider sono solo una scorciatoia.
+     </p>
+     <div className="rapier-controls" style={{marginBottom:12}}>
+      {([["all","Tutte (1)"],["none","Solo urti"],
+       ["transformer","Solo transformer"],["pairs","Solo viaggiatori"],
+       ["source","Solo Sorgente"]] as const).map(([id,label])=>
+       <button key={id} style={btn} onClick={()=>applyForcePreset(id)}>{label}</button>)}
+      <button style={{...btn,background:"#28746a"}} onClick={applyEquilibriumPreset}>
+       Equilibrio Shape-DNA · prova guidata
+      </button>
+     </div>
+     <div style={{display:"grid",gap:11}}>
+      <NumberSlider label="Transformer → viaggiatori" value={draft.forceChannels.transformers} fine
+       min={0} max={3} step={.005} onChange={v=>setForce("transformers",v)}/>
+      <NumberSlider label="Viaggiatori ↔ viaggiatori" value={draft.forceChannels.travelers} fine
+       min={0} max={3} step={.0005} onChange={v=>setForce("travelers",v)}/>
+      <NumberSlider label="Sorgente → viaggiatori (dopo contatto)" value={draft.forceChannels.source} fine
+       min={0} max={3} step={.005} onChange={v=>setForce("source",v)}/>
+     </div>
+     <p style={{fontSize:11,color:UI.gold,lineHeight:1.6}}>
+      Fra viaggiatori la forza è repulsiva sotto la distanza desiderata e
+      attrattiva sopra: lo Shape-DNA governa entrambe. Ogni modifica aggiorna il campo attuale senza una nuova emissione.
+     </p>
+    </section>
+    <section style={panel}>
+     <h3 style={{fontSize:16,margin:"0 0 12px"}}>Calibrazione fisica</h3>
+     <div style={{display:"grid",gap:10}}>
+      <NumberSlider label="Periodo naturale del ritorno al piano" value={draft.dynamics.period} min={.7} max={6} step={.1} unit=" s" onChange={v=>dyn("period",v)}/>
+      <NumberSlider label="Smorzamento ζ" value={draft.dynamics.dampingRatio} min={0} max={1.3} step={.05} onChange={v=>dyn("dampingRatio",v)}/>
+      <p style={{fontSize:11,color:UI.muted,margin:0}}>L'impulso iniziale agisce solo sul prossimo rilancio; i viaggiatori già in moto mantengono la propria velocità.</p>
+      <NumberSlider label="Impulso iniziale radiale" value={draft.dynamics.launchSpeed} min={.5} max={9} step={.25} unit=" m/s" onChange={v=>dyn("launchSpeed",v)}/>
+      <NumberSlider label="Restituzione degli urti" value={draft.dynamics.restitution} min={0} max={1} step={.05} onChange={v=>dyn("restitution",v)}/>
+     <div style={{borderTop:"1px solid "+UI.stroke,paddingTop:9,fontSize:12,color:UI.mint}}>Equilibrio spaziale Shape-DNA</div>
+     <NumberSlider label="Distanza desiderata per forme identiche" value={draft.dynamics.pairRestMin} min={.6} max={3} step={.01} unit=" m" onChange={v=>dyn("pairRestMin",v)}/>
+     <NumberSlider label="Distanza extra per forme differenti" value={draft.dynamics.pairRestSpread} min={0} max={4} step={.01} unit=" m" onChange={v=>dyn("pairRestSpread",v)}/>
+     <NumberSlider label="Smorzamento delle molle fra viaggiatori" value={draft.dynamics.pairDamping} min={0} max={2} step={.01} onChange={v=>dyn("pairDamping",v)}/>
+     <NumberSlider label="Resistenza del piano (damping)" value={draft.dynamics.planarDrag} min={0} max={3} step={.01} onChange={v=>dyn("planarDrag",v)}/>
+     <p style={{fontSize:11,color:UI.muted,margin:0}}>
+      Distanza desiderata = minima + extra × (1 − somiglianza geometrica).
+      Lo smorzamento dissipa oscillazioni, favorendo configurazioni ferme.
+     </p>
+      <NumberSlider label="Damping angolare" value={draft.dynamics.angularDamping} min={0} max={1.5} step={.05} onChange={v=>dyn("angularDamping",v)}/>
+      <NumberSlider label="Quota di equilibrio PolytronSink" value={draft.dynamics.hoverHeight} min={.75} max={1.7} step={.05} unit=" m" onChange={v=>dyn("hoverHeight",v)}/>
+      <div style={{borderTop:"1px solid "+UI.stroke,paddingTop:9,fontSize:12,color:UI.mint}}>Dimensioni reali dei collider e dei poliedri 3D</div>
+      <NumberSlider label="Dimensione transformer" value={draft.sizes.controller} min={.35} max={1.05} step={.05}
+       onChange={v=>setPlan(p=>({...p,sizes:{...p.sizes,controller:v}}))}/>
+      <NumberSlider label="Dimensione viaggiatori" value={draft.sizes.traveler} min={.12} max={.55} step={.01}
+       onChange={v=>setPlan(p=>({...p,sizes:{...p.sizes,traveler:v}}))}/>
+      <p style={{fontSize:11,color:UI.muted,margin:0}}>Rapporto grandezze: {(draft.sizes.controller/draft.sizes.traveler).toFixed(1)}:1.
+       Anche le collisioni vengono ricalcolate con le nuove dimensioni.</p>
+     </div>
+     <div className="rapier-controls" style={{marginTop:12}}>
+      <button style={btn} onClick={()=>update({dynamics:{...DEFAULT_DYNAMICS}})}>Ripristina valori iniziali</button>
+      <span style={{fontSize:12,color:UI.mint}}>Parametri applicati in tempo reale</span>
+     </div>
+    </section>
+
     <section style={panel}>
      <h3 style={{fontSize:16,margin:"0 0 9px"}}>Telemetria Rapier</h3>
      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
