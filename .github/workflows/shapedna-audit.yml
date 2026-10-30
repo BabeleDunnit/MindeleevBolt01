@@ -19,3 +19,5 @@ jobs:
       - run: npm ci
       - name: Audit isometric ShapeDNA signatures
         run: node scripts/audit-shapedna.mjs
+      - name: Test virtual polygon Laplacian with centroid interpolation
+        run: node scripts/audit-shapedna-centroid.mjs
