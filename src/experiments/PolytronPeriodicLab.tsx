@@ -352,7 +352,7 @@ export default function PolytronPeriodicLab(){
       <div style={{fontSize:11,color:soft}}>{labelNames[seed]}</div>
      </div>)}
     </div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(5,minmax(0,1fr))",
+    <div style={{display:"grid",gridTemplateColumns:"76px repeat(5,minmax(0,1fr))",
      gap:7,alignItems:"stretch"}}>
      {visible.map(entry=><Fragment key={entry.number}>
       {entry.col===0&&<div aria-label={"Riga "+(entry.row+1)}
