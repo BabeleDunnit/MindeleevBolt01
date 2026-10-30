@@ -161,6 +161,9 @@ function IslandScene({plan,replayKey,playing,view,onReport,onSelect,selectedId,s
   const core=makeGroup("02I","controller",.31);core.position.y=.95;source.add(core);
   source.position.y=.12;scene.add(source);
   const trackers:THREE.Group[]=[];
+  const orbitCircles=new Map<string,THREE.LineLoop>();
+  const orbitTrails=new Map<string,{path:THREE.Vector3[];line:THREE.Line}>();
+  let orbitFrame=0;
   const extraSelectionRings=new Map<string,THREE.Mesh>();
   const boot=async()=>{
    try{
@@ -331,6 +334,47 @@ function IslandScene({plan,replayKey,playing,view,onReport,onSelect,selectedId,s
       group.quaternion.set(a.qx,a.qy,a.qz,a.qw);
      }
      for(const [id,g] of objects)if(!seen.has(id)){scene.remove(g);disposeGroup(g);objects.delete(id);}
+     const orbitActive=planRef.current.orbital.motion==="gravity";
+     const stationIds=new Set(orbitActive?agents.filter(a=>a.type==="controller").map(a=>a.id):[]);
+     for(const [id,circle] of orbitCircles)if(!stationIds.has(id)){
+      scene.remove(circle);circle.geometry.dispose();
+      (circle.material as THREE.Material).dispose();orbitCircles.delete(id);
+     }
+     if(orbitActive)for(const station of agents.filter(a=>a.type==="controller")){
+      let circle=orbitCircles.get(station.id);
+      if(!circle){
+       const pts=Array.from({length:96},(_,n)=>{
+        const angle=n*2*Math.PI/96;
+        return new THREE.Vector3(Math.cos(angle),0,Math.sin(angle));
+       });
+       circle=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts),
+        new THREE.LineBasicMaterial({color:0x8cdbba,transparent:true,opacity:.34,depthWrite:false}));
+       orbitCircles.set(station.id,circle);scene.add(circle);
+      }
+      circle.position.set(station.x,-.076,station.z);
+      const radius=planRef.current.orbital.influenceRadius;
+      circle.scale.set(radius,1,radius);
+     }
+     if(++orbitFrame%4===0){
+      const flying=new Set(orbitActive?agents.filter(a=>a.type==="traveler"&&a.status==="flying").map(a=>a.id):[]);
+      for(const [id,item] of orbitTrails)if(!flying.has(id)){
+       scene.remove(item.line);item.line.geometry.dispose();
+       (item.line.material as THREE.Material).dispose();orbitTrails.delete(id);
+      }
+      if(orbitActive)for(const traveler of agents.filter(a=>a.type==="traveler"&&a.status==="flying")){
+       let item=orbitTrails.get(traveler.id);
+       if(!item){
+        const line=new THREE.Line(new THREE.BufferGeometry(),
+         new THREE.LineBasicMaterial({color:0xe5bb80,transparent:true,opacity:.72,depthWrite:false}));
+        item={path:[],line};orbitTrails.set(traveler.id,item);scene.add(line);
+       }
+       item.path.push(new THREE.Vector3(traveler.x,traveler.y,traveler.z));
+       if(item.path.length>360)item.path.shift();
+       const previous=item.line.geometry;
+       item.line.geometry=new THREE.BufferGeometry().setFromPoints(item.path);
+       previous.dispose();
+      }
+     }
      const chosen=agents.find(a=>a.id===selected.current);
      const secondaryIds=new Set(selection.current.filter(id=>id!==selected.current));
      for(const [id,marker] of extraSelectionRings)if(!secondaryIds.has(id)||
@@ -384,6 +428,13 @@ function IslandScene({plan,replayKey,playing,view,onReport,onSelect,selectedId,s
    outerRing.geometry.dispose();(outerRing.material as THREE.Material).dispose();
    trackers.forEach(g=>disposeGroup(g));disposeGroup(core);
    source.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();(o.material as THREE.Material).dispose();}});
+   for(const circle of orbitCircles.values()){
+    scene.remove(circle);circle.geometry.dispose();(circle.material as THREE.Material).dispose();
+   }
+   for(const item of orbitTrails.values()){
+    scene.remove(item.line);item.line.geometry.dispose();
+    (item.line.material as THREE.Material).dispose();
+   }
    gridLines.geometry.dispose();(gridLines.material as THREE.Material).dispose();
    hoverOutline.geometry.dispose();(hoverOutline.material as THREE.Material).dispose();
    for(const child of scene.children)if(child instanceof THREE.Line){
