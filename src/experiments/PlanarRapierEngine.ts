@@ -79,6 +79,7 @@ export class PlanarRapierEngine{
  readonly world:RAPIER.World;
  readonly eventQueue:RAPIER.EventQueue;
  readonly plan:Plan;
+ readonly initialTravelerCount:number;
  readonly events:Impact[]=[];
  private agents=new Map<string,Internal>();
  private colliders=new Map<number,string>();
@@ -89,7 +90,13 @@ export class PlanarRapierEngine{
  impacts=0; geneticChanges=0;returns=0;escaped=0;peakHeight=SINK_HEIGHT;peakSpeed=0;
  returnedEnergy=0;escapedEnergy=0;
  private constructor(world:RAPIER.World,queue:RAPIER.EventQueue,plan:Plan){
-  this.world=world;this.eventQueue=queue;this.plan=plan;this.rng=randomGenerator(plan.seed);
+  this.world=world;this.eventQueue=queue;
+   // Isolate the engine configuration from React state for reliable diffing.
+   this.plan={...plan,dynamics:{...plan.dynamics},sizes:{...plan.sizes},
+    forceChannels:{...plan.forceChannels},stationDNA:{...plan.stationDNA},
+    travelerDNA:{...plan.travelerDNA}};
+   this.initialTravelerCount=plan.count;
+   this.rng=randomGenerator(plan.seed);
  }
  static async create(plan:Plan=DEFAULT_PLAN):Promise<PlanarRapierEngine>{
   await RAPIER.init();
@@ -155,9 +162,7 @@ export class PlanarRapierEngine{
   this.colliders.set(agent.collider.handle,agent.id);
   agent.dna=nextDNA;
  }
- /** Inspector edit: rebuild the actual Rapier collider and keep the rigid body's pose.
-  * The event is explicit; persisting this choice into a repeatable scenario is done
-  * by the UI with stationDNA/travelerDNA and a fresh world reset. */
+ /** Editing DNA rebuilds the collider in place, preserving pose/velocity. */
  editDNA(id:string,nextDNA:string):boolean{
   const agent=this.agents.get(id);
   if(!agent||(agent.state!=="station"&&agent.state!=="flying"&&agent.state!=="buffered"))return false;
@@ -168,6 +173,59 @@ export class PlanarRapierEngine{
   this.events.push({step:this.stepIndex,kind:"edit",subject:id,
    before,after:nextDNA,note:"Inspector: DNA impostato esplicitamente"});
   return true;
+ }
+ /**
+  * Hot-update the current physical world. Only an explicit Replay reconstructs
+  * the world or fires travelers. Population and kinematic history are retained.
+  * Launch speed, count and seed affect the NEXT replay only.
+  */
+ updateLivePlan(next:Plan){
+  const before={scenario:this.plan.scenario,dna:this.plan.dna,
+   stationDNA:this.plan.stationDNA,travelerDNA:this.plan.travelerDNA,sizes:this.plan.sizes};
+  Object.assign(this.plan,{...next,dynamics:{...next.dynamics},sizes:{...next.sizes},
+   forceChannels:{...next.forceChannels},stationDNA:{...next.stationDNA},
+   travelerDNA:{...next.travelerDNA}});
+  const resizedController=before.sizes.controller!==next.sizes.controller;
+  const resizedTraveler=before.sizes.traveler!==next.sizes.traveler;
+  const changedGlobalDNA=before.dna!==next.dna;
+  for(const agent of this.agents.values()){
+   if(agent.state!=="station"&&agent.state!=="flying"&&agent.state!=="buffered")continue;
+   let requested=agent.dna;
+   if(agent.kind==="controller"){
+    const i=Number(agent.id.slice(1))-1;
+    const previous=before.stationDNA[agent.id]??NODE_SCENARIOS[before.scenario][i];
+    const current=next.stationDNA[agent.id]??NODE_SCENARIOS[next.scenario][i];
+    if(previous!==current)requested=current;
+   }else{
+    const previousOverride=before.travelerDNA[agent.id];
+    const currentOverride=next.travelerDNA[agent.id];
+    if(previousOverride!==currentOverride)requested=currentOverride??next.dna;
+    else if(changedGlobalDNA&&currentOverride===undefined)requested=next.dna;
+   }
+   if(agent.kind==="controller"&&decode(agent.dna).seed==="C"&&
+      decode(requested).seed!=="C"&&agent.bufferId){
+    // Replacing a Cubo must not strand its buffered traveler.
+    const buffered=this.agents.get(agent.bufferId);
+    if(buffered?.state==="buffered"){
+     buffered.state="flying";buffered.body.setEnabled(true);
+     buffered.body.setLinvel(vec(0,0,0),true);
+     buffered.lastContact=this.stepIndex;
+    }
+    agent.bufferId=undefined;agent.bufferStep=undefined;
+   }
+   if(requested!==agent.dna||(agent.kind==="controller"?resizedController:resizedTraveler)){
+    const oldDNA=agent.dna;
+    this.replaceDNA(agent,requested);
+    if(oldDNA!==requested)this.events.push({step:this.stepIndex,kind:"edit",subject:agent.id,
+     before:oldDNA,after:requested,note:"Configurazione modificata in diretta"});
+   }
+   if(agent.kind==="traveler"){
+    agent.body.setLinearDamping(next.dynamics.planarDrag);
+    agent.body.setAngularDamping(next.dynamics.angularDamping);
+   }
+   agent.collider.setRestitution(next.dynamics.restitution);
+  }
+  this.lastForces.clear();
  }
  private remove(agent:Internal,state:"returned"|"escaped"|"buffered"){
   agent.state=state;
