@@ -243,7 +243,7 @@ export default function PolytronPeriodicLab(){
    <p style={{maxWidth:880,color:soft,fontSize:14,lineHeight:1.6,marginTop:0}}>
     Cinque poliedri fondamentali e sequenze Conway ordinate per lunghezza crescente.
     Ogni numero politronico identifica una ricetta geometrica, mai una palette.
-    Le equivalenze sono confrontate mediante ShapeDNA spettrale e geometria,
+    Le equivalenze sono confrontate mediante ShapeDNA v2 spettrale e geometria,
     non semplicemente per somiglianza di nome.
    </p>
    <div style={{display:"flex",gap:15,fontSize:12,flexWrap:"wrap"}}>
@@ -344,8 +344,8 @@ export default function PolytronPeriodicLab(){
     Le operazioni sono composte nell'ordine convenzionale di Polyhedronisme
     (applicazione da destra a sinistra). Il numero politronico è un intero
     reversibile anche per DNA molto lunghi.</p>
-   <p>Equivalenza ShapeDNA: <b>provvisoria</b>. Confrontiamo gli autovalori
-    del Laplaciano FEM della superficie, normalizzati per area, e una firma
+   <p>Equivalenza ShapeDNA v2: <b>numerica</b>. Confrontiamo gli autovalori
+    del Laplaciano FEM poligonale corretto, normalizzati per area, e una firma
     delle distanze tra vertici con uguale distribuzione di facce.
     Non è una prova matematica di congruenza. Mesh oltre 60
     vertici non ricevono un confronto spettrale e alcune ricette
