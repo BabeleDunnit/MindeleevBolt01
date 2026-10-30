@@ -190,6 +190,14 @@ export default function PolytronPeriodicLab(){
   return ()=>{stopped=true;if(timer!==undefined)clearTimeout(timer);};
  },[rowTarget]);
  const visible=useMemo(()=>entries.slice(0,rowTarget),[entries,rowTarget]);
+ // A number search may extend the catalog asynchronously. Navigate once the
+ // requested cell has actually been generated and mounted in the document.
+ useEffect(()=>{
+  if(currentFocus!==null&&entries.length>=currentFocus&&currentFocus<=rowTarget){
+   document.getElementById("polytron-"+currentFocus)
+    ?.scrollIntoView({behavior:"smooth",block:"center"});
+  }
+ },[currentFocus,entries.length,rowTarget]);
  const stats=useMemo(()=>({
   measured:visible.filter(e=>e.shapeStatus==="measured").length,
   duplicates:visible.filter(e=>e.equivalents.length>0).length,
