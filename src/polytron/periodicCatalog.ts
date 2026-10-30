@@ -3,9 +3,10 @@
  * form equivalence is measured from the generated geometry, independently
  * of palette and operator strings.
  *
- * ShapeDNA is a finite cotangent-FEM spectral approximation; equivalence is
- * PROVISIONAL, strengthened by a normalized pairwise-distance fingerprint
- * and matching face combinatorics. It is not a proof of congruence.
+ * ShapeDNA v2 uses the shared cyclic-invariant polygon FEM. A match also
+ * requires matching face combinatorics and a normalized geometry fingerprint:
+ * unlike the spectral metric alone, we want *the same shape*, not merely a
+ * similar or deformable one. Numerical equivalence remains approximate.
  */
 import {generatePoly,type Poly} from "@/polyhedronisme/polyhedronisme";
 import {surfaceShapeDNA,spectrumDistance,type SurfaceSpectrum} from "@/experiments/surfaceShapeDNA";
@@ -94,13 +95,11 @@ export class PeriodicCatalog{
       for(const older of previous){
        const spectralDistance=spectrumDistance(spec,older.spectrum);
        const geometryDistance=rms(fingerprint,older.distances);
-       // Surface FEM triangulates quads with arbitrary diagonals. A cube and
-       // its dual-generated cube can have different discrete eigenvalues
-       // despite indistinguishable normalized 3D vertex geometry. Allow a
-       // stricter geometric confirmation to override that FEM artefact.
-       if(geometryDistance<.002&&
-         ((Number.isFinite(spectralDistance)&&spectralDistance<.002)||
-          geometryDistance<.0003))base.equivalents.push(older.number);
+       // Both independent signals must now agree: never bypass the corrected
+       // ShapeDNA on the basis of geometry alone. This tolerance accommodates
+       // Polyhedronisme's rounded Platonic seed coordinates.
+       if(geometryDistance<.002&&Number.isFinite(spectralDistance)&&
+         spectralDistance<.002)base.equivalents.push(older.number);
       }
       previous.push({number,spectrum:spec,distances:fingerprint,topology});
       this.shapeBuckets.set(topology,previous);
