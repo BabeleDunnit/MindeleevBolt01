@@ -11,6 +11,8 @@ import * as RAPIER from "@dimforge/rapier3d-compat";
 import {dnaToPoly} from "@/polytron/polytron";
 import {initialIslands,decode,encode,wrapDNA,cutDNA,affinity,randomGenerator} from "./IslandAffinityEngine";
 import {cubeFusion,analyzeEncounter,type Feasibility} from "./rapierCompatibility";
+import {DEFAULT_STATION_LAYOUT,stationWorld,canPlaceStation,
+ type StationCell} from "./rapierHexGrid";
 
 export const FIXED_STEP=1/120;
 export const SINK_HEIGHT=1.03,AREA_RADIUS=8.2;
@@ -38,11 +40,13 @@ export type BufferView={id:string;dna:string;elapsedSteps:number;remainingSteps:
 export const DEFAULT_SIZES:FamilySizes={controller:.68,traveler:.26};
 export type Plan={scenario:Scenario;count:1|6|12;dna:string;returnPalette:number;
  seed:number;dynamics:Dynamics;sizes:FamilySizes;forceChannels:ForceChannels;
- stationDNA:Record<string,string>;travelerDNA:Record<string,string>};
+ stationDNA:Record<string,string>;travelerDNA:Record<string,string>;stationLayout:StationCell[]};
 export const DEFAULT_PLAN:Plan={scenario:"color",count:6,dna:"01C",returnPalette:2,
- seed:47,dynamics:DEFAULT_DYNAMICS,sizes:DEFAULT_SIZES,forceChannels:DEFAULT_FORCE_CHANNELS,stationDNA:{},travelerDNA:{}};
+ seed:47,dynamics:DEFAULT_DYNAMICS,sizes:DEFAULT_SIZES,forceChannels:DEFAULT_FORCE_CHANNELS,
+ stationDNA:{},travelerDNA:{},stationLayout:DEFAULT_STATION_LAYOUT};
 export type AgentType="controller"|"traveler";
 export type AgentView={id:string;type:AgentType;name:string;dna:string;energy:number;
+ cell?:{q:number;r:number};
  x:number;y:number;z:number;qx:number;qy:number;qz:number;qw:number;
  vx:number;vy:number;vz:number;touches:number;status:string;forces?:ForceDiagnostics;buffer?:BufferView};
 export type Impact={step:number;kind:"color"|"fuse"|"split"|"clone"|"filter"|"null"|"buffer"|"return"|"escape"|"impact"|"edit";
@@ -61,6 +65,10 @@ const NODE_SCENARIOS:Record<Scenario,string[]>={
  color:["02T","02T","02T","02T","02T","02T"],
  five:["a02T","01C","02O","02D","02I","02T"],
  quiet:["01I","01I","01I","01I","01I","01I"]
+};
+export const stationPresetDNA=(plan:Plan,id:string):string=>{
+ const index=Number(id.replace(/^P/,""))-1;
+ return plan.stationDNA[id]??NODE_SCENARIOS[plan.scenario][index]??"02T";
 };
 const lengthXZ=(v:{x:number;z:number})=>Math.hypot(v.x,v.z);
 const radius=(v:{x:number;z:number})=>Math.max(.0001,lengthXZ(v));
@@ -94,7 +102,8 @@ export class PlanarRapierEngine{
    // Isolate the engine configuration from React state for reliable diffing.
    this.plan={...plan,dynamics:{...plan.dynamics},sizes:{...plan.sizes},
     forceChannels:{...plan.forceChannels},stationDNA:{...plan.stationDNA},
-    travelerDNA:{...plan.travelerDNA}};
+    travelerDNA:{...plan.travelerDNA},
+    stationLayout:plan.stationLayout.map(p=>({...p}))};
    this.initialTravelerCount=plan.count;
    this.rng=randomGenerator(plan.seed);
  }
@@ -107,10 +116,13 @@ export class PlanarRapierEngine{
   world.createCollider(RAPIER.ColliderDesc.cuboid(AREA_RADIUS, .08, AREA_RADIUS)
     .setTranslation(0,-.08,0).setRestitution(.35).setFriction(.4));
   const samples=initialIslands("R0").nodes;
-  for(let i=0;i<6;i++){
-   const layout=samples[i],dna=plan.stationDNA[layout.id]??NODE_SCENARIOS[plan.scenario][i];
-   engine.makeAgent("controller",layout.id,layout.name,dna,
-    layout.x/22,plan.dynamics.hoverHeight,layout.y/22,0,0,0,0);
+  for(const cell of plan.stationLayout){
+   if(!canPlaceStation(plan.stationLayout.filter(p=>p.id!==cell.id),cell))
+    throw Error("Transformer collocato su una cella non valida/occupata: "+cell.id);
+   const position=stationWorld(cell);
+   const name=samples.find(p=>p.id===cell.id)?.name??"Transformer "+cell.id;
+   engine.makeAgent("controller",cell.id,name,stationPresetDNA(plan,cell.id),
+    position.x,plan.dynamics.hoverHeight,position.z,0,0,0,0);
   }
   for(let i=0;i<plan.count;i++){
    // Radial directions are aligned to the physical hexagonal island axes.
@@ -179,52 +191,100 @@ export class PlanarRapierEngine{
   * the world or fires travelers. Population and kinematic history are retained.
   * Launch speed, count and seed affect the NEXT replay only.
   */
+ /** Release the occupant of a removed/reprogrammed fusion transformer. */
+ private releaseBuffer(station:Internal){
+  if(!station.bufferId)return;
+  const buffered=this.agents.get(station.bufferId);
+  if(buffered?.state==="buffered"){
+   buffered.state="flying";
+   buffered.body.setEnabled(true);
+   buffered.body.setLinvel(vec(0,0,0),true);
+   buffered.lastContact=this.stepIndex;
+  }
+  station.bufferId=undefined;station.bufferStep=undefined;
+ }
+ /**
+  * Hot editing: addition, removal, dragging and DNA changes of stationary
+  * transformers are applied in the existing Rapier World. No traveler is fired
+  * or removed by editing a station; even buffered travelers are released.
+  */
  updateLivePlan(next:Plan){
-  const before={scenario:this.plan.scenario,dna:this.plan.dna,
-   stationDNA:this.plan.stationDNA,travelerDNA:this.plan.travelerDNA,sizes:this.plan.sizes};
-  Object.assign(this.plan,{...next,dynamics:{...next.dynamics},sizes:{...next.sizes},
-   forceChannels:{...next.forceChannels},stationDNA:{...next.stationDNA},
-   travelerDNA:{...next.travelerDNA}});
-  const resizedController=before.sizes.controller!==next.sizes.controller;
-  const resizedTraveler=before.sizes.traveler!==next.sizes.traveler;
-  const changedGlobalDNA=before.dna!==next.dna;
-  for(const agent of this.agents.values()){
-   if(agent.state!=="station"&&agent.state!=="flying"&&agent.state!=="buffered")continue;
-   let requested=agent.dna;
-   if(agent.kind==="controller"){
-    const i=Number(agent.id.slice(1))-1;
-    const previous=before.stationDNA[agent.id]??NODE_SCENARIOS[before.scenario][i];
-    const current=next.stationDNA[agent.id]??NODE_SCENARIOS[next.scenario][i];
-    if(previous!==current)requested=current;
+  const previous=this.plan;
+  const oldLayout=previous.stationLayout;
+  const newLayout=next.stationLayout.map(cell=>({...cell}));
+  const known=new Set<string>();
+  for(const cell of newLayout){
+   if(known.has(cell.id)||!canPlaceStation(newLayout.filter(p=>p.id!==cell.id),cell))
+    throw Error("Cella transformer non valida, sovrapposta o duplicata: "+cell.id);
+   known.add(cell.id);
+  }
+  const resizedController=previous.sizes.controller!==next.sizes.controller;
+  const resizedTraveler=previous.sizes.traveler!==next.sizes.traveler;
+  const changedGlobalDNA=previous.dna!==next.dna;
+  const oldStationDNA=(id:string)=>stationPresetDNA(previous,id);
+  const desiredDNA=(id:string)=>stationPresetDNA(next,id);
+  // Remove obsolete stations, never touching the traveling population.
+  for(const cell of oldLayout)if(!known.has(cell.id)){
+   const station=this.agents.get(cell.id);
+   if(!station)continue;
+   this.releaseBuffer(station);
+   this.colliders.delete(station.collider.handle);
+   this.world.removeRigidBody(station.body);
+   this.agents.delete(cell.id);
+  }
+  // Existing fixed bodies move between cells; new ones are created in situ.
+  for(const cell of newLayout){
+   const position=stationWorld(cell),dna=desiredDNA(cell.id);
+   const oldCell=oldLayout.find(p=>p.id===cell.id);
+   let station=this.agents.get(cell.id);
+   if(!station){
+    const name=initialIslands("R0").nodes.find(x=>x.id===cell.id)?.name
+     ??"Transformer "+cell.id;
+    this.makeAgent("controller",cell.id,name,dna,
+     position.x,next.dynamics.hoverHeight,position.z,0,0,0,0);
+    station=this.agents.get(cell.id)!;
+    this.events.push({step:this.stepIndex,kind:"edit",subject:cell.id,
+     after:dna,note:"Transformer aggiunto sulla griglia"});
    }else{
-    const previousOverride=before.travelerDNA[agent.id];
-    const currentOverride=next.travelerDNA[agent.id];
-    if(previousOverride!==currentOverride)requested=currentOverride??next.dna;
-    else if(changedGlobalDNA&&currentOverride===undefined)requested=next.dna;
-   }
-   if(agent.kind==="controller"&&decode(agent.dna).seed==="C"&&
-      decode(requested).seed!=="C"&&agent.bufferId){
-    // Replacing a Cubo must not strand its buffered traveler.
-    const buffered=this.agents.get(agent.bufferId);
-    if(buffered?.state==="buffered"){
-     buffered.state="flying";buffered.body.setEnabled(true);
-     buffered.body.setLinvel(vec(0,0,0),true);
-     buffered.lastContact=this.stepIndex;
+    if(decode(station.dna).seed==="C"&&decode(dna).seed!=="C")
+     this.releaseBuffer(station);
+    if(station.dna!==dna||resizedController){
+     const oldDNA=station.dna;
+     this.replaceDNA(station,dna);
+     if(oldDNA!==dna)this.events.push({step:this.stepIndex,kind:"edit",
+      subject:station.id,before:oldDNA,after:dna,
+      note:"DNA del transformer modificato in diretta"});
     }
-    agent.bufferId=undefined;agent.bufferStep=undefined;
+    if(!oldCell||oldCell.q!==cell.q||oldCell.r!==cell.r){
+     station.body.setTranslation(vec(position.x,next.dynamics.hoverHeight,position.z),true);
+     this.events.push({step:this.stepIndex,kind:"edit",subject:station.id,
+      note:"Transformer spostato sulla griglia"});
+    }
    }
-   if(requested!==agent.dna||(agent.kind==="controller"?resizedController:resizedTraveler)){
+   station.collider.setRestitution(next.dynamics.restitution);
+  }
+  // No re-emission and no reset. Traveling individuals remain at the same pose.
+  for(const agent of this.agents.values()){
+   if(agent.kind!=="traveler"||(agent.state!=="flying"&&agent.state!=="buffered"))continue;
+   let requested=agent.dna;
+   const oldOverride=previous.travelerDNA[agent.id];
+   const newOverride=next.travelerDNA[agent.id];
+   if(oldOverride!==newOverride)requested=newOverride??next.dna;
+   else if(changedGlobalDNA&&newOverride===undefined)requested=next.dna;
+   if(requested!==agent.dna||resizedTraveler){
     const oldDNA=agent.dna;
     this.replaceDNA(agent,requested);
-    if(oldDNA!==requested)this.events.push({step:this.stepIndex,kind:"edit",subject:agent.id,
-     before:oldDNA,after:requested,note:"Configurazione modificata in diretta"});
+    if(oldDNA!==requested)this.events.push({step:this.stepIndex,kind:"edit",
+     subject:agent.id,before:oldDNA,after:requested,
+     note:"DNA del viaggiatore modificato in diretta"});
    }
-   if(agent.kind==="traveler"){
-    agent.body.setLinearDamping(next.dynamics.planarDrag);
-    agent.body.setAngularDamping(next.dynamics.angularDamping);
-   }
+   agent.body.setLinearDamping(next.dynamics.planarDrag);
+   agent.body.setAngularDamping(next.dynamics.angularDamping);
    agent.collider.setRestitution(next.dynamics.restitution);
   }
+  Object.assign(this.plan,{...next,dynamics:{...next.dynamics},sizes:{...next.sizes},
+   forceChannels:{...next.forceChannels},stationDNA:{...next.stationDNA},
+   travelerDNA:{...next.travelerDNA},stationLayout:newLayout});
   this.lastForces.clear();
  }
  private remove(agent:Internal,state:"returned"|"escaped"|"buffered"){
@@ -455,7 +515,9 @@ export class PlanarRapierEngine{
    const buffer=a.kind==="controller"&&partner?.state==="buffered"?{
     id:partner.id,dna:partner.dna,elapsedSteps:this.stepIndex-(a.bufferStep??this.stepIndex),
     remainingSteps:Math.max(0,361-(this.stepIndex-(a.bufferStep??this.stepIndex)))}:undefined;
+   const cell=a.kind==="controller"?this.plan.stationLayout.find(c=>c.id===a.id):undefined;
    return {id:a.id,type:a.kind,name:a.name,dna:a.dna,energy:a.energy,
+    cell:cell?{q:cell.q,r:cell.r}:undefined,
     x:p.x,y:p.y,z:p.z,qx:q.x,qy:q.y,qz:q.z,qw:q.w,
     vx:v.x,vy:v.y,vz:v.z,touches:a.touches,status:a.state,
     forces:this.lastForces.get(a.id),buffer};
