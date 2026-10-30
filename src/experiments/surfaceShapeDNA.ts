@@ -88,7 +88,7 @@ export function surfaceShapeDNA(poly:Poly,limit=80,count=12):SurfaceSpectrum|nul
   const centerWeight=1/size;
   const virtual=n;
   const basis=(id:number):Array<[number,number]>=>id===virtual?
-   face.map(vertex=>[vertex,centerWeight]):[[id,1]];
+   face.map(vertex=>[vertex,centerWeight] as [number,number]):[[id,1]];
 
   const connect=(u:number,v:number,weight:number)=>{
    if(!Number.isFinite(weight))return;
