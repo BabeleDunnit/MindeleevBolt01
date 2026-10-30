@@ -3,7 +3,7 @@
  * Run: node scripts/build-phenotype-atlas.mjs
  * Output: public/phenotype-atlas.json + public/phenotype-atlas.csv
  *
- * Three separate facts:
+ * Three separate facts (using the shared ShapeDNA v2 implementation):
  * - topological map signature: rooted face-dart traversal of an oriented map;
  * - provisional geometric equivalence: same topology and normalized distance matrix multiset;
  * - spatio-spectral proximity: Euclidean distance in the same 3 positive,
@@ -163,7 +163,7 @@ try{
  const selected=farthest(base,Math.min(SHOW,base.length));
  const scores=selected.map(p=>({...p,nearestDistance:Math.min(...selected.filter(q=>q!==p).map(q=>distance(p.signature,q.signature)),0x7fffffff)}));
  const results={
-  version:1,generatedAt:"CI-build",method:"cotangent FEM, lumped mass, 3 positive area-normalized eigenvalues",
+  version:2,generatedAt:"CI-build",method:"ShapeDNA v2 · centroid-projected polygon cotangent FEM, lumped mass, 3 positive area-normalized eigenvalues",
   selection:"seed anchors then max-min in 3D Shape-DNA with small mesh complexity tie-bias",
   equivalence:"topological rooted-dart canonical map + RMS normalized pairwise squared distances < 0.002 (provisional)",
   knobs:{operators,seeds,depth:2,extraWords:combos3,maxVertices:MAX_VERTEX,spectralModes:MODES,selectedMax:SHOW},
