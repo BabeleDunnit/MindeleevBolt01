@@ -306,7 +306,12 @@ function NumberSlider({label,value,min,max,step,onChange,unit="",fine=false}:{la
  </label>;
 }
 export default function PlanarRapierLab(){
- const [draft,setDraft]=useState<Plan>(DEFAULT_PLAN),[plan,setPlan]=useState<Plan>(DEFAULT_PLAN);
+ const [plan,setPlan]=useState<Plan>(()=>({...DEFAULT_PLAN,
+  dynamics:{...DEFAULT_PLAN.dynamics},sizes:{...DEFAULT_PLAN.sizes},
+  forceChannels:{...DEFAULT_PLAN.forceChannels},stationDNA:{},travelerDNA:{}}));
+ const draft=plan;
+ const [replayKey,setReplayKey]=useState(0);
+ const [launchedCount,setLaunchedCount]=useState<1|6|12>(DEFAULT_PLAN.count);
  const [playing,setPlaying]=useState(true),[view,setView]=useState<"top"|"zoom">("top");
  const [stats,setStats]=useState<Stats|null>(null),[agents,setAgents]=useState<AgentView[]>([]);
  const [events,setEvents]=useState<Impact[]>([]);
@@ -322,7 +327,7 @@ export default function PlanarRapierLab(){
   activeTravelers.map(t=>({id:t.id,dna:t.dna,
    test:analyzeEncounter(selectedAgent.dna,t.dna,selectedAgent.buffer?.dna,t.energy,activeTravelers.length)})):[];
  const setForce=(key:keyof Plan["forceChannels"],value:number)=>
-  setDraft(p=>({...p,forceChannels:{...p.forceChannels,[key]:value}}));
+  setPlan(p=>({...p,forceChannels:{...p.forceChannels,[key]:value}}));
  const applyForcePreset=(name:"all"|"none"|"transformer"|"pairs"|"source")=>
   update({forceChannels:{
    transformers:name==="all"||name==="transformer"?1:0,
@@ -330,36 +335,27 @@ export default function PlanarRapierLab(){
    source:name==="all"||name==="source"?1:0
   }});
  const applyEquilibriumPreset=()=>update({
-  scenario:"quiet",count:6,stationDNA:{},travelerDNA:{},
+  scenario:"quiet",stationDNA:{},
   forceChannels:{transformers:0,travelers:1.25,source:0},
   dynamics:{...draft.dynamics,launchSpeed:.65,planarDrag:1.35,
    pairRestMin:1.35,pairRestSpread:1.5,pairDamping:1.1}
  });
  const canPersist=!!selectedAgent&&(selectedAgent.type==="controller"||
-  (selectedAgent.type==="traveler"&&Number(selectedAgent.id.slice(1))<=plan.count));
+  (selectedAgent.type==="traveler"&&Number(selectedAgent.id.slice(1))<=launchedCount));
  const dnaError=(()=>{try{if(!dnaText)return "Ricetta vuota";decode(dnaText);return "";}catch(e){return String(e);}})();
  const clearRun=()=>{setStats(null);setAgents([]);setEvents([]);setLastCollision(null);setPlaying(true);setManualEdit(null);};
- // Dropdowns are immediate: there is no second "Apply" button.
- const update=(p:Partial<Plan>)=>{
-  const next={...draft,...p};
-  setDraft(next);setPlan(next);clearRun();
- };
- // Dragging sliders is debounced to avoid building a new WebGL/Rapier world
- // dozens of times per second. The new values apply automatically on release.
- const dyn=(key:keyof Plan["dynamics"],value:number)=>setDraft(s=>({...s,dynamics:{...s.dynamics,[key]:value}}));
- useEffect(()=>{
-  if(JSON.stringify(draft)===JSON.stringify(plan))return;
-  const timer=window.setTimeout(()=>{setPlan(draft);clearRun();},200);
-  return ()=>window.clearTimeout(timer);
- },[draft,plan]);
+ // Dropdowns and sliders modify only the mounted world.
+ const update=(p:Partial<Plan>)=>setPlan(old=>({...old,...p}));
+ const dyn=(key:keyof Plan["dynamics"],value:number)=>
+  setPlan(old=>({...old,dynamics:{...old.dynamics,[key]:value}}));
  useEffect(()=>{setDnaText(selectedAgent?.dna??"");},[selectedId,selectedAgent?.dna]);
  const report=(s:Stats,a:AgentView[],e:Impact[])=>{
   setStats(s);setAgents(a);if(e.length)setEvents(previous=>[...e,...previous].slice(0,90));
  };
  const launch=()=>{
+  setLaunchedCount(plan.count);
   clearRun();
-  setPlan({...draft,dynamics:{...draft.dynamics},sizes:{...draft.sizes},
-   stationDNA:{...draft.stationDNA},travelerDNA:{...draft.travelerDNA}});
+  setReplayKey(key=>key+1);
  };
  const collisionPause=(e:Impact)=>{
   setPlaying(false);setSelectedId(e.successors?.[0]??e.subject);setLastCollision(e);
@@ -376,7 +372,6 @@ export default function PlanarRapierLab(){
    setManualEdit(old=>({id:selectedAgent.id,dna,seq:(old?.seq??0)+1}));
   }
  };
- const changed=JSON.stringify(draft)!==JSON.stringify(plan);
  return <main style={{background:UI.bg,color:UI.fg,minHeight:"100vh",padding:"clamp(12px,2vw,24px)",fontFamily:"system-ui,sans-serif"}}>
   <style>{".rapier-cols{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(300px,.78fr);gap:14px;align-items:start}.rapier-controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px}@media(max-width:1000px){.rapier-cols{grid-template-columns:1fr}}"}</style>
   <header style={{maxWidth:970,marginBottom:15}}>
@@ -398,7 +393,7 @@ export default function PlanarRapierLab(){
        <button style={{...btn,background:view==="zoom"?"#2b7368":"#245065"}} onClick={()=>setView("zoom")}>Zoom-to-3D · osservazione</button>
       </div>
      </div>
-     <IslandScene plan={plan} playing={playing} view={view} onReport={report}
+     <IslandScene plan={plan} replayKey={replayKey} playing={playing} view={view} onReport={report}
        onSelect={setSelectedId} selectedId={selectedId} pauseOnCollision={pauseOnCollision}
        onCollision={collisionPause} manualEdit={manualEdit}/>
      <div className="rapier-controls" style={{marginTop:12}}>
@@ -416,7 +411,7 @@ export default function PlanarRapierLab(){
        {lastCollision.before&&<div>Prima: <code>{lastCollision.before}</code> · Dopo: <code>{lastCollision.after??lastCollision.before}</code></div>}
        {!!lastCollision.successors?.length&&<div>Figli generati: {lastCollision.successors.join(", ")} · Inspector sul primo figlio.</div>}
       </div>}
-      {changed&&<span style={{fontSize:12,color:UI.gold}}>Aggiornamento automatico in corso…</span>}
+      
      </div>
     </section>
     <section style={panel}>
@@ -434,7 +429,7 @@ export default function PlanarRapierLab(){
     <section style={panel}>
      <h3 style={{fontSize:16,margin:"0 0 11px"}}>Protocollo di emissione</h3>
      <label style={{fontSize:12,color:UI.muted,display:"grid",gap:5}}>Disposizione isole<select style={control} value={draft.scenario}
-      onChange={e=>update({scenario:e.target.value as Scenario,stationDNA:{},travelerDNA:{}})}>
+      onChange={e=>update({scenario:e.target.value as Scenario,stationDNA:{}})}>
       {PRESET.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}
      </select></label>
      <p style={{fontSize:12,color:UI.muted,lineHeight:1.5}}>{PRESET.find(p=>p.id===draft.scenario)?.desc}</p>
@@ -478,8 +473,7 @@ export default function PlanarRapierLab(){
      </div>
      <p style={{fontSize:11,color:UI.gold,lineHeight:1.6}}>
       Fra viaggiatori la forza è repulsiva sotto la distanza desiderata e
-      attrattiva sopra: lo Shape-DNA governa entrambe. Ogni modifica riavvia
-      la stessa scarica con lo stesso seed.
+      attrattiva sopra: lo Shape-DNA governa entrambe. Ogni modifica aggiorna il campo attuale senza una nuova emissione.
      </p>
     </section>
     <section style={panel}>
@@ -502,15 +496,15 @@ export default function PlanarRapierLab(){
       <NumberSlider label="Quota di equilibrio PolytronSink" value={draft.dynamics.hoverHeight} min={.75} max={1.7} step={.05} unit=" m" onChange={v=>dyn("hoverHeight",v)}/>
       <div style={{borderTop:"1px solid "+UI.stroke,paddingTop:9,fontSize:12,color:UI.mint}}>Dimensioni reali dei collider e dei poliedri 3D</div>
       <NumberSlider label="Dimensione transformer" value={draft.sizes.controller} min={.35} max={1.05} step={.05}
-       onChange={v=>setDraft(p=>({...p,sizes:{...p.sizes,controller:v}}))}/>
+       onChange={v=>setPlan(p=>({...p,sizes:{...p.sizes,controller:v}}))}/>
       <NumberSlider label="Dimensione viaggiatori" value={draft.sizes.traveler} min={.12} max={.55} step={.01}
-       onChange={v=>setDraft(p=>({...p,sizes:{...p.sizes,traveler:v}}))}/>
+       onChange={v=>setPlan(p=>({...p,sizes:{...p.sizes,traveler:v}}))}/>
       <p style={{fontSize:11,color:UI.muted,margin:0}}>Rapporto grandezze: {(draft.sizes.controller/draft.sizes.traveler).toFixed(1)}:1.
        Anche le collisioni vengono ricalcolate con le nuove dimensioni.</p>
      </div>
      <div className="rapier-controls" style={{marginTop:12}}>
       <button style={btn} onClick={()=>update({dynamics:{...DEFAULT_DYNAMICS}})}>Ripristina valori iniziali</button>
-      <button style={{...btn,background:"#25776c"}} onClick={launch}>Applica e rilancia</button>
+      <span style={{fontSize:12,color:UI.mint}}>Parametri applicati in tempo reale</span>
      </div>
     </section>
     <section style={panel}>
@@ -609,8 +603,8 @@ export default function PlanarRapierLab(){
        <button style={{...btn,background:"#28746a"}} disabled={!!dnaError||dnaText===selectedAgent.dna}
         onClick={()=>changeDNA(dnaText)}>Applica Conway-DNA</button>
        <span style={{fontSize:11,color:UI.muted}}>{canPersist
-        ?"La modifica viene salvata nel protocollo iniziale e la simulazione riparte automaticamente."
-        :"Figlio generato durante la simulazione: la modifica è locale alla prova corrente e mette in pausa."}</span>
+        ?"Il Polytrone cambia in diretta; il suo DNA viene ricordato per il prossimo rilancio."
+        :"Figlio generato durante la simulazione: modifica locale senza rilancio."}</span>
       </div>
      </div>:<p style={{fontSize:12,color:UI.muted}}>Nessun individuo attualmente selezionato. Puoi scegliere un altro Polytrone dalla lista.</p>}
      <details style={{marginTop:12}}>
