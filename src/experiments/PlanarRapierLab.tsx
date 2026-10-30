@@ -396,6 +396,8 @@ export default function PlanarRapierLab(){
  const [lastCollision,setLastCollision]=useState<Impact|null>(null);
  const [manualEdit,setManualEdit]=useState<DNAManualEdit|null>(null);
  const [dnaText,setDnaText]=useState("");
+ const [addingStation,setAddingStation]=useState(false);
+ const [gridError,setGridError]=useState("");
  const selectedAgent=agents.find(a=>a.id===selectedId);
  const selectedForces=selectedAgent?.forces;
  const activeTravelers=agents.filter(a=>a.type==="traveler"&&a.status==="flying");
@@ -419,6 +421,35 @@ export default function PlanarRapierLab(){
  const canPersist=!!selectedAgent&&(selectedAgent.type==="controller"||
   (selectedAgent.type==="traveler"&&Number(selectedAgent.id.slice(1))<=launchedCount));
  const dnaError=(()=>{try{if(!dnaText)return "Ricetta vuota";decode(dnaText);return "";}catch(e){return String(e);}})();
+ const addStationAt=(cell:Axial)=>{
+  if(!canPlaceStation(plan.stationLayout,cell)){
+   setGridError("Cella occupata, centrale o fuori dalla griglia.");return;
+  }
+  const id=nextStationId(plan.stationLayout);
+  update({stationLayout:[...plan.stationLayout,{id,q:cell.q,r:cell.r}],
+   stationDNA:{...plan.stationDNA,[id]:"02T"}});
+  setSelectedId(id);setGridError("");
+ };
+ const placeStation=(id:string,cell:Axial)=>{
+  if(!canPlaceStation(plan.stationLayout,cell,id)){
+   setGridError("Cella occupata o fuori dalla griglia.");return;
+  }
+  update({stationLayout:plan.stationLayout.map(p=>p.id===id?
+   {...p,q:cell.q,r:cell.r}:p)});
+  setGridError("");
+ };
+ const deleteStation=()=>{
+  if(selectedAgent?.type!=="controller")return;
+  const id=selectedAgent.id,stationDNA={...plan.stationDNA};
+  delete stationDNA[id];
+  update({stationLayout:plan.stationLayout.filter(p=>p.id!==id),stationDNA});
+  setSelectedId(null);setGridError("");
+ };
+ const addAtFirstFree=()=>{
+  const next=visibleHexGrid().find(p=>canPlaceStation(plan.stationLayout,p));
+  if(next)addStationAt({q:next.q,r:next.r});
+  else setGridError("Nessuna cella libera.");
+ };
  const clearRun=()=>{setStats(null);setAgents([]);setEvents([]);setLastCollision(null);setPlaying(true);setManualEdit(null);};
  // Dropdowns and sliders modify only the mounted world.
  const update=(p:Partial<Plan>)=>setPlan(old=>({...old,...p}));
@@ -451,7 +482,7 @@ export default function PlanarRapierLab(){
  return <main style={{background:UI.bg,color:UI.fg,minHeight:"100vh",padding:"clamp(12px,2vw,24px)",fontFamily:"system-ui,sans-serif"}}>
   <style>{".rapier-cols{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(300px,.78fr);gap:14px;align-items:start}.rapier-controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px}@media(max-width:1000px){.rapier-cols{grid-template-columns:1fr}}"}</style>
   <header style={{maxWidth:970,marginBottom:15}}>
-   <div style={{fontSize:11,color:UI.mint,letterSpacing:2}}>MINDELEEV · SPRINT 32 · LIVE CONTROLS</div>
+   <div style={{fontSize:11,color:UI.mint,letterSpacing:2}}>MINDELEEV · SPRINT 33 · HEX TRANSFORMER EDITOR</div>
    <h1 style={{fontSize:"clamp(24px,3vw,37px)",margin:"7px 0"}}>Planar Rapier Mutatron</h1>
    <p style={{fontSize:14,color:UI.muted,lineHeight:1.6,margin:0}}>Il campo rimane orizzontale e l'emissione è radiale. I poliedri sono corpi rigidi tridimensionali: possono urtarsi, ruotare e sollevarsi temporaneamente, ma ritornano verso la quota dei PolytronSink. Il cambio camera non cambia le regole fisiche.</p>
    <div style={{marginTop:9,fontSize:12,display:"flex",gap:15}}>
@@ -470,6 +501,7 @@ export default function PlanarRapierLab(){
       </div>
      </div>
      <IslandScene plan={plan} replayKey={replayKey} playing={playing} view={view} onReport={report}
+       addingStation={addingStation} onPlaceStation={placeStation} onAddStation={addStationAt}
        onSelect={setSelectedId} selectedId={selectedId} pauseOnCollision={pauseOnCollision}
        onCollision={collisionPause} manualEdit={manualEdit}/>
      <div className="rapier-controls" style={{marginTop:12}}>
@@ -502,6 +534,25 @@ export default function PlanarRapierLab(){
     </section>
    </div>
    <aside style={{display:"grid",gap:14}}>
+    <section style={panel}>
+     <h3 style={{fontSize:16,margin:"0 0 10px"}}>Editor transformer · griglia esagonale</h3>
+     <p style={{fontSize:12,color:UI.muted,lineHeight:1.5,marginTop:0}}>
+      Trascina un transformer su una cella libera, oppure aggiungine nuovi.
+      I transformer sono vincolati alle celle; i viaggiatori si muovono liberamente.
+     </p>
+     <div className="rapier-controls">
+      <button style={{...btn,background:addingStation?"#2b7368":"#245065"}}
+       onClick={()=>{setAddingStation(v=>!v);setGridError("");}}>
+       {addingStation?"Fine inserimento":"+ Aggiungi cliccando la griglia"}
+      </button>
+      <button style={btn} onClick={addAtFirstFree}>+ Inserisci in prima cella libera</button>
+     </div>
+     <p style={{fontSize:11,color:UI.muted,marginTop:8}}>
+      {plan.stationLayout.length} transformer · anello massimo {GRID_MAX_RING} ·
+      Sorgente al centro non occupabile
+     </p>
+     {gridError&&<div role="alert" style={{fontSize:12,color:"#f1a995"}}>{gridError}</div>}
+    </section>
     <section style={panel}>
      <h3 style={{fontSize:16,margin:"0 0 11px"}}>Configurazione in diretta</h3>
      <p style={{fontSize:11,color:UI.mint}}>Scenario, DNA e forze modificano il mondo in corso. Il numero di viaggiatori si applica solo al prossimo «Rilancia / Ripeti».</p>
@@ -601,6 +652,15 @@ export default function PlanarRapierLab(){
      {selectedAgent?<div style={{fontSize:12,lineHeight:1.85,marginTop:9}}>
       <div><b>{selectedAgent.name}</b> · {selectedAgent.type==="controller"?"Transformer nominato":"Viaggiatore anonimo"}</div>
       <div>DNA attivo: <code>{selectedAgent.dna}</code> · Stato: {selectedAgent.status}</div>
+      {selectedAgent.type==="controller"&&<div style={{marginTop:9,padding:9,
+       border:"1px solid "+UI.stroke,borderRadius:9}}>
+       <strong>Transformer · cella fissa</strong>
+       <div>Coordinate assiali: q={selectedAgent.cell?.q}, r={selectedAgent.cell?.r}</div>
+       <div style={{fontSize:11,color:UI.muted}}>Trascinalo su una cella libera per spostarlo.</div>
+       <button style={{...btn,marginTop:8,background:"#783c45"}} onClick={deleteStation}>
+        Elimina questo transformer
+       </button>
+      </div>}
       <div>Seme: <b>{decode(selectedAgent.dna).seed}</b> — {VERBS[decode(selectedAgent.dna).seed]}</div>
       <div>Operatori Conway: <code>{decode(selectedAgent.dna).ops||"nessuno"}</code> · Palette: {decode(selectedAgent.dna).palette}</div>
       <div>Posizione: ({fmt(selectedAgent.x)}, {fmt(selectedAgent.y)}, {fmt(selectedAgent.z)})</div>
