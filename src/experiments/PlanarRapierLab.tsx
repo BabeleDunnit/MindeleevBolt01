@@ -170,7 +170,7 @@ function IslandScene({plan,replayKey,playing,view,onReport,onSelect,selectedId,s
     renderer.outputColorSpace=THREE.SRGBColorSpace;
     renderer.domElement.style.width="100%";renderer.domElement.style.height="100%";renderer.domElement.style.display="block";
     root.appendChild(renderer.domElement);
-    let drag:{id:string;startX:number;startY:number}|null=null;
+    let drag:{id:string;ids:string[];startX:number;startY:number}|null=null;
     const toCell=(evt:PointerEvent):Axial|null=>{
      if(!renderer)return null;
      const box=renderer.domElement.getBoundingClientRect();
@@ -189,8 +189,9 @@ function IslandScene({plan,replayKey,playing,view,onReport,onSelect,selectedId,s
      if(!cell)return;
      const pos=stationWorld(cell);
      hoverOutline.position.set(pos.x,0,pos.z);
-     const color=canPlaceStation(planRef.current.stationLayout,cell,drag?.id)?
-      0x86e4c7:0xf0a18b;
+     const valid=drag?!!translateStations(planRef.current.stationLayout,drag.ids,drag.id,cell):
+      canPlaceStation(planRef.current.stationLayout,cell);
+     const color=valid?0x86e4c7:0xf0a18b;
      (hoverOutline.material as THREE.LineBasicMaterial).color.setHex(color);
     };
     const onMove=(evt:PointerEvent)=>{
@@ -201,8 +202,11 @@ function IslandScene({plan,replayKey,playing,view,onReport,onSelect,selectedId,s
      else hoverOutline.visible=false;
     };
     const onUp=(evt:PointerEvent)=>{
-     if(drag&&Math.hypot(evt.clientX-drag.startX,evt.clientY-drag.startY)>6){
-      const cell=toCell(evt);if(cell)placeRef.current(drag.id,cell);
+     if(drag){
+      const moved=Math.hypot(evt.clientX-drag.startX,evt.clientY-drag.startY)>6;
+      if(moved){
+       const cell=toCell(evt);if(cell)placeRef.current(drag.id,cell,drag.ids);
+      }else pick.current(drag.id,false);
      }
      drag=null;hoverOutline.visible=false;
     };
@@ -252,9 +256,22 @@ function IslandScene({plan,replayKey,playing,view,onReport,onSelect,selectedId,s
      if(addRef.current){
       const cell=toCell(evt);if(cell)addStationRef.current(cell);
      }else if(choice.chosen){
-      pick.current(choice.chosen);
-      const station=engine.agentsView().find(a=>a.id===choice.chosen&&a.type==="controller");
-      if(station)drag={id:station.id,startX:evt.clientX,startY:evt.clientY};
+      const additive=evt.shiftKey||evt.ctrlKey||evt.metaKey;
+      if(additive){
+       pick.current(choice.chosen,true);
+       drag=null;
+      }else{
+       const station=engine.agentsView().find(a=>a.id===choice.chosen&&a.type==="controller");
+       if(station){
+        const group=selection.current.includes(station.id)?
+         selection.current.filter(id=>planRef.current.stationLayout.some(p=>p.id===id)):
+         [station.id];
+        drag={id:station.id,ids:group.length?group:[station.id],
+         startX:evt.clientX,startY:evt.clientY};
+       }else pick.current(choice.chosen,false);
+      }
+     }else if(!evt.shiftKey&&!evt.ctrlKey&&!evt.metaKey){
+      pick.current("",false);
      }
     };
     renderer.domElement.addEventListener("pointerdown",onPick);
@@ -313,6 +330,24 @@ function IslandScene({plan,replayKey,playing,view,onReport,onSelect,selectedId,s
      }
      for(const [id,g] of objects)if(!seen.has(id)){scene.remove(g);disposeGroup(g);objects.delete(id);}
      const chosen=agents.find(a=>a.id===selected.current);
+     const secondaryIds=new Set(selection.current.filter(id=>id!==selected.current));
+     for(const [id,marker] of extraSelectionRings)if(!secondaryIds.has(id)||
+      !agents.some(a=>a.id===id)){
+      scene.remove(marker);marker.geometry.dispose();(marker.material as THREE.Material).dispose();
+      extraSelectionRings.delete(id);
+     }
+     for(const agent of agents)if(secondaryIds.has(agent.id)){
+      let marker=extraSelectionRings.get(agent.id);
+      if(!marker){
+       marker=new THREE.Mesh(new THREE.RingGeometry(1,1.1,64),
+        new THREE.MeshBasicMaterial({color:0x83efd9,transparent:true,opacity:.92,
+         depthTest:false,depthWrite:false,side:THREE.DoubleSide}));
+       marker.rotation.x=-Math.PI/2;marker.renderOrder=702;
+       extraSelectionRings.set(agent.id,marker);scene.add(marker);
+      }
+      marker.position.set(agent.x,.113,agent.z);
+      marker.scale.setScalar(getRadius(agent.dna,agent.type));
+     }
      selectedRing.visible=!!chosen;
      outerRing.visible=!!chosen;
      if(chosen){
@@ -340,6 +375,9 @@ function IslandScene({plan,replayKey,playing,view,onReport,onSelect,selectedId,s
    removePick?.();
    if(renderer&&renderer.domElement.parentElement===root)root.removeChild(renderer.domElement);
    objects.forEach(g=>{scene.remove(g);disposeGroup(g);});
+   for(const marker of extraSelectionRings.values()){
+    scene.remove(marker);marker.geometry.dispose();(marker.material as THREE.Material).dispose();
+   }
    selectedRing.geometry.dispose();(selectedRing.material as THREE.Material).dispose();
    outerRing.geometry.dispose();(outerRing.material as THREE.Material).dispose();
    trackers.forEach(g=>disposeGroup(g));disposeGroup(core);
