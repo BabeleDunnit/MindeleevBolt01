@@ -1,0 +1,59 @@
+name: Pages · Periodic Geometry Equivalence (Sprint 36)
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experiments/sprint36-geometry-equivalence
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: mindeleev-pages
+  cancel-in-progress: false
+jobs:
+  test-build-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: phase-lab
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - name: Large-mesh geometry matching and row labels
+        run: node scripts/check-geometry-equivalence.mjs
+      - name: Spectral and periodic regression tests
+        run: |
+          node scripts/check-shapedna-v2.mjs
+          node scripts/check-shape-dna.mjs
+          node scripts/check-polytron-periodic.mjs
+      - name: All prior physics and editor regressions
+        run: |
+          node scripts/check-orbital-mut.mjs
+          node scripts/check-multi-inspector.mjs
+          node scripts/check-hex-editor.mjs
+          node scripts/check-live-controls.mjs
+          node scripts/check-shape-equilibrium.mjs
+          node scripts/check-rapier-picking.mjs
+          node scripts/check-phase.mjs
+      - name: Build and regenerate spectral atlas
+        run: |
+          node scripts/build-phenotype-atlas.mjs
+          npm run build
+      - name: Verify production bundle
+        run: |
+          test -f dist/index.html
+          grep -r -q 'Geometrie verificate' dist/assets/
+          grep -r -q 'periodicCatalog' dist/assets/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+      - id: deployment
+        uses: actions/deploy-pages@v4
