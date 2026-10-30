@@ -61,6 +61,6 @@ export function orbitTrackStep(previous:OrbitalTrack,x:number,z:number,
 export function encounterReady(track:OrbitalTrack,config:OrbitalConfig):boolean{
  if(!track.inside||track.activated)return false;
  if(config.trigger==="dwell")return track.seconds>=Math.max(.01,config.dwellSeconds);
- if(config.trigger==="orbits")return track.revolutions>=Math.max(.05,config.revolutions);
+ if(config.trigger==="orbits")return track.revolutions+1e-8>=Math.max(.05,config.revolutions);
  return false;
 }
