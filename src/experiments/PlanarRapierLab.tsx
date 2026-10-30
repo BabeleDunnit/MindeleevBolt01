@@ -7,7 +7,7 @@ import {PlanarRapierEngine,DEFAULT_PLAN,DEFAULT_DYNAMICS,FIXED_STEP,SINK_HEIGHT,
 import {VERBS,decode} from "./IslandAffinityEngine";
 import {analyzeEncounter} from "./rapierCompatibility";
 import {visibleHexGrid,stationWorld,worldStationCell,canPlaceStation,
- nextStationId,GRID_MAX_RING,type StationCell} from "./rapierHexGrid";
+ nextStationId,GRID_MAX_RING} from "./rapierHexGrid";
 import type {Axial} from "@/hex/hexGrid";
 const UI={bg:"#071524",panel:"#102a3a",stroke:"#3e6074",fg:"#ecf8ff",muted:"#acc9d8",mint:"#88ead0",gold:"#f0ca8b"};
 const panel:CSSProperties={border:"1px solid "+UI.stroke,background:UI.panel,borderRadius:15,padding:15};
