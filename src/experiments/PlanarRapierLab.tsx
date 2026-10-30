@@ -433,7 +433,12 @@ export default function PlanarRapierLab(){
  const [playing,setPlaying]=useState(true),[view,setView]=useState<"top"|"zoom">("top");
  const [stats,setStats]=useState<Stats|null>(null),[agents,setAgents]=useState<AgentView[]>([]);
  const [events,setEvents]=useState<Impact[]>([]);
- const [selectedId,setSelectedId]=useState<string|null>("P01");
+ const [selectedIds,setSelectedIds]=useState<string[]>(["P01"]);
+ const selectedId=selectedIds[selectedIds.length-1]??null;
+ const selectOne=(id:string|null)=>setSelectedIds(id?[id]:[]);
+ const selectAgent=(id:string,additive:boolean)=>
+  setSelectedIds(previous=>chooseAgents(previous,id,additive));
+ const [bulkDNA,setBulkDNA]=useState("02T");
  const [pauseOnCollision,setPauseOnCollision]=useState(false);
  const [lastCollision,setLastCollision]=useState<Impact|null>(null);
  const [manualEdit,setManualEdit]=useState<DNAManualEdit|null>(null);
@@ -441,6 +446,7 @@ export default function PlanarRapierLab(){
  const [addingStation,setAddingStation]=useState(false);
  const [gridError,setGridError]=useState("");
  const selectedAgent=agents.find(a=>a.id===selectedId);
+ const selectedStationIds=selectedIds.filter(id=>plan.stationLayout.some(st=>st.id===id));
  const selectedForces=selectedAgent?.forces;
  const activeTravelers=agents.filter(a=>a.type==="traveler"&&a.status==="flying");
  const cubeCandidates=selectedAgent?.type==="controller"&&decode(selectedAgent.dna).seed==="C"?
@@ -470,14 +476,14 @@ export default function PlanarRapierLab(){
   const id=nextStationId(plan.stationLayout);
   update({stationLayout:[...plan.stationLayout,{id,q:cell.q,r:cell.r}],
    stationDNA:{...plan.stationDNA,[id]:"02T"}});
-  setSelectedId(id);setGridError("");
+  selectOne(id);setGridError("");
  };
- const placeStation=(id:string,cell:Axial)=>{
-  if(!canPlaceStation(plan.stationLayout,cell,id)){
-   setGridError("Cella occupata o fuori dalla griglia.");return;
+ const placeStation=(id:string,cell:Axial,groupIds:string[])=>{
+  const moved=translateStations(plan.stationLayout,groupIds,id,cell);
+  if(!moved){
+   setGridError("Spostamento impossibile: una o più celle sono occupate o fuori griglia.");return;
   }
-  update({stationLayout:plan.stationLayout.map(p=>p.id===id?
-   {...p,q:cell.q,r:cell.r}:p)});
+  update({stationLayout:moved});
   setGridError("");
  };
  const deleteStation=()=>{
@@ -485,7 +491,29 @@ export default function PlanarRapierLab(){
   const id=selectedAgent.id,stationDNA={...plan.stationDNA};
   delete stationDNA[id];
   update({stationLayout:plan.stationLayout.filter(p=>p.id!==id),stationDNA});
-  setSelectedId(null);setGridError("");
+  selectOne(null);setGridError("");
+ };
+ const deleteSelectedStations=()=>{
+  if(!selectedStationIds.length)return;
+  if(!window.confirm("Eliminare i "+selectedStationIds.length+" transformer selezionati?"))return;
+  const stationDNA={...plan.stationDNA};
+  selectedStationIds.forEach(id=>delete stationDNA[id]);
+  update({stationLayout:withoutStations(plan.stationLayout,selectedStationIds),stationDNA});
+  setSelectedIds(ids=>ids.filter(id=>!selectedStationIds.includes(id)));
+  setGridError("");
+ };
+ const clearTransformers=()=>{
+  if(!plan.stationLayout.length)return;
+  if(!window.confirm("Pulisci Mutatron: eliminare TUTTI i transformer? I viaggiatori rimarranno in movimento."))return;
+  update({stationLayout:[],stationDNA:{}});
+  setSelectedIds(ids=>ids.filter(id=>!plan.stationLayout.some(s=>s.id===id)));
+  setGridError("");
+ };
+ const applyBulkDNA=()=>{
+  if(!selectedStationIds.length)return;
+  try{decode(bulkDNA);}catch{return;}
+  setPlan(old=>({...old,stationDNA:{...old.stationDNA,
+   ...Object.fromEntries(selectedStationIds.map(id=>[id,bulkDNA]))}}));
  };
  const addAtFirstFree=()=>{
   const next=visibleHexGrid().find(p=>canPlaceStation(plan.stationLayout,p));
@@ -507,7 +535,7 @@ export default function PlanarRapierLab(){
   setReplayKey(key=>key+1);
  };
  const collisionPause=(e:Impact)=>{
-  setPlaying(false);setSelectedId(e.successors?.[0]??e.subject);setLastCollision(e);
+  setPlaying(false);selectOne(e.successors?.[0]??e.subject);setLastCollision(e);
  };
  const changeDNA=(dna:string)=>{
   if(!selectedAgent)return;
@@ -524,7 +552,7 @@ export default function PlanarRapierLab(){
  return <main style={{background:UI.bg,color:UI.fg,minHeight:"100vh",padding:"clamp(12px,2vw,24px)",fontFamily:"system-ui,sans-serif"}}>
   <style>{".rapier-cols{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(300px,.78fr);gap:14px;align-items:start}.rapier-controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px}@media(max-width:1000px){.rapier-cols{grid-template-columns:1fr}}"}</style>
   <header style={{maxWidth:970,marginBottom:15}}>
-   <div style={{fontSize:11,color:UI.mint,letterSpacing:2}}>MINDELEEV · SPRINT 33 · HEX TRANSFORMER EDITOR</div>
+   <div style={{fontSize:11,color:UI.mint,letterSpacing:2}}>MINDELEEV · SPRINT 33b · INSPECTOR MULTI-SELECTION</div>
    <h1 style={{fontSize:"clamp(24px,3vw,37px)",margin:"7px 0"}}>Planar Rapier Mutatron</h1>
    <p style={{fontSize:14,color:UI.muted,lineHeight:1.6,margin:0}}>Il campo rimane orizzontale e l'emissione è radiale. I poliedri sono corpi rigidi tridimensionali: possono urtarsi, ruotare e sollevarsi temporaneamente, ma ritornano verso la quota dei PolytronSink. Il cambio camera non cambia le regole fisiche.</p>
    <div style={{marginTop:9,fontSize:12,display:"flex",gap:15}}>
@@ -544,7 +572,7 @@ export default function PlanarRapierLab(){
      </div>
      <IslandScene plan={plan} replayKey={replayKey} playing={playing} view={view} onReport={report}
        addingStation={addingStation} onPlaceStation={placeStation} onAddStation={addStationAt}
-       onSelect={setSelectedId} selectedId={selectedId} pauseOnCollision={pauseOnCollision}
+       onSelect={selectAgent} selectedId={selectedId} selectedIds={selectedIds} pauseOnCollision={pauseOnCollision}
        onCollision={collisionPause} manualEdit={manualEdit}/>
      <div className="rapier-controls" style={{marginTop:12}}>
       <button style={{...btn,background:"#2d7867"}} onClick={()=>{setPlaying(s=>!s);setLastCollision(null);}}>{playing?"Pausa":"Riprendi"}</button>
@@ -682,7 +710,7 @@ export default function PlanarRapierLab(){
      <h3 style={{fontSize:17,margin:"0 0 9px"}}>Inspector · Polytrone selezionato</h3>
      <p style={{fontSize:12,color:UI.muted,margin:"0 0 8px"}}>Clicca su un poliedro nella scena oppure scegli dalla lista. Per distinguere individui sovrapposti, clicca più volte nello stesso punto. Puoi modificare il DNA Conway anche dei viaggiatori più piccoli.</p>
      <select aria-label="Scegli viaggiatore o transformer" style={{...control,width:"100%"}}
-      value={selectedAgent?.id??""} onChange={e=>setSelectedId(e.target.value)}>
+      value={selectedAgent?.id??""} onChange={e=>selectOne(e.target.value||null)}>
       <option value="">Seleziona un individuo…</option>
       <optgroup label="Controller · Polytroni nominati">
        {agents.filter(a=>a.type==="controller").map(a=><option key={a.id} value={a.id}>{a.id} · {a.name} · {a.dna}</option>)}
