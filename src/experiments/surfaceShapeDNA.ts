@@ -52,7 +52,7 @@ function symmetricEigenvalues(input:number[][],maxSweeps=48){
    for(let k=0;k<n;k++)if(k!==i&&k!==j){
     const aik=a[k][i],akj=a[k][j];
     a[k][i]=a[i][k]=c*aik-s*akj;
-    a[k][j]=a[j][k]=s*aik+c*y; // PLACEHOLDER
+    a[k][j]=a[j][k]=s*aik+c*akj;
    }
   }
   last=maxOff;
