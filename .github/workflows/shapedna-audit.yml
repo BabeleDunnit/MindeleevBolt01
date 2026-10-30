@@ -1,0 +1,21 @@
+name: ShapeDNA numerical audit
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experiments/sprint35-shapeDNA-audit
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Audit isometric ShapeDNA signatures
+        run: node scripts/audit-shapedna.mjs
