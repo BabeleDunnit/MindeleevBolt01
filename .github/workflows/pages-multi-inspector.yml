@@ -1,0 +1,50 @@
+name: Pages · Inspector Multiselection (Sprint 33b)
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experiments/sprint33b-inspector-multiselect
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: mindeleev-pages
+  cancel-in-progress: false
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: phase-lab
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - name: Inspector and multi-selection
+        run: node scripts/check-multi-inspector.mjs
+      - name: Mutatron regressions
+        run: |
+          node scripts/check-hex-editor.mjs
+          node scripts/check-live-controls.mjs
+          node scripts/check-shape-equilibrium.mjs
+          node scripts/check-rapier-picking.mjs
+      - name: Build production
+        run: |
+          node scripts/build-phenotype-atlas.mjs
+          npm run build
+      - name: Confirm new Inspector controls
+        run: |
+          test -f dist/index.html
+          grep -r -q 'Pulisci Mutatron' dist/assets/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+      - id: deployment
+        uses: actions/deploy-pages@v4
