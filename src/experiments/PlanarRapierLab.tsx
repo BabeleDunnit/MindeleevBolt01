@@ -375,7 +375,7 @@ export default function PlanarRapierLab(){
  return <main style={{background:UI.bg,color:UI.fg,minHeight:"100vh",padding:"clamp(12px,2vw,24px)",fontFamily:"system-ui,sans-serif"}}>
   <style>{".rapier-cols{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(300px,.78fr);gap:14px;align-items:start}.rapier-controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px}@media(max-width:1000px){.rapier-cols{grid-template-columns:1fr}}"}</style>
   <header style={{maxWidth:970,marginBottom:15}}>
-   <div style={{fontSize:11,color:UI.mint,letterSpacing:2}}>MINDELEEV · SPRINT 31 · SHAPE EQUILIBRIUM</div>
+   <div style={{fontSize:11,color:UI.mint,letterSpacing:2}}>MINDELEEV · SPRINT 32 · LIVE CONTROLS</div>
    <h1 style={{fontSize:"clamp(24px,3vw,37px)",margin:"7px 0"}}>Planar Rapier Mutatron</h1>
    <p style={{fontSize:14,color:UI.muted,lineHeight:1.6,margin:0}}>Il campo rimane orizzontale e l'emissione è radiale. I poliedri sono corpi rigidi tridimensionali: possono urtarsi, ruotare e sollevarsi temporaneamente, ma ritornano verso la quota dei PolytronSink. Il cambio camera non cambia le regole fisiche.</p>
    <div style={{marginTop:9,fontSize:12,display:"flex",gap:15}}>
@@ -427,17 +427,18 @@ export default function PlanarRapierLab(){
    </div>
    <aside style={{display:"grid",gap:14}}>
     <section style={panel}>
-     <h3 style={{fontSize:16,margin:"0 0 11px"}}>Protocollo di emissione</h3>
+     <h3 style={{fontSize:16,margin:"0 0 11px"}}>Configurazione in diretta</h3>
+     <p style={{fontSize:11,color:UI.mint}}>Scenario, DNA e forze modificano il mondo in corso. Il numero di viaggiatori si applica solo al prossimo «Rilancia / Ripeti».</p>
      <label style={{fontSize:12,color:UI.muted,display:"grid",gap:5}}>Disposizione isole<select style={control} value={draft.scenario}
       onChange={e=>update({scenario:e.target.value as Scenario,stationDNA:{}})}>
       {PRESET.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}
      </select></label>
      <p style={{fontSize:12,color:UI.muted,lineHeight:1.5}}>{PRESET.find(p=>p.id===draft.scenario)?.desc}</p>
      <div className="rapier-controls" style={{marginBottom:10}}>
-      <label style={{fontSize:12,color:UI.muted}}>Emissione <select style={{...control,marginLeft:5}} value={draft.count} onChange={e=>update({count:Number(e.target.value) as 1|6|12})}>
+      <label style={{fontSize:12,color:UI.muted}}>Prossima emissione <select style={{...control,marginLeft:5}} value={draft.count} onChange={e=>update({count:Number(e.target.value) as 1|6|12})}>
        <option value={1}>Una sonda</option><option value={6}>Sei radiali</option><option value={12}>Dodici radiali</option>
       </select></label>
-      <label style={{fontSize:12,color:UI.muted}}>DNA <select style={{...control,marginLeft:5}} value={draft.dna} onChange={e=>update({dna:e.target.value})}>
+      <label style={{fontSize:12,color:UI.muted}}>DNA viaggiatori attuali <select style={{...control,marginLeft:5}} value={draft.dna} onChange={e=>update({dna:e.target.value})}>
        {DNA_OPTS.map(d=><option key={d} value={d}>{d}</option>)}
       </select></label>
      </div>
@@ -481,6 +482,7 @@ export default function PlanarRapierLab(){
      <div style={{display:"grid",gap:10}}>
       <NumberSlider label="Periodo naturale del ritorno al piano" value={draft.dynamics.period} min={.7} max={6} step={.1} unit=" s" onChange={v=>dyn("period",v)}/>
       <NumberSlider label="Smorzamento ζ" value={draft.dynamics.dampingRatio} min={0} max={1.3} step={.05} onChange={v=>dyn("dampingRatio",v)}/>
+      <p style={{fontSize:11,color:UI.muted,margin:0}}>L'impulso iniziale agisce solo sul prossimo rilancio; i viaggiatori già in moto mantengono la propria velocità.</p>
       <NumberSlider label="Impulso iniziale radiale" value={draft.dynamics.launchSpeed} min={.5} max={9} step={.25} unit=" m/s" onChange={v=>dyn("launchSpeed",v)}/>
       <NumberSlider label="Restituzione degli urti" value={draft.dynamics.restitution} min={0} max={1} step={.05} onChange={v=>dyn("restitution",v)}/>
      <div style={{borderTop:"1px solid "+UI.stroke,paddingTop:9,fontSize:12,color:UI.mint}}>Equilibrio spaziale Shape-DNA</div>
