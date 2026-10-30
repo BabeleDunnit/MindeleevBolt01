@@ -71,7 +71,7 @@ try{
  }
  const src=await readFile("src/experiments/PolytronPeriodicLab.tsx","utf8");
  for(const required of ["THREE.WebGLRenderer","data-polytron-viewport","setScissor",
-  "requestAnimationFrame","PALETTE_SETS","polytronGeometry","PeriodicCatalog"]){
+  "requestAnimationFrame","PALETTE_SETS","polytronGeometry","periodicCatalog.worker.ts"]){
   assert(src.includes(required),"Missing shared 3D implementation "+required);
  }
  const app=await readFile("src/App.tsx","utf8");
