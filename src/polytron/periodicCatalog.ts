@@ -93,8 +93,14 @@ export class PeriodicCatalog{
       const previous=this.shapeBuckets.get(topology)??[];
       for(const older of previous){
        const spectralDistance=spectrumDistance(spec,older.spectrum);
-       if(Number.isFinite(spectralDistance)&&spectralDistance<.002&&
-         rms(fingerprint,older.distances)<.002)base.equivalents.push(older.number);
+       const geometryDistance=rms(fingerprint,older.distances);
+       // Surface FEM triangulates quads with arbitrary diagonals. A cube and
+       // its dual-generated cube can have different discrete eigenvalues
+       // despite indistinguishable normalized 3D vertex geometry. Allow a
+       // stricter geometric confirmation to override that FEM artefact.
+       if(geometryDistance<.002&&
+         ((Number.isFinite(spectralDistance)&&spectralDistance<.002)||
+          geometryDistance<.0003))base.equivalents.push(older.number);
       }
       previous.push({number,spectrum:spec,distances:fingerprint,topology});
       this.shapeBuckets.set(topology,previous);
