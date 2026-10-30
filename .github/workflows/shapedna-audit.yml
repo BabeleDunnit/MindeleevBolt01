@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - experiments/sprint35-shapeDNA-audit
+      - experiments/sprint35-shapedna-audit
 permissions:
   contents: read
 jobs:
