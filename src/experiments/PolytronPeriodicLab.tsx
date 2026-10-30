@@ -96,7 +96,7 @@ function SharedPeriodic3D({palette,rotate}:{palette:number;rotate:boolean}){
     mesh.geometry=geo.solid;edges.geometry=geo.edges;
     group.scale.setScalar(geo.scale);
     group.rotation.y=rotateRef.current?time*.00034:.42;
-    group.rotation.x=rotateRef.current?.23+Math.sin(time*.00024)*.09:.23;
+    group.rotation.x=rotateRef.current ? .23+Math.sin(time*.00024)*.09 : .23;
     camera.aspect=width/height;camera.updateProjectionMatrix();
     renderer.setViewport(x,y,width,height);renderer.setScissor(x,y,width,height);
     renderer.render(scene,camera);
