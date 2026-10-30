@@ -9,6 +9,7 @@ import {analyzeEncounter} from "./rapierCompatibility";
 import {visibleHexGrid,stationWorld,worldStationCell,canPlaceStation,
  nextStationId,GRID_MAX_RING} from "./rapierHexGrid";
 import type {Axial} from "@/hex/hexGrid";
+import {chooseAgents,translateStations,withoutStations} from "./rapierMultiSelection";
 const UI={bg:"#071524",panel:"#102a3a",stroke:"#3e6074",fg:"#ecf8ff",muted:"#acc9d8",mint:"#88ead0",gold:"#f0ca8b"};
 const panel:CSSProperties={border:"1px solid "+UI.stroke,background:UI.panel,borderRadius:15,padding:15};
 const control:CSSProperties={color:UI.fg,background:"#1e4b61",border:"1px solid #588197",borderRadius:9,padding:"8px 10px",fontSize:13};
@@ -49,16 +50,17 @@ function disposeGroup(group:THREE.Group){
  });
 }
 type DNAManualEdit={id:string;dna:string;seq:number};
-function IslandScene({plan,replayKey,playing,view,onReport,onSelect,selectedId,pauseOnCollision,onCollision,manualEdit,addingStation,onPlaceStation,onAddStation}:{
+function IslandScene({plan,replayKey,playing,view,onReport,onSelect,selectedId,selectedIds,pauseOnCollision,onCollision,manualEdit,addingStation,onPlaceStation,onAddStation}:{
  plan:Plan;replayKey:number;playing:boolean;view:"top"|"zoom";
  onReport:(stats:Stats,agents:AgentView[],events:Impact[])=>void;
- onSelect:(id:string)=>void;selectedId:string|null;
+ onSelect:(id:string,additive:boolean)=>void;selectedId:string|null;selectedIds:string[];
  pauseOnCollision:boolean;onCollision:(e:Impact)=>void;manualEdit:DNAManualEdit|null;
- addingStation:boolean;onPlaceStation:(id:string,cell:Axial)=>void;
+ addingStation:boolean;onPlaceStation:(id:string,cell:Axial,groupIds:string[])=>void;
  onAddStation:(cell:Axial)=>void;
 }){
  const mount=useRef<HTMLDivElement>(null),playingRef=useRef(playing),viewRef=useRef(view),report=useRef(onReport);
  const pick=useRef(onSelect),collision=useRef(onCollision),pauseOn=useRef(pauseOnCollision),selected=useRef(selectedId);
+ const selection=useRef(selectedIds);
  const engineRef=useRef<PlanarRapierEngine|null>(null);
  const planRef=useRef(plan);planRef.current=plan;
  const addRef=useRef(addingStation);addRef.current=addingStation;
@@ -71,6 +73,7 @@ function IslandScene({plan,replayKey,playing,view,onReport,onSelect,selectedId,p
  useEffect(()=>{collision.current=onCollision;},[onCollision]);
  useEffect(()=>{pauseOn.current=pauseOnCollision;},[pauseOnCollision]);
  useEffect(()=>{selected.current=selectedId;},[selectedId]);
+ useEffect(()=>{selection.current=selectedIds;},[selectedIds]);
  useEffect(()=>{
   const engine=engineRef.current;
   if(!engine)return;
@@ -156,6 +159,7 @@ function IslandScene({plan,replayKey,playing,view,onReport,onSelect,selectedId,p
   const core=makeGroup("02I","controller",.31);core.position.y=.95;source.add(core);
   source.position.y=.12;scene.add(source);
   const trackers:THREE.Group[]=[];
+  const extraSelectionRings=new Map<string,THREE.Mesh>();
   const boot=async()=>{
    try{
     const next=await PlanarRapierEngine.create(planRef.current);
