@@ -13,6 +13,9 @@ import {initialIslands,decode,encode,wrapDNA,cutDNA,affinity,randomGenerator} fr
 import {cubeFusion,analyzeEncounter,type Feasibility} from "./rapierCompatibility";
 import {DEFAULT_STATION_LAYOUT,stationWorld,canPlaceStation,
  type StationCell} from "./rapierHexGrid";
+import {DEFAULT_ORBITAL,orbitalAcceleration,circularOrbitSpeed,shapeGravityFactor,
+ orbitTrackStep,encounterReady,EMPTY_ORBITAL_TRACK,
+ type OrbitalConfig,type OrbitalTrack} from "./orbitalMechanics";
 
 export const FIXED_STEP=1/120;
 export const SINK_HEIGHT=1.03,AREA_RADIUS=8.2;
@@ -31,7 +34,8 @@ export type ForceChannels={transformers:number;travelers:number;source:number};
 export const DEFAULT_FORCE_CHANNELS:ForceChannels={transformers:.08,travelers:.85,source:.25};
 export type ForceVector={x:number;z:number;magnitude:number};
 export type StationForce={id:string;name:string;dna:string;distance:number;
- similarity:number;rest:number;force:ForceVector;compatibility:Feasibility};
+ similarity:number;rest:number;force:ForceVector;compatibility:Feasibility;
+ orbital?:{seconds:number;revolutions:number;inside:boolean;activated:boolean}};
 export type PairForce={id:string;dna:string;distance:number;similarity:number;
  rest:number;spring:number;damping:number;force:ForceVector};
 export type ForceDiagnostics={step:number;transformers:ForceVector;travelers:ForceVector;
@@ -40,10 +44,11 @@ export type BufferView={id:string;dna:string;elapsedSteps:number;remainingSteps:
 export const DEFAULT_SIZES:FamilySizes={controller:.68,traveler:.26};
 export type Plan={scenario:Scenario;count:1|6|12;dna:string;returnPalette:number;
  seed:number;dynamics:Dynamics;sizes:FamilySizes;forceChannels:ForceChannels;
- stationDNA:Record<string,string>;travelerDNA:Record<string,string>;stationLayout:StationCell[]};
+ stationDNA:Record<string,string>;travelerDNA:Record<string,string>;stationLayout:StationCell[];
+ orbital:OrbitalConfig};
 export const DEFAULT_PLAN:Plan={scenario:"color",count:6,dna:"01C",returnPalette:2,
  seed:47,dynamics:DEFAULT_DYNAMICS,sizes:DEFAULT_SIZES,forceChannels:DEFAULT_FORCE_CHANNELS,
- stationDNA:{},travelerDNA:{},stationLayout:DEFAULT_STATION_LAYOUT};
+ stationDNA:{},travelerDNA:{},stationLayout:DEFAULT_STATION_LAYOUT,orbital:DEFAULT_ORBITAL};
 export type AgentType="controller"|"traveler";
 export type AgentView={id:string;type:AgentType;name:string;dna:string;energy:number;
  cell?:{q:number;r:number};
@@ -93,6 +98,7 @@ export class PlanarRapierEngine{
  private colliders=new Map<number,string>();
  private rng:()=>number;
  private lastForces=new Map<string,ForceDiagnostics>();
+ private orbitTracks=new Map<string,OrbitalTrack>();
  private nextId=1;
  stepIndex=0;
  impacts=0; geneticChanges=0;returns=0;escaped=0;peakHeight=SINK_HEIGHT;peakSpeed=0;
@@ -103,7 +109,7 @@ export class PlanarRapierEngine{
    this.plan={...plan,dynamics:{...plan.dynamics},sizes:{...plan.sizes},
     forceChannels:{...plan.forceChannels},stationDNA:{...plan.stationDNA},
     travelerDNA:{...plan.travelerDNA},
-    stationLayout:plan.stationLayout.map(p=>({...p}))};
+    stationLayout:plan.stationLayout.map(p=>({...p})),orbital:{...plan.orbital}};
    this.initialTravelerCount=plan.count;
    this.rng=randomGenerator(plan.seed);
  }
@@ -127,14 +133,26 @@ export class PlanarRapierEngine{
   for(let i=0;i<plan.count;i++){
    // Radial directions are aligned to the physical hexagonal island axes.
    const theta=Math.atan2(samples[0].y,samples[0].x)+i*2*Math.PI/plan.count;
-   const speed=plan.dynamics.launchSpeed;
-   // Spawn clear of the source and each other. For 12 carriers use two
-   // interleaved concentric hex rings, not twelve overlapping hulls.
-   const startRadius=plan.count===12?(i%2===0?1.1:1.8):1.07;
-   const travelerId="v"+engine.nextId++;
-   engine.makeAgent("traveler",travelerId,"Viaggiatore "+(i+1),plan.travelerDNA[travelerId]??plan.dna,
-    startRadius*Math.cos(theta),plan.dynamics.hoverHeight,startRadius*Math.sin(theta),
-    speed*Math.cos(theta),0,speed*Math.sin(theta),6/plan.count);
+   const travelerId="v"+engine.nextId++,dna=plan.travelerDNA[travelerId]??plan.dna;
+   if(plan.orbital.motion==="gravity"&&plan.stationLayout.length){
+    const cell=plan.stationLayout[i%plan.stationLayout.length];
+    const center=stationWorld(cell);
+    const factor=shapeGravityFactor(affinity(dna,stationPresetDNA(plan,cell.id)).similarity);
+    const mu=plan.orbital.gravity*plan.forceChannels.transformers*factor;
+    const r=plan.orbital.launchRadius;
+    const speed=circularOrbitSpeed(r,mu,plan.orbital.softening);
+    // Circular speed is derived from the very same softened law as the field.
+    engine.makeAgent("traveler",travelerId,"Viaggiatore "+(i+1),dna,
+     center.x+r*Math.cos(theta),plan.dynamics.hoverHeight,center.z+r*Math.sin(theta),
+     -speed*Math.sin(theta),0,speed*Math.cos(theta),6/plan.count);
+   }else{
+    // Original radial launch for an exact A/B comparison, or an empty field.
+    const speed=plan.dynamics.launchSpeed;
+    const r=plan.count===12?(i%2===0?1.1:1.8):1.07;
+    engine.makeAgent("traveler",travelerId,"Viaggiatore "+(i+1),dna,
+     r*Math.cos(theta),plan.dynamics.hoverHeight,r*Math.sin(theta),
+     speed*Math.cos(theta),0,speed*Math.sin(theta),6/plan.count);
+   }
   }
   return engine;
  }
@@ -144,7 +162,7 @@ export class PlanarRapierEngine{
   const d=kind==="controller"
    ?RAPIER.RigidBodyDesc.fixed().setTranslation(x,y,z)
    :RAPIER.RigidBodyDesc.dynamic().setTranslation(x,y,z)
-    .setLinvel(vx,vy,vz).setLinearDamping(this.plan.dynamics.planarDrag)
+    .setLinvel(vx,vy,vz).setLinearDamping(this.plan.orbital.motion==="gravity"?0:this.plan.dynamics.planarDrag)
     .setAngularDamping(this.plan.dynamics.angularDamping).setCcdEnabled(true).setCanSleep(false);
   const body=this.world.createRigidBody(d);
   const shape=RAPIER.ColliderDesc.convexHull(polytronHull(dna,this.plan.sizes[kind]));
@@ -231,6 +249,7 @@ export class PlanarRapierEngine{
    this.colliders.delete(station.collider.handle);
    this.world.removeRigidBody(station.body);
    this.agents.delete(cell.id);
+   this.removeOrbitTracksForStation(cell.id);
   }
   // Existing fixed bodies move between cells; new ones are created in situ.
   for(const cell of newLayout){
@@ -257,6 +276,7 @@ export class PlanarRapierEngine{
     }
     if(!oldCell||oldCell.q!==cell.q||oldCell.r!==cell.r){
      station.body.setTranslation(vec(position.x,next.dynamics.hoverHeight,position.z),true);
+     this.removeOrbitTracksForStation(station.id);
      this.events.push({step:this.stepIndex,kind:"edit",subject:station.id,
       note:"Transformer spostato sulla griglia"});
     }
@@ -278,17 +298,23 @@ export class PlanarRapierEngine{
      subject:agent.id,before:oldDNA,after:requested,
      note:"DNA del viaggiatore modificato in diretta"});
    }
-   agent.body.setLinearDamping(next.dynamics.planarDrag);
+   agent.body.setLinearDamping(next.orbital.motion==="gravity"?0:next.dynamics.planarDrag);
    agent.body.setAngularDamping(next.dynamics.angularDamping);
    agent.collider.setRestitution(next.dynamics.restitution);
   }
   Object.assign(this.plan,{...next,dynamics:{...next.dynamics},sizes:{...next.sizes},
    forceChannels:{...next.forceChannels},stationDNA:{...next.stationDNA},
-   travelerDNA:{...next.travelerDNA},stationLayout:newLayout});
+   travelerDNA:{...next.travelerDNA},stationLayout:newLayout,orbital:{...next.orbital}});
   this.lastForces.clear();
+ }
+ private removeOrbitTracksForStation(stationId:string){
+  for(const key of this.orbitTracks.keys())if(key.endsWith("::"+stationId))
+   this.orbitTracks.delete(key);
  }
  private remove(agent:Internal,state:"returned"|"escaped"|"buffered"){
   agent.state=state;
+  if(state!=="buffered")for(const key of this.orbitTracks.keys())
+   if(key.startsWith(agent.id+"::"))this.orbitTracks.delete(key);
   if(state==="buffered"){
    agent.body.setLinvel(vec(0,0,0),true);
    agent.body.setAngvel(vec(0,0,0),true);
