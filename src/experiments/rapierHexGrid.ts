@@ -18,8 +18,10 @@ export const stationWorld=(cell:Pick<StationCell,"q"|"r">)=>{
  const point=axialToPixel(cell,HEX_RADIUS);
  return {x:point.x,z:point.y};
 };
-export const worldStationCell=(x:number,z:number):Axial=>
- pixelToAxial(x,z,HEX_RADIUS);
+export const worldStationCell=(x:number,z:number):Axial=>{
+ const {q,r}=pixelToAxial(x,z,HEX_RADIUS);
+ return {q:q===0?0:q,r:r===0?0:r};
+};
 export const stationCellKey=(cell:Pick<StationCell,"q"|"r">)=>cell.q+","+cell.r;
 export const isEditableCell=(cell:Axial):boolean=>
  Number.isInteger(cell.q)&&Number.isInteger(cell.r)&&
