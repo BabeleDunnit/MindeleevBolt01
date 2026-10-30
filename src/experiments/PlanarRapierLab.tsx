@@ -46,8 +46,8 @@ function disposeGroup(group:THREE.Group){
  });
 }
 type DNAManualEdit={id:string;dna:string;seq:number};
-function IslandScene({plan,playing,view,onReport,onSelect,selectedId,pauseOnCollision,onCollision,manualEdit}:{
- plan:Plan;playing:boolean;view:"top"|"zoom";
+function IslandScene({plan,replayKey,playing,view,onReport,onSelect,selectedId,pauseOnCollision,onCollision,manualEdit}:{
+ plan:Plan;replayKey:number;playing:boolean;view:"top"|"zoom";
  onReport:(stats:Stats,agents:AgentView[],events:Impact[])=>void;
  onSelect:(id:string)=>void;selectedId:string|null;
  pauseOnCollision:boolean;onCollision:(e:Impact)=>void;manualEdit:DNAManualEdit|null;
@@ -55,6 +55,8 @@ function IslandScene({plan,playing,view,onReport,onSelect,selectedId,pauseOnColl
  const mount=useRef<HTMLDivElement>(null),playingRef=useRef(playing),viewRef=useRef(view),report=useRef(onReport);
  const pick=useRef(onSelect),collision=useRef(onCollision),pauseOn=useRef(pauseOnCollision),selected=useRef(selectedId);
  const engineRef=useRef<PlanarRapierEngine|null>(null);
+ const planRef=useRef(plan);
+ planRef.current=plan;
  useEffect(()=>{playingRef.current=playing;},[playing]);
  useEffect(()=>{viewRef.current=view;},[view]);
  useEffect(()=>{report.current=onReport;},[onReport]);
@@ -62,6 +64,13 @@ function IslandScene({plan,playing,view,onReport,onSelect,selectedId,pauseOnColl
  useEffect(()=>{collision.current=onCollision;},[onCollision]);
  useEffect(()=>{pauseOn.current=pauseOnCollision;},[pauseOnCollision]);
  useEffect(()=>{selected.current=selectedId;},[selectedId]);
+ useEffect(()=>{
+  const engine=engineRef.current;
+  if(!engine)return;
+  // Live mutation of the existing Rapier bodies, without replay or emission.
+  engine.updateLivePlan(plan);
+  report.current(engine.stats(),engine.agentsView(),[]);
+ },[plan]);
  useEffect(()=>{
   if(!manualEdit||!engineRef.current)return;
   try{
@@ -80,10 +89,10 @@ function IslandScene({plan,playing,view,onReport,onSelect,selectedId,pauseOnColl
   const bounds=new Map<string,number>();
   let lastPick:ReturnType<typeof nextPick>["state"]=null;
   const getRadius=(dna:string,kind:"controller"|"traveler")=>{
-   const key=kind+":"+dna+":"+plan.sizes[kind];
+   const key=kind+":"+dna+":"+planRef.current.sizes[kind];
    let radius=bounds.get(key);
    if(radius===undefined){radius=outlineRadius(dnaToPoly(dna).vertices,
-    plan.sizes[kind],kind);bounds.set(key,radius);}
+    planRef.current.sizes[kind],kind);bounds.set(key,radius);}
    return radius;
   };
   // Ground-projected glyph, intentionally outside the body's true circumscribed
@@ -125,7 +134,7 @@ function IslandScene({plan,playing,view,onReport,onSelect,selectedId,pauseOnColl
   const trackers:THREE.Group[]=[];
   const boot=async()=>{
    try{
-    const next=await PlanarRapierEngine.create(plan);
+    const next=await PlanarRapierEngine.create(planRef.current);
     if(!alive){next.dispose();return;}engine=next;engineRef.current=next;
     renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:"high-performance"});
     renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
@@ -214,9 +223,11 @@ function IslandScene({plan,playing,view,onReport,onSelect,selectedId,pauseOnColl
      const agents=engine.agentsView(),seen=new Set<string>();
      for(const a of agents){
       seen.add(a.id);let group=objects.get(a.id);
-      if(!group||group.userData.dna!==a.dna){
+      const scale=planRef.current.sizes[a.type];
+      if(!group||group.userData.dna!==a.dna||group.userData.scale!==scale){
        if(group){scene.remove(group);disposeGroup(group);}
-       group=makeGroup(a.dna,a.type,plan.sizes[a.type],a.id);
+       group=makeGroup(a.dna,a.type,scale,a.id);
+       group.userData.scale=scale;
        objects.set(a.id,group);scene.add(group);
       }
       group.position.set(a.x,a.y,a.z);
@@ -261,7 +272,7 @@ function IslandScene({plan,playing,view,onReport,onSelect,selectedId,pauseOnColl
    disk.geometry.dispose();(disk.material as THREE.Material).dispose();
    renderer?.dispose();engine?.dispose();
   };
- },[plan]);
+ },[replayKey]);
  return <div ref={mount} style={{width:"100%",height:"clamp(370px,59vw,645px)",background:"#071827",borderRadius:13,overflow:"hidden"}} aria-label="Mutatron planare con corpi rigidi 3D e vera fisica Rapier"/>;
 }
 function NumberSlider({label,value,min,max,step,onChange,unit="",fine=false}:{label:string;value:number;min:number;max:number;step:number;onChange:(v:number)=>void;unit?:string;fine?:boolean}){
