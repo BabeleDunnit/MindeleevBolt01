@@ -1,4 +1,4 @@
-import {useEffect,useMemo,useRef,useState,type CSSProperties} from "react";
+import {Fragment,useEffect,useMemo,useRef,useState,type CSSProperties} from "react";
 import * as THREE from "three";
 import {polytronGeometry} from "@/polytron/polytron";
 import {PALETTES} from "@/polytron/palettes";
@@ -6,7 +6,7 @@ import {PALETTE_SETS} from "@/components/HexWorld";
 import {SEEDS,OPERATORS} from "@/polytron/mapping";
 import {dnaFromPolitronNumber,politronNumberFromDNA,
  rowIndexToOps} from "@/polytron/politronicNumber";
-import {PeriodicCatalog,MAX_CATALOG_ROWS,type PeriodicEntry} from "@/polytron/periodicCatalog";
+import {MAX_CATALOG_ROWS,type PeriodicEntry} from "@/polytron/periodicCatalog";
 
 const ink="#e9f8ff",soft="#a6c4d3",mint="#80e3d2",line="#456a7b",bg="#071623",card="#102b3c";
 const control:CSSProperties={background:"#153d51",color:ink,border:"1px solid #548195",padding:"9px 11px",borderRadius:9,fontSize:13};
@@ -129,7 +129,7 @@ function PeriodicCell({entry,showSpectrum,showEquivalent}:{entry:PeriodicEntry;
    <strong style={{fontSize:21,fontVariantNumeric:"tabular-nums",color:ink}}>{fmt(entry.number)}</strong>
    <b style={{color:seedColors[entry.seed],fontSize:12}}>{entry.seed}</b>
   </div>
-  {entry.status==="ready"?
+  {entry.renderable?
    <div data-polytron-viewport="" data-dna={entry.dna}
     style={{width:"100%",height:140,position:"relative",
      background:"radial-gradient(ellipse at center, #21495c 0%, #102b3c 70%)"}}
@@ -146,11 +146,15 @@ function PeriodicCell({entry,showSpectrum,showEquivalent}:{entry:PeriodicEntry;
      <>≡ predecessori: {entry.equivalents.map((id,i)=><span key={id}>
       {i?", ":""}<a style={{color:mint,textDecoration:"underline"}}
        href={"#polytron-"+id}>{id}</a></span>)}</>:
-     entry.shapeStatus==="unmeasured"?"ShapeDNA: non misurato":"Equivalenti: —"}
+     entry.verification==="incomplete"?"Verifica geometrica non completata":
+     "Equivalenti: —"}
+    {entry.unresolvedPrevious>0&&<div style={{color:"#e7bd93"}}>
+     Verifica parziale: {entry.unresolvedPrevious} predecessori non elaborati
+    </div>}
    </div>}
    {showSpectrum&&<div style={{fontSize:10,color:soft,wordBreak:"break-word",
     maxHeight:46,overflow:"auto"}}>
-    ShapeDNA: {entry.shapeDNA?.slice(1,6).map(x=>x.toFixed(2)).join(" · ")??"—"}
+    ShapeDNA v2: {entry.shapeDNA?.slice(1,6).map(x=>x.toFixed(2)).join(" · ")??"spettro non calcolato"}
    </div>}
    {entry.error&&<span title={entry.error} style={{fontSize:10,color:"#dfab96"}}>
     {entry.error.length>70?entry.error.slice(0,70)+"…":entry.error}
@@ -159,7 +163,8 @@ function PeriodicCell({entry,showSpectrum,showEquivalent}:{entry:PeriodicEntry;
  </article>;
 }
 export default function PolytronPeriodicLab(){
- const catalog=useRef(new PeriodicCatalog());
+ const worker=useRef<Worker|null>(null);
+ const [workerError,setWorkerError]=useState("");
  const [rows,setRows]=useState(12);
  const [rowInput,setRowInput]=useState("12");
  const [entries,setEntries]=useState<PeriodicEntry[]>([]);
@@ -174,21 +179,31 @@ export default function PolytronPeriodicLab(){
  const palette=PALETTE_SETS[paletteGroup].offset+paletteSlot;
  const rowTarget=Math.min(rows*5,MAX_CATALOG_ROWS*5);
  useEffect(()=>{
-  let stopped=false,timer:ReturnType<typeof setTimeout>|undefined;
-  const work=()=>{
-   if(stopped)return;
-   const start=performance.now();
-   let processed=0;
-   while(catalog.current.entries.length<rowTarget&&processed<2){
-    catalog.current.appendRow();processed++;
-    if(performance.now()-start>15)break;
-   }
-   if(processed)setEntries([...catalog.current.entries]);
-   if(catalog.current.entries.length<rowTarget&&!stopped)timer=setTimeout(work,5);
+  let active=true;
+  try{
+   const instance=new Worker(new URL("../polytron/periodicCatalog.worker.ts",import.meta.url),
+    {type:"module"});
+   worker.current=instance;
+   instance.onmessage=(event:MessageEvent<{
+    kind:string;entries?:PeriodicEntry[];error?:string
+   }>)=>{
+    if(!active)return;
+    if(event.data.kind==="rows"&&event.data.entries){
+     setEntries(previous=>{
+      const updated=previous.slice();
+      for(const entry of event.data.entries!)updated[entry.number-1]=entry;
+      return updated;
+     });
+    }else if(event.data.kind==="error")setWorkerError(event.data.error??"Worker error");
+   };
+   instance.onerror=()=>setWorkerError("Il Worker di enumerazione non è disponibile");
+   instance.postMessage({kind:"target",rows});
+  }catch(err){setWorkerError("Impossibile avviare il Worker: "+String(err));}
+  return ()=>{
+   active=false;worker.current?.terminate();worker.current=null;
   };
-  timer=setTimeout(work,0);
-  return ()=>{stopped=true;if(timer!==undefined)clearTimeout(timer);};
- },[rowTarget]);
+ },[]);
+ useEffect(()=>{worker.current?.postMessage({kind:"target",rows});},[rows]);
  const visible=useMemo(()=>entries.slice(0,rowTarget),[entries,rowTarget]);
  // A number search may extend the catalog asynchronously. Navigate once the
  // requested cell has actually been generated and mounted in the document.
@@ -200,9 +215,12 @@ export default function PolytronPeriodicLab(){
  },[currentFocus,entries.length,rowTarget]);
  const stats=useMemo(()=>({
   measured:visible.filter(e=>e.shapeStatus==="measured").length,
+  verified:visible.filter(e=>e.verification==="verified").length,
   duplicates:visible.filter(e=>e.equivalents.length>0).length,
   unknown:visible.filter(e=>e.shapeStatus==="unmeasured").length,
-  skipped:visible.filter(e=>e.status!=="ready").length
+  incomplete:visible.filter(e=>e.verification==="incomplete").length,
+  undiscovered:visible.filter(e=>e.unresolvedPrevious>0).length,
+  unrenderable:visible.filter(e=>!e.renderable).length
  }),[visible]);
  const changeRows=(value:string)=>{
   setRowInput(value);
@@ -243,8 +261,9 @@ export default function PolytronPeriodicLab(){
    <p style={{maxWidth:880,color:soft,fontSize:14,lineHeight:1.6,marginTop:0}}>
     Cinque poliedri fondamentali e sequenze Conway ordinate per lunghezza crescente.
     Ogni numero politronico identifica una ricetta geometrica, mai una palette.
-    Le equivalenze sono confrontate mediante ShapeDNA v2 spettrale e geometria,
-    non semplicemente per somiglianza di nome.
+    Le equivalenze vengono verificate geometricamente, anche se lo spettro
+    ShapeDNA v2 non è disponibile. Il calcolo procede nel Worker in ordine
+    politronico, senza bloccare la scena 3D.
    </p>
    <div style={{display:"flex",gap:15,fontSize:12,flexWrap:"wrap"}}>
     <a style={{color:mint}} href={import.meta.env.BASE_URL+"?experiment=orbital-mut"}>Orbital Mutatron</a>
@@ -309,16 +328,23 @@ export default function PolytronPeriodicLab(){
    <div style={{fontSize:12,color:soft,display:"flex",gap:13,flexWrap:"wrap"}}>
     <span>Righe generate: <b style={{color:ink}}>{Math.min(rows,Math.floor(entries.length/5))}/{rows}</b></span>
     <span>Celle: <b style={{color:ink}}>{fmt(visible.length)}/{fmt(rowTarget)}</b></span>
-    <span>ShapeDNA: <b style={{color:ink}}>{fmt(stats.measured)}</b></span>
+    <span>Geometrie verificate: <b style={{color:ink}}>{fmt(stats.verified)}</b></span>
     <span>Equivalenze: <b style={{color:mint}}>{fmt(stats.duplicates)}</b></span>
-    <span>Non misurabili: <b>{fmt(stats.unknown)}</b></span>
-    <span>Omesse/invalide: <b>{fmt(stats.skipped)}</b></span>
+    <span>Spettri ShapeDNA v2: <b>{fmt(stats.measured)}</b></span>
+    <span>Spettro non calcolato: <b>{fmt(stats.unknown)}</b></span>
+    <span>Verifiche incomplete: <b>{fmt(stats.incomplete)}</b></span>
+    <span>Con predecessori non verificati: <b>{fmt(stats.undiscovered)}</b></span>
+    <span>3D non renderizzati: <b>{fmt(stats.unrenderable)}</b></span>
    </div>
+   {workerError&&<p style={{fontSize:12,color:"#efb7a2"}} role="alert">{workerError}</p>}
   </section>
   <div style={{overflowX:"auto",paddingBottom:30}}>
-   <div style={{minWidth:760}}>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(5,minmax(0,1fr))",gap:7,
+   <div style={{minWidth:850}}>
+    <div style={{display:"grid",gridTemplateColumns:"76px repeat(5,minmax(0,1fr))",gap:7,
      marginBottom:8,position:"sticky",top:0,zIndex:110,background:bg,padding:"7px 0"}}>
+     <div style={{padding:"12px 5px",fontSize:12,fontWeight:700,
+      color:soft,textAlign:"center",background:"#193b4c",
+      borderRadius:8}}>Riga</div>
      {SEEDS.map(seed=><div key={seed}
       style={{textAlign:"center",borderTop:"3px solid "+seedColors[seed],
        background:"#193b4c",borderRadius:8,padding:"8px 2px"}}>
@@ -328,12 +354,24 @@ export default function PolytronPeriodicLab(){
     </div>
     <div style={{display:"grid",gridTemplateColumns:"repeat(5,minmax(0,1fr))",
      gap:7,alignItems:"stretch"}}>
-     {visible.map(entry=><div key={entry.number} id={"polytron-"+entry.number}
-      style={{outline:currentFocus===entry.number?"2px solid "+mint:"none",
-       outlineOffset:2,borderRadius:10,scrollMarginTop:75}}>
-      <PeriodicCell entry={entry} showSpectrum={showSpectrum}
-       showEquivalent={showEquivalent}/>
-     </div>)}
+     {visible.map(entry=><Fragment key={entry.number}>
+      {entry.col===0&&<div aria-label={"Riga "+(entry.row+1)}
+       style={{background:"#153544",border:"1px solid "+line,
+        borderRadius:8,padding:"10px 5px",textAlign:"center",
+        display:"flex",flexDirection:"column",alignItems:"center",
+        justifyContent:"flex-start",gap:8}}>
+       <strong style={{fontSize:16,color:mint}}>{fmt(entry.row+1)}</strong>
+       <code style={{fontSize:10,color:soft,overflowWrap:"anywhere"}}>
+        {entry.ops||"∅"}
+       </code>
+      </div>}
+      <div id={"polytron-"+entry.number}
+       style={{outline:currentFocus===entry.number?"2px solid "+mint:"none",
+        outlineOffset:2,borderRadius:10,scrollMarginTop:75}}>
+       <PeriodicCell entry={entry} showSpectrum={showSpectrum}
+        showEquivalent={showEquivalent}/>
+      </div>
+     </Fragment>)}
     </div>
    </div>
   </div>
@@ -344,12 +382,13 @@ export default function PolytronPeriodicLab(){
     Le operazioni sono composte nell'ordine convenzionale di Polyhedronisme
     (applicazione da destra a sinistra). Il numero politronico è un intero
     reversibile anche per DNA molto lunghi.</p>
-   <p>Equivalenza ShapeDNA v2: <b>numerica</b>. Confrontiamo gli autovalori
-    del Laplaciano FEM poligonale corretto, normalizzati per area, e una firma
-    delle distanze tra vertici con uguale distribuzione di facce.
-    Non è una prova matematica di congruenza. Mesh oltre 60
-    vertici non ricevono un confronto spettrale e alcune ricette
-    troppo costose mantengono la propria cella numerata ma non vengono generate.</p>
+   <p>Equivalenza geometrica: si confrontano topologia, distribuzioni locali
+    di spigoli e facce, e firme complete delle distanze normalizzate.
+    Lo spettro ShapeDNA v2 è una misura opzionale, non un filtro per i duplicati.
+    Le mesh oltre 80 vertici possono comunque avere equivalenze verificate.
+    Le ricette oltre il budget di sicurezza restano numerate e sono marcate
+    esplicitamente come verifiche incomplete; i successori segnalano
+    l'esistenza di eventuali predecessori ancora non verificati.</p>
   </footer>
  </main>;
 }
