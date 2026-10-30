@@ -133,7 +133,7 @@ export default function PhenotypeGeometryLab(){
       <p style={{fontSize:12,color:muted,margin:"0 0 6px"}}>Misura media su 12 direzioni di ingresso, con Polytroni sempre non ruotati. Non confondere curve simili con forme uguali.</p>
       <p style={{fontSize:11,color:muted,margin:0}}>Gli istogrammi e gli spettri non sono prove di isomorfismo; poliedri diversi possono condividerli. Una risposta quasi identica può indicare anche <b>un limite della nostra sonda energetica</b>.</p>
      </section>}
-    <section style={card}><label style={{display:"flex",gap:7,fontSize:13,alignItems:"center"}}><input type="checkbox" checked={showShapeDNA} onChange={e=>setShowShapeDNA(e.target.checked)}/>Shape-DNA della superficie (sperimentale)</label>
+    <section style={card}><label style={{display:"flex",gap:7,fontSize:13,alignItems:"center"}}><input type="checkbox" checked={showShapeDNA} onChange={e=>setShowShapeDNA(e.target.checked)}/>ShapeDNA v2 · spettro FEM poligonale</label>
      {showShapeDNA&&[shapeA,shapeB].map((p,i)=><div key={i} style={{marginTop:9,fontSize:12,color:muted}}>
       <b>{i===0?dna:secondDna}</b> {p?
        <div style={{overflowWrap:"anywhere",fontFamily:"monospace"}}>{p.values.map(n=>fmt(n,2)).join(" · ")}</div>
