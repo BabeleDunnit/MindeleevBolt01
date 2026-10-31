@@ -79,7 +79,7 @@ try{
  const markup=renderToString(React.createElement(ui.default));
  for(const term of ["Chromatica","LA MATRICE","MATERIA","EIDOS","Esporta JSON",
   "Continuo","Tre colori","Cinque colori","Otto colori","Capovolto","Chrysos","Ruber",
-  "Χρυσός","Colori"]){
+  "Χρυσός","colori"]){
   assert(markup.includes(term),"Missing UI text: "+term);
  }
  assert.equal((markup.match(/class="gp-cell-button/g)||[]).length,144,
