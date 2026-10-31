@@ -10,7 +10,7 @@
  * default color interpolation. All quantizations sample the SAME line.
  */
 export type NamedColor={
- id:string;name:string;hex:`#${string}`;italian:string;
+ id:string;name:string;hex:`#${string}`;italian:string;script?:string;
 };
 export const LATIN_SOURCES:readonly NamedColor[]=[
  {id:"niger",name:"Niger",hex:"#191c2b",italian:"nero"},
@@ -27,18 +27,18 @@ export const LATIN_SOURCES:readonly NamedColor[]=[
  {id:"canus",name:"Canus",hex:"#909aa7",italian:"grigio"}
 ] as const;
 export const GREEK_DESTINATIONS:readonly NamedColor[]=[
- {id:"melas",name:"Melas",hex:"#161b2b",italian:"nero"},
- {id:"leukos",name:"Leukos",hex:"#f7f2e6",italian:"bianco"},
- {id:"erythros",name:"Erythros",hex:"#b72d43",italian:"rosso"},
- {id:"pyrrhos",name:"Pyrrhos",hex:"#e78249",italian:"rosso fuoco"},
- {id:"chrysos",name:"Chrysos",hex:"#f4c967",italian:"oro"},
- {id:"xanthos",name:"Xanthos",hex:"#f4e06d",italian:"giallo"},
- {id:"chloros",name:"Chloros",hex:"#8bc84d",italian:"gialloverde"},
- {id:"glaukos",name:"Glaukos",hex:"#81c7c9",italian:"azzurro mare"},
- {id:"kyanos",name:"Kyanos",hex:"#285eaa",italian:"blu profondo"},
- {id:"porphyra",name:"Porphyra",hex:"#893e9d",italian:"porpora"},
- {id:"rhodon",name:"Rhodon",hex:"#de6d96",italian:"rosa"},
- {id:"phaios",name:"Phaios",hex:"#747c8a",italian:"grigio"}
+ {id:"melas",name:"Melas",hex:"#161b2b",italian:"nero",script:"Μέλας"},
+ {id:"leukos",name:"Leukos",hex:"#f7f2e6",italian:"bianco",script:"Λευκός"},
+ {id:"erythros",name:"Erythros",hex:"#b72d43",italian:"rosso",script:"Ἐρυθρός"},
+ {id:"pyrrhos",name:"Pyrrhos",hex:"#e78249",italian:"rosso fuoco",script:"Πυρρός"},
+ {id:"chrysos",name:"Chrysos",hex:"#f4c967",italian:"oro",script:"Χρυσός"},
+ {id:"xanthos",name:"Xanthos",hex:"#f4e06d",italian:"giallo",script:"Ξανθός"},
+ {id:"chloros",name:"Chloros",hex:"#8bc84d",italian:"gialloverde",script:"Χλωρός"},
+ {id:"glaukos",name:"Glaukos",hex:"#81c7c9",italian:"azzurro mare",script:"Γλαυκός"},
+ {id:"kyanos",name:"Kyanos",hex:"#285eaa",italian:"blu profondo",script:"Κυανός"},
+ {id:"porphyra",name:"Porphyra",hex:"#893e9d",italian:"porpora",script:"Πορφύρα"},
+ {id:"rhodon",name:"Rhodon",hex:"#de6d96",italian:"rosa",script:"Ῥόδον"},
+ {id:"phaios",name:"Phaios",hex:"#747c8a",italian:"grigio",script:"Φαιός"}
 ] as const;
 export const QUANTIZATION_STEPS=[3,5,8] as const;
 export type QuantizationSteps=3|5|8;
