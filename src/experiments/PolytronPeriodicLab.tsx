@@ -7,6 +7,7 @@ import {SEEDS,OPERATORS} from "@/polytron/mapping";
 import {dnaFromPolitronNumber,politronNumberFromDNA,
  rowIndexToOps} from "@/polytron/politronicNumber";
 import {MAX_CATALOG_ROWS,type PeriodicEntry} from "@/polytron/periodicCatalog";
+import {faceColorUsage} from "@/polytron/faceColorUsage";
 
 const ink="#e9f8ff",soft="#a6c4d3",mint="#80e3d2",line="#456a7b",bg="#071623",card="#102b3c";
 const control:CSSProperties={background:"#153d51",color:ink,border:"1px solid #548195",padding:"9px 11px",borderRadius:9,fontSize:13};
@@ -118,8 +119,9 @@ function SharedPeriodic3D({palette,rotate}:{palette:number;rotate:boolean}){
  }}/>;
 }
 
-function PeriodicCell({entry,showSpectrum,showEquivalent}:{entry:PeriodicEntry;
- showSpectrum:boolean;showEquivalent:boolean}){
+export function PeriodicCell({entry,showSpectrum,showEquivalent,palette}:{entry:PeriodicEntry;
+ showSpectrum:boolean;showEquivalent:boolean;palette:number}){
+ const usage=entry.faceClassIds?faceColorUsage(entry.faceClassIds,palette):null;
  return <article aria-label={"Polytrone "+entry.number+" · "+entry.dna}
   style={{border:"1px solid "+(entry.equivalents.length?"#7aaead":line),
    background:card,borderRadius:10,minWidth:0,overflow:"hidden",
@@ -140,6 +142,21 @@ function PeriodicCell({entry,showSpectrum,showEquivalent}:{entry:PeriodicEntry;
    </div>}
   <div style={{padding:"5px 11px 10px",display:"grid",gap:4,minHeight:65}}>
    <code style={{fontSize:14,fontWeight:700,color:ink}}>{entry.dna}</code>
+   <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}
+    title="Classi di facce distinte (lati e angoli) e colori RGB effettivi della palette">
+    <strong style={{fontSize:12,color:usage&&usage.colorsUsed>1?mint:ink}}>
+     Colori usati: {usage?usage.colorsUsed:"—"}
+    </strong>
+    <span style={{fontSize:10,color:soft}}>
+     · Tipi facce: {entry.faceTypeCount??"—"}
+    </span>
+   </div>
+   {usage&&<div style={{display:"flex",gap:3,alignItems:"center"}}
+    aria-label={"Colori effettivamente utilizzati: "+usage.colorsUsed}>
+    {usage.colors.map(color=><span key={color} title={"#"+color.toString(16).padStart(6,"0")}
+     style={{width:13,height:9,borderRadius:2,display:"inline-block",
+      border:"1px solid #ffffff30",background:"#"+color.toString(16).padStart(6,"0")}}/>)}
+   </div>}
    {showEquivalent&&<div style={{fontSize:11,color:entry.equivalents.length?mint:soft,
     wordBreak:"break-word"}}>
     {entry.equivalents.length?
@@ -369,7 +386,7 @@ export default function PolytronPeriodicLab(){
        style={{outline:currentFocus===entry.number?"2px solid "+mint:"none",
         outlineOffset:2,borderRadius:10,scrollMarginTop:75}}>
        <PeriodicCell entry={entry} showSpectrum={showSpectrum}
-        showEquivalent={showEquivalent}/>
+        showEquivalent={showEquivalent} palette={palette}/>
       </div>
      </Fragment>)}
     </div>
@@ -382,6 +399,11 @@ export default function PolytronPeriodicLab(){
     Le operazioni sono composte nell'ordine convenzionale di Polyhedronisme
     (applicazione da destra a sinistra). Il numero politronico è un intero
     reversibile anche per DNA molto lunghi.</p>
+   <p>Colorazione delle facce: Polyhedronisme le classifica usando lunghezze
+    dei lati e angoli. Il renderer assegna i colori alle classi ciclicamente.
+    «Tipi facce» misura le classi geometriche distinte; «Colori usati»
+    conta soltanto gli RGB distinti effettivamente applicati dalla palette
+    selezionata. Il numero cambia con la palette, non con lo ShapeDNA.</p>
    <p>Equivalenza geometrica: si confrontano topologia, distribuzioni locali
     di spigoli e facce, e firme complete delle distanze normalizzate.
     Lo spettro ShapeDNA v2 è una misura opzionale, non un filtro per i duplicati.
