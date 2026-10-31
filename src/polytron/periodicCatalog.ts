@@ -15,6 +15,7 @@ import {surfaceShapeDNA,type SurfaceSpectrum} from "@/experiments/surfaceShapeDN
 import {geometryFingerprint,plausibleSameGeometry,fullGeometrySignature,
  sameFullGeometry,type GeometryFingerprint,type FullGeometrySignature} from "@/polytron/geometryEquivalence";
 import {periodicRow,type BaseSeed} from "@/polytron/politronicNumber";
+import {polyFaceClasses} from "@/polytron/faceColorUsage";
 
 export const MAX_SHAPE_VERTICES=80;
 export const MAX_DRAW_FACES=1000;
@@ -27,6 +28,8 @@ export type PeriodicEntry={
  status:"ready"|"too-complex"|"invalid";
  renderable:boolean;
  vertices?:number;faces?:number;shapeDNA?:number[];
+ /** Actual Polyhedronisme face-color categories; palette-independent. */
+ faceClassIds?:number[];faceTypeCount?:number;
  equivalents:number[];shapeStatus:"measured"|"unmeasured";
  verification:"verified"|"incomplete";
  unresolvedPrevious:number;
@@ -86,6 +89,10 @@ export class PeriodicCatalog{
    try{
     const poly=generatePoly(item.dna);
     base.vertices=poly.vertices.length;base.faces=poly.faces.length;
+    // Count types even for meshes excluded from 3D/ShapeDNA or geometric
+    // matching. The classification is supplied by the actual face painter.
+    base.faceClassIds=polyFaceClasses(poly);
+    base.faceTypeCount=base.faceClassIds.length;
     base.renderable=poly.faces.length<=MAX_DRAW_FACES;
     if(!base.renderable)base.status="too-complex";
     if(poly.vertices.length>MAX_VERIFY_VERTICES||poly.faces.length>MAX_VERIFY_FACES){
