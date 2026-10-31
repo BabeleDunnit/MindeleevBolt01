@@ -119,7 +119,7 @@ function SharedPeriodic3D({palette,rotate}:{palette:number;rotate:boolean}){
  }}/>;
 }
 
-function PeriodicCell({entry,showSpectrum,showEquivalent,palette}:{entry:PeriodicEntry;
+export function PeriodicCell({entry,showSpectrum,showEquivalent,palette}:{entry:PeriodicEntry;
  showSpectrum:boolean;showEquivalent:boolean;palette:number}){
  const usage=entry.faceClassIds?faceColorUsage(entry.faceClassIds,palette):null;
  return <article aria-label={"Polytrone "+entry.number+" · "+entry.dna}
