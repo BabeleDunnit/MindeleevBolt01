@@ -1,12 +1,11 @@
 import assert from "node:assert/strict";
 import {readFile,mkdtemp,rm} from "node:fs/promises";
-import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {pathToFileURL} from "node:url";
 import {build} from "esbuild";
 import React from "react";
 import {renderToString} from "react-dom/server";
-const temp=await mkdtemp(join(tmpdir(),"mindeleev-gradient-test-"));
+const temp=await mkdtemp(join(process.cwd(),".mindeleev-gradient-test-"));
 async function load(path,name,ui=false){
  const outfile=join(temp,name+".mjs");
  await build({entryPoints:[path],outfile,bundle:true,format:"esm",platform:"node",
