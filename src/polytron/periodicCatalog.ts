@@ -11,6 +11,7 @@
 import {generatePoly,type Poly} from "@/polyhedronisme/polyhedronisme";
 import {surfaceShapeDNA,spectrumDistance,type SurfaceSpectrum} from "@/experiments/surfaceShapeDNA";
 import {periodicRow,type BaseSeed} from "@/polytron/politronicNumber";
+import {polyFaceClasses} from "@/polytron/faceColorUsage";
 
 export const MAX_SHAPE_VERTICES=60;
 export const MAX_DRAW_FACES=1000;
@@ -19,6 +20,8 @@ export type PeriodicEntry={
  number:number;row:number;col:number;seed:BaseSeed;ops:string;dna:string;
  status:"ready"|"too-complex"|"invalid";
  vertices?:number;faces?:number;shapeDNA?:number[];
+ /** Polygon face categories used by Polyhedronisme's face-color renderer. */
+ faceClassIds?:number[];faceTypeCount?:number;
  equivalents:number[];shapeStatus:"measured"|"unmeasured";
  error?:string;
 };
@@ -80,6 +83,10 @@ export class PeriodicCatalog{
    try{
     const poly=generatePoly(item.dna);
     base.vertices=poly.vertices.length;base.faces=poly.faces.length;
+    // Compute even when the mesh exceeds the viewer's drawing/ShapeDNA
+    // budget. The value is intrinsic to geometry and never to a palette.
+    base.faceClassIds=polyFaceClasses(poly);
+    base.faceTypeCount=base.faceClassIds.length;
     if(poly.faces.length>MAX_DRAW_FACES){
      base.status="too-complex";
      base.error="Mesh oltre "+MAX_DRAW_FACES+" facce (limite grafico)";
