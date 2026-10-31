@@ -7,6 +7,7 @@ import {SEEDS,OPERATORS} from "@/polytron/mapping";
 import {dnaFromPolitronNumber,politronNumberFromDNA,
  rowIndexToOps} from "@/polytron/politronicNumber";
 import {PeriodicCatalog,MAX_CATALOG_ROWS,type PeriodicEntry} from "@/polytron/periodicCatalog";
+import {faceColorUsage} from "@/polytron/faceColorUsage";
 
 const ink="#e9f8ff",soft="#a6c4d3",mint="#80e3d2",line="#456a7b",bg="#071623",card="#102b3c";
 const control:CSSProperties={background:"#153d51",color:ink,border:"1px solid #548195",padding:"9px 11px",borderRadius:9,fontSize:13};
@@ -118,8 +119,9 @@ function SharedPeriodic3D({palette,rotate}:{palette:number;rotate:boolean}){
  }}/>;
 }
 
-function PeriodicCell({entry,showSpectrum,showEquivalent}:{entry:PeriodicEntry;
- showSpectrum:boolean;showEquivalent:boolean}){
+function PeriodicCell({entry,showSpectrum,showEquivalent,palette}:{entry:PeriodicEntry;
+ showSpectrum:boolean;showEquivalent:boolean;palette:number}){
+ const usage=entry.faceClassIds?faceColorUsage(entry.faceClassIds,palette):null;
  return <article aria-label={"Polytrone "+entry.number+" · "+entry.dna}
   style={{border:"1px solid "+(entry.equivalents.length?"#7aaead":line),
    background:card,borderRadius:10,minWidth:0,overflow:"hidden",
@@ -140,6 +142,21 @@ function PeriodicCell({entry,showSpectrum,showEquivalent}:{entry:PeriodicEntry;
    </div>}
   <div style={{padding:"5px 11px 10px",display:"grid",gap:4,minHeight:65}}>
    <code style={{fontSize:14,fontWeight:700,color:ink}}>{entry.dna}</code>
+   <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}
+    title="Classi di facce distinte (lati e angoli), colorate ciclicamente con la palette selezionata">
+    <strong style={{fontSize:12,color:usage&&usage.colorsUsed>1?mint:ink}}>
+     Colori usati: {usage?usage.colorsUsed:"—"}
+    </strong>
+    <span style={{fontSize:10,color:soft}}>
+     · Tipi facce: {entry.faceTypeCount??"—"}
+    </span>
+   </div>
+   {usage&&<div style={{display:"flex",gap:3,alignItems:"center"}}
+    aria-label={"Colori effettivamente utilizzati: "+usage.colorsUsed}>
+    {usage.colors.map(color=><span key={color} title={"#"+color.toString(16).padStart(6,"0")}
+     style={{width:13,height:9,borderRadius:2,display:"inline-block",
+      border:"1px solid #ffffff30",background:"#"+color.toString(16).padStart(6,"0")}}/>)}
+   </div>}
    {showEquivalent&&<div style={{fontSize:11,color:entry.equivalents.length?mint:soft,
     wordBreak:"break-word"}}>
     {entry.equivalents.length?
@@ -198,12 +215,24 @@ export default function PolytronPeriodicLab(){
     ?.scrollIntoView({behavior:"smooth",block:"center"});
   }
  },[currentFocus,entries.length,rowTarget]);
- const stats=useMemo(()=>({
-  measured:visible.filter(e=>e.shapeStatus==="measured").length,
-  duplicates:visible.filter(e=>e.equivalents.length>0).length,
-  unknown:visible.filter(e=>e.shapeStatus==="unmeasured").length,
-  skipped:visible.filter(e=>e.status!=="ready").length
- }),[visible]);
+ const stats=useMemo(()=>{
+  const distribution=[0,0,0,0,0,0];
+  let maxFaceTypes=0,maxColors=0,classified=0;
+  for(const entry of visible)if(entry.faceClassIds){
+   const usage=faceColorUsage(entry.faceClassIds,palette);
+   distribution[Math.min(5,usage.colorsUsed)]++;
+   maxFaceTypes=Math.max(maxFaceTypes,usage.faceTypes);
+   maxColors=Math.max(maxColors,usage.colorsUsed);
+   classified++;
+  }
+  return {
+   measured:visible.filter(e=>e.shapeStatus==="measured").length,
+   duplicates:visible.filter(e=>e.equivalents.length>0).length,
+   unknown:visible.filter(e=>e.shapeStatus==="unmeasured").length,
+   skipped:visible.filter(e=>e.status!=="ready").length,
+   classified,maxFaceTypes,maxColors,distribution
+  };
+ },[visible,palette]);
  const changeRows=(value:string)=>{
   setRowInput(value);
   if(/^\d+$/.test(value)&&Number(value)>0)setRows(clampRows(Number(value)));
@@ -314,6 +343,24 @@ export default function PolytronPeriodicLab(){
     <span>Non misurabili: <b>{fmt(stats.unknown)}</b></span>
     <span>Omesse/invalide: <b>{fmt(stats.skipped)}</b></span>
    </div>
+   <div style={{display:"flex",gap:13,flexWrap:"wrap",fontSize:12,color:soft,
+    borderTop:"1px solid "+line,paddingTop:11}}>
+    <span>Colori usati (max): <b style={{color:mint}}>{stats.maxColors||"—"}</b></span>
+    <span>Tipi di facce (max): <b style={{color:ink}}>{stats.maxFaceTypes||"—"}</b></span>
+    <span>Palette attuale: <b style={{color:ink}}>{PALETTES[palette]?.length??0} colori</b></span>
+    <span>Mono-colore: <b style={{color:ink}}>{fmt(stats.distribution[1])}</b></span>
+    <span>Multi-colore: <b style={{color:ink}}>
+     {fmt(stats.classified-stats.distribution[1])}
+    </b></span>
+   </div>
+   <div style={{display:"flex",gap:12,flexWrap:"wrap",fontSize:11,color:soft}}>
+    {([1,2,3,4,5] as const).map(count=><span key={count}>
+     {count===5?"5+":count} colori: <b style={{color:ink}}>
+      {fmt(stats.distribution[count])}</b>
+    </span>)}
+    <span style={{opacity:.85}}>I tipi di facce sono indipendenti dalla palette;
+     i colori effettivi dipendono dai valori RGB selezionati.</span>
+   </div>
   </section>
   <div style={{overflowX:"auto",paddingBottom:30}}>
    <div style={{minWidth:760}}>
@@ -332,7 +379,7 @@ export default function PolytronPeriodicLab(){
       style={{outline:currentFocus===entry.number?"2px solid "+mint:"none",
        outlineOffset:2,borderRadius:10,scrollMarginTop:75}}>
       <PeriodicCell entry={entry} showSpectrum={showSpectrum}
-       showEquivalent={showEquivalent}/>
+       showEquivalent={showEquivalent} palette={palette}/>
      </div>)}
     </div>
    </div>
@@ -344,6 +391,12 @@ export default function PolytronPeriodicLab(){
     Le operazioni sono composte nell'ordine convenzionale di Polyhedronisme
     (applicazione da destra a sinistra). Il numero politronico è un intero
     reversibile anche per DNA molto lunghi.</p>
+   <p>Colorazione: Polyhedronisme distingue le classi delle facce tramite
+    lunghezze dei lati e angoli, con una tolleranza per gli arrotondamenti.
+    La palette assegna i colori alle classi ciclicamente: il numero di tipi
+    di facce può superare il numero di colori realmente visibili.
+    La misura «Colori usati» conta gli RGB distinti applicati alle facce,
+    non quanti colori sono disponibili nella palette.</p>
    <p>Equivalenza ShapeDNA v2: <b>numerica</b>. Confrontiamo gli autovalori
     del Laplaciano FEM poligonale corretto, normalizzati per area, e una firma
     delle distanze tra vertici con uguale distribuzione di facce.
