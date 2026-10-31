@@ -230,15 +230,27 @@ export default function PolytronPeriodicLab(){
     ?.scrollIntoView({behavior:"smooth",block:"center"});
   }
  },[currentFocus,entries.length,rowTarget]);
- const stats=useMemo(()=>({
-  measured:visible.filter(e=>e.shapeStatus==="measured").length,
-  verified:visible.filter(e=>e.verification==="verified").length,
-  duplicates:visible.filter(e=>e.equivalents.length>0).length,
-  unknown:visible.filter(e=>e.shapeStatus==="unmeasured").length,
-  incomplete:visible.filter(e=>e.verification==="incomplete").length,
-  undiscovered:visible.filter(e=>e.unresolvedPrevious>0).length,
-  unrenderable:visible.filter(e=>!e.renderable).length
- }),[visible]);
+ const stats=useMemo(()=>{
+  const distribution=[0,0,0,0,0,0];
+  let maxFaceTypes=0,maxColors=0,classified=0;
+  for(const entry of visible)if(entry?.faceClassIds){
+   const result=faceColorUsage(entry.faceClassIds,palette);
+   distribution[Math.min(5,result.colorsUsed)]++;
+   maxFaceTypes=Math.max(maxFaceTypes,result.faceTypes);
+   maxColors=Math.max(maxColors,result.colorsUsed);
+   classified++;
+  }
+  return {
+   measured:visible.filter(e=>e?.shapeStatus==="measured").length,
+   verified:visible.filter(e=>e?.verification==="verified").length,
+   duplicates:visible.filter(e=>e?.equivalents.length>0).length,
+   unknown:visible.filter(e=>e?.shapeStatus==="unmeasured").length,
+   incomplete:visible.filter(e=>e?.verification==="incomplete").length,
+   undiscovered:visible.filter(e=>e?.unresolvedPrevious>0).length,
+   unrenderable:visible.filter(e=>e&&!e.renderable).length,
+   classified,maxFaceTypes,maxColors,distribution
+  };
+ },[visible,palette]);
  const changeRows=(value:string)=>{
   setRowInput(value);
   if(/^\d+$/.test(value)&&Number(value)>0)setRows(clampRows(Number(value)));
@@ -352,6 +364,24 @@ export default function PolytronPeriodicLab(){
     <span>Verifiche incomplete: <b>{fmt(stats.incomplete)}</b></span>
     <span>Con predecessori non verificati: <b>{fmt(stats.undiscovered)}</b></span>
     <span>3D non renderizzati: <b>{fmt(stats.unrenderable)}</b></span>
+   </div>
+   <div style={{display:"flex",gap:13,flexWrap:"wrap",fontSize:12,color:soft,
+    borderTop:"1px solid "+line,paddingTop:11}}>
+    <span>Colori usati (max): <b style={{color:mint}}>{stats.maxColors||"—"}</b></span>
+    <span>Tipi di facce (max): <b style={{color:ink}}>{stats.maxFaceTypes||"—"}</b></span>
+    <span>Palette attuale: <b style={{color:ink}}>{PALETTES[palette]?.length??0} colori</b></span>
+    <span>Mono-colore: <b style={{color:ink}}>{fmt(stats.distribution[1])}</b></span>
+    <span>Multi-colore: <b style={{color:ink}}>
+     {fmt(stats.classified-stats.distribution[1])}
+    </b></span>
+   </div>
+   <div style={{display:"flex",gap:12,flexWrap:"wrap",fontSize:11,color:soft}}>
+    {([1,2,3,4,5] as const).map(count=><span key={count}>
+     {count===5?"5+":count} colori: <b style={{color:ink}}>
+      {fmt(stats.distribution[count])}</b>
+    </span>)}
+    <span style={{opacity:.85}}>I tipi di facce non dipendono dalla palette;
+     i colori usati sono calcolati sugli RGB effettivi.</span>
    </div>
    {workerError&&<p style={{fontSize:12,color:"#efb7a2"}} role="alert">{workerError}</p>}
   </section>
