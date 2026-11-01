@@ -349,7 +349,7 @@ export default function PolytronPeriodicLab(){
       onChange={e=>setShowSpectrum(e.target.checked)}/> ShapeDNA
     </label>
    </div>
-   <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+   {paletteMode==="legacy"&&<div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
     {Array.from({length:10},(_,i)=>{
      const colors=PALETTES[PALETTE_SETS[paletteGroup].offset+i]??[];
      return <button key={i} onClick={()=>setPaletteSlot(i)}
@@ -363,7 +363,7 @@ export default function PolytronPeriodicLab(){
       </span>
      </button>;
     })}
-   </div>
+   </div>}
    <div style={{display:"flex",gap:9,alignItems:"center",flexWrap:"wrap"}}>
     <label style={{fontSize:12,color:soft}} htmlFor="periodic-search">Trova numero o ConwayDNA</label>
     <input id="periodic-search" value={lookup} onChange={e=>setLookup(e.target.value)}
