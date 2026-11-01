@@ -366,8 +366,12 @@ export default function PolytronPeriodicLab(){
    </div>}
    <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
     <strong style={{fontSize:12,color:soft}}>Palette</strong>
-    <button type="button" onClick={()=>setPaletteMode("chromatica")} aria-pressed={paletteMode==="chromatica"}>Chromatica · 144 gradienti</button>
-    <button type="button" onClick={()=>setPaletteMode("legacy")} aria-pressed={paletteMode==="legacy"}>Palette originali</button>
+    <button type="button" onClick={()=>setPaletteMode("chromatica")}
+     aria-pressed={paletteMode==="chromatica"}
+     style={{...control,cursor:"pointer",background:paletteMode==="chromatica"?"#257464":"#153d51"}}>Chromatica · 144 gradienti</button>
+    <button type="button" onClick={()=>setPaletteMode("legacy")}
+     aria-pressed={paletteMode==="legacy"}
+     style={{...control,cursor:"pointer",background:paletteMode==="legacy"?"#257464":"#153d51"}}>Palette originali</button>
    </div>
    {paletteMode==="chromatica"&&<PeriodicGradientPicker row={gradientRow}
     column={gradientCol} order={gradientOrder}
@@ -397,7 +401,8 @@ export default function PolytronPeriodicLab(){
     borderTop:"1px solid "+line,paddingTop:11}}>
     <span>Colori usati (max): <b style={{color:mint}}>{stats.maxColors||"—"}</b></span>
     <span>Tipi di facce (max): <b style={{color:ink}}>{stats.maxFaceTypes||"—"}</b></span>
-    <span>Palette attuale: <b style={{color:ink}}>{PALETTES[palette]?.length??0} colori</b></span>
+    <span>{gradient?"Chromatica":"Palette originale"}: <b style={{color:ink}}>
+      {gradient?"un colore per classe, senza wrapping":(PALETTES[palette]?.length??0)+" colori ciclici"}</b></span>
     <span>Mono-colore: <b style={{color:ink}}>{fmt(stats.distribution[1])}</b></span>
     <span>Multi-colore: <b style={{color:ink}}>
      {fmt(stats.classified-stats.distribution[1])}
@@ -409,7 +414,7 @@ export default function PolytronPeriodicLab(){
       {fmt(stats.distribution[count])}</b>
     </span>)}
     <span style={{opacity:.85}}>I tipi di facce non dipendono dalla palette;
-     i colori usati sono calcolati sugli RGB effettivi.</span>
+     i colori usati seguono la modalità selezionata. Chromatica non ricicla i colori.</span>
    </div>
    {workerError&&<p style={{fontSize:12,color:"#efb7a2"}} role="alert">{workerError}</p>}
   </section>
@@ -452,6 +457,10 @@ export default function PolytronPeriodicLab(){
   </div>
   <footer style={{maxWidth:1000,fontSize:12,color:soft,lineHeight:1.65,
    borderTop:"1px solid "+line,paddingTop:15}}>
+   <p>Chromatica: 144 gradienti selezionabili tramite la matrice latina e greca.
+    Ogni geometria riceve un campione RGB per classe di facce, senza riciclo
+    modulo, mantenendo invariato il suo DNA. La modalità originale mantiene
+    invece le palette cromatiche tradizionali con ripetizione ciclica.</p>
    <p>Ordine Conway: <code>{OPERATORS.join(" ")}</code>. Prima la stringa vuota,
     poi tutte quelle di lunghezza 1, 2, 3 e così via, in base {OPERATORS.length}.
     Le operazioni sono composte nell'ordine convenzionale di Polyhedronisme
