@@ -15,7 +15,10 @@ import PeriodicGradientPicker from "@/experiments/PeriodicGradientPicker";
 const ink="#e9f8ff",soft="#a6c4d3",mint="#80e3d2",line="#456a7b",bg="#071623",card="#102b3c";
 const control:CSSProperties={background:"#153d51",color:ink,border:"1px solid #548195",padding:"9px 11px",borderRadius:9,fontSize:13};
 const seedColors:Record<string,string>={T:"#e1acd6",C:"#8acfe7",O:"#edc18d",D:"#b8dc89",I:"#bab3f7"};
-const labelNames:Record<string,string>={T:"Tetraedro",C:"Cubo",O:"Ottaedro",D:"Dodecaedro",I:"Icosaedro"};
+const groupNames:Record<string,string>={
+ T:"Gruppo dei tetraedri",C:"Gruppo dei cubi",O:"Gruppo degli ottaedri",
+ D:"Gruppo dei dodecaedri",I:"Gruppo degli icosaedri"
+};
 const clampRows=(x:number)=>Math.min(MAX_CATALOG_ROWS,Math.max(1,Math.trunc(x)));
 const fmt=(n:number)=>n.toLocaleString("it-IT");
 
@@ -293,8 +296,8 @@ export default function PolytronPeriodicLab(){
     const targetRows=Number((number+4n)/5n);
     if(targetRows<=MAX_CATALOG_ROWS){
      setRows(targetRows);setRowInput(String(targetRows));setCurrentFocus(Number(number));
-     setLookupMessage(old=>old+" · estensione a "+targetRows+" righe");
-    }else setLookupMessage(old=>old+" · oltre il limite di visualizzazione ("+MAX_CATALOG_ROWS+" righe)");
+     setLookupMessage(old=>old+" · estensione a "+targetRows+" periodi");
+    }else setLookupMessage(old=>old+" · oltre il limite di visualizzazione ("+MAX_CATALOG_ROWS+" periodi)");
    }
   }catch(e){setLookupMessage(String(e));}
  };
@@ -323,7 +326,7 @@ export default function PolytronPeriodicLab(){
    borderRadius:13,display:"grid",gap:13,marginBottom:14}}>
    <div style={{display:"flex",gap:15,flexWrap:"wrap",alignItems:"end"}}>
     <label style={{display:"grid",gap:5,color:soft,fontSize:12}}>
-     Righe da enumerare (1–{fmt(MAX_CATALOG_ROWS)})
+     Periodi da enumerare (1–{fmt(MAX_CATALOG_ROWS)})
      <input type="number" min={1} max={MAX_CATALOG_ROWS} step={1} value={rowInput}
       onChange={e=>changeRows(e.target.value)}
       onBlur={()=>setRowInput(String(rows))}
@@ -387,7 +390,7 @@ export default function PolytronPeriodicLab(){
     {lookupMessage&&<span style={{fontSize:12,color:mint}} role="status">{lookupMessage}</span>}
    </div>
    <div style={{fontSize:12,color:soft,display:"flex",gap:13,flexWrap:"wrap"}}>
-    <span>Righe generate: <b style={{color:ink}}>{Math.min(rows,Math.floor(entries.length/5))}/{rows}</b></span>
+    <span>Periodi generati: <b style={{color:ink}}>{Math.min(rows,Math.floor(entries.length/5))}/{rows}</b></span>
     <span>Celle: <b style={{color:ink}}>{fmt(visible.length)}/{fmt(rowTarget)}</b></span>
     <span>Geometrie verificate: <b style={{color:ink}}>{fmt(stats.verified)}</b></span>
     <span>Equivalenze: <b style={{color:mint}}>{fmt(stats.duplicates)}</b></span>
@@ -422,20 +425,25 @@ export default function PolytronPeriodicLab(){
    <div style={{minWidth:850}}>
     <div style={{display:"grid",gridTemplateColumns:"76px repeat(5,minmax(0,1fr))",gap:7,
      marginBottom:8,position:"sticky",top:0,zIndex:110,background:bg,padding:"7px 0"}}>
-     <div style={{padding:"12px 5px",fontSize:12,fontWeight:700,
-      color:soft,textAlign:"center",background:"#193b4c",
-      borderRadius:8}}>Riga</div>
+     <div aria-label="Gruppi sulle colonne, Periodi sulle righe"
+      style={{padding:"7px 5px",fontSize:10,fontWeight:700,
+       color:soft,background:"#193b4c",borderRadius:8,
+       display:"flex",flexDirection:"column",justifyContent:"space-between",
+       minHeight:69,gap:8}}>
+      <span style={{textAlign:"right",color:mint}}>Gruppi →</span>
+      <span style={{textAlign:"left"}}>↓ Periodi</span>
+     </div>
      {SEEDS.map(seed=><div key={seed}
       style={{textAlign:"center",borderTop:"3px solid "+seedColors[seed],
        background:"#193b4c",borderRadius:8,padding:"8px 2px"}}>
       <strong style={{color:seedColors[seed],fontSize:22}}>{seed}</strong>
-      <div style={{fontSize:11,color:soft}}>{labelNames[seed]}</div>
+      <div style={{fontSize:11,color:soft}}>{groupNames[seed]}</div>
      </div>)}
     </div>
     <div style={{display:"grid",gridTemplateColumns:"76px repeat(5,minmax(0,1fr))",
      gap:7,alignItems:"stretch"}}>
      {visible.map(entry=><Fragment key={entry.number}>
-      {entry.col===0&&<div aria-label={"Riga "+(entry.row+1)}
+      {entry.col===0&&<div aria-label={"Periodo "+(entry.row+1)}
        style={{background:"#153544",border:"1px solid "+line,
         borderRadius:8,padding:"10px 5px",textAlign:"center",
         display:"flex",flexDirection:"column",alignItems:"center",
