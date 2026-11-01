@@ -65,9 +65,14 @@ try{
  assert.deepEqual(table.entries.slice(0,15).map(e=>({number:e.number,dna:e.dna})),before);
  const markup=renderToString(React.createElement(ui.default));
  for(const required of ["Tavola periodica dei Polytroni",
-  "Righe da enumerare","Chromatica · 144 gradienti","Palette originali","Rotazione 3D","Equivalenti",
+  "Periodi da enumerare","Chromatica · 144 gradienti","Palette originali","Rotazione 3D","Equivalenti",
   "ShapeDNA","Trova numero o ConwayDNA","Ruber","Chrysos"]){
   assert(markup.includes(required),"Missing UI "+required);
+ }
+ for(const required of ["Gruppi →","↓ Periodi","Gruppo dei tetraedri",
+  "Gruppo dei cubi","Gruppo degli ottaedri","Gruppo dei dodecaedri",
+  "Gruppo degli icosaedri","Periodi generati:"]){
+  assert(markup.includes(required),"Missing periodic table terminology "+required);
  }
  const src=await readFile("src/experiments/PolytronPeriodicLab.tsx","utf8");
  for(const required of ["THREE.WebGLRenderer","data-polytron-viewport","setScissor",
