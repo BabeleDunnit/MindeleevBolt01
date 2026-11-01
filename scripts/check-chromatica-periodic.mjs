@@ -122,6 +122,11 @@ try{
  const pageMarkup=renderToString(React.createElement(ui.default));
  assert(pageMarkup.includes("Chromatica · 144 gradienti"));
  assert(pageMarkup.includes("Palette originali"));
+ for(const label of ["Gruppi →","↓ Periodi","Gruppo dei tetraedri",
+  "Gruppo dei cubi","Gruppo degli ottaedri","Gruppo dei dodecaedri",
+  "Gruppo degli icosaedri","Periodi generati:"]){
+  assert(pageMarkup.includes(label),"Missing periodic nomenclature "+label);
+ }
  assert(pageMarkup.includes("cpm-matrix"),"Chromatica is default selected mode");
  const source=await readFile("src/experiments/PolytronPeriodicLab.tsx","utf8");
  assert(source.includes('setPaletteMode("legacy")'));
