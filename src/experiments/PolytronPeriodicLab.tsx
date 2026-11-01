@@ -195,8 +195,8 @@ export function PeriodicCell({entry,showSpectrum,showEquivalent,palette,gradient
 export default function PolytronPeriodicLab(){
  const worker=useRef<Worker|null>(null);
  const [workerError,setWorkerError]=useState("");
- const [rows,setRows]=useState(12);
- const [rowInput,setRowInput]=useState("12");
+ const [rows,setRows]=useState(50);
+ const [rowInput,setRowInput]=useState("50");
  const [entries,setEntries]=useState<PeriodicEntry[]>([]);
  const [paletteGroup,setPaletteGroup]=useState(0);
  const [paletteSlot,setPaletteSlot]=useState(2);
