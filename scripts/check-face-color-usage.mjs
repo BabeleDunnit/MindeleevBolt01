@@ -99,7 +99,8 @@ try{
  assert(app.includes("Mono-colore"));
  assert(app.includes("Multi-colore"));
  const src=await readFile("src/experiments/PolytronPeriodicLab.tsx","utf8");
- assert(src.includes("[visible,palette]"),"Changing palette must update usage summary");
+ assert(src.includes("[visible,palette,gradient]"),
+  "Both changing the historical palette and choosing a gradient must update the summary");
  console.log("FACE COLOR EXAMPLES",
   JSON.stringify({seed:mono.dna,monoColors:1,
    multi:multi.dna,faceTypes:multi.faceTypeCount,
