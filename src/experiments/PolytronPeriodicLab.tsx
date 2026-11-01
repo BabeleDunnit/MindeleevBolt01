@@ -364,6 +364,15 @@ export default function PolytronPeriodicLab(){
      </button>;
     })}
    </div>}
+   <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
+    <strong style={{fontSize:12,color:soft}}>Palette</strong>
+    <button type="button" onClick={()=>setPaletteMode("chromatica")} aria-pressed={paletteMode==="chromatica"}>Chromatica · 144 gradienti</button>
+    <button type="button" onClick={()=>setPaletteMode("legacy")} aria-pressed={paletteMode==="legacy"}>Palette originali</button>
+   </div>
+   {paletteMode==="chromatica"&&<PeriodicGradientPicker row={gradientRow}
+    column={gradientCol} order={gradientOrder}
+    onPairChange={(r,c)=>{setGradientRow(r);setGradientCol(c);}}
+    onOrderChange={setGradientOrder} exampleFaceTypes={Math.max(2,stats.maxFaceTypes||5)}/>}
    <div style={{display:"flex",gap:9,alignItems:"center",flexWrap:"wrap"}}>
     <label style={{fontSize:12,color:soft}} htmlFor="periodic-search">Trova numero o ConwayDNA</label>
     <input id="periodic-search" value={lookup} onChange={e=>setLookup(e.target.value)}
