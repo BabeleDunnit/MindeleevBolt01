@@ -132,6 +132,14 @@ try{
  assert(source.includes('setPaletteMode("legacy")'));
  assert(source.includes('polytronGeometry(dna,()=>palette,gradient)'));
  assert(source.includes('gradientFaceUsage(entry.faceClassIds,gradient)'));
+ assert(source.includes('const [rows,setRows]=useState(50);'),
+  "The table must enumerate 50 periods by default");
+ assert(source.includes('const [rowInput,setRowInput]=useState("50");'),
+  "The number input must display the actual 50-period initial target");
+ assert(source.includes('const rowTarget=Math.min(rows*5,MAX_CATALOG_ROWS*5)'),
+  "The number of Polytrons must remain five per period");
+ assert(source.includes('instance.postMessage({kind:"target",rows})'),
+  "Worker must receive initial period target");
  console.log("NO-WRAPPING 3D",JSON.stringify(summary));
  console.log("PASS sprint39: 144 gradients; exactly N float32 sRGB colors for N face classes; stable legacy mode; dynamic matrix, 3D and cell counts");
 }finally{await rm(root,{recursive:true,force:true});}
