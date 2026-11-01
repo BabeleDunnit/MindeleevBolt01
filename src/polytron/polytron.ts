@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { generatePoly, type Poly } from "@/polyhedronisme/polyhedronisme";
 import { paletteColor } from "@/polytron/palettes";
+import {gradientFaceMappingForPoly,type GradientSelection} from "@/polytron/gradientFacePalette";
 
 // A Polytron's DNA is a polyhedronisme recipe: [ops][palette][seed], e.g. "gD",
 // "ak3I", "gk05D". The palette digits sit between the ops and the seed.
@@ -23,17 +24,25 @@ export function dnaPalette(dna: PolytronDNA): number {
 // without rebuilding the underlying shape.
 export function polytronGeometry(
   dna: PolytronDNA,
-  paletteRemap?: (p: number) => number
+  paletteRemap?: (p: number) => number,
+  gradient?: GradientSelection
 ): { solid: THREE.BufferGeometry; edges: THREE.BufferGeometry } {
   const poly = dnaToPoly(dna);
   const palette = paletteRemap ? paletteRemap(dnaPalette(dna)) : dnaPalette(dna);
+  const classColors=gradient?gradientFaceMappingForPoly(poly,gradient):null;
   const positions: number[] = [];
   const colors: number[] = [];
   const edgePositions: number[] = [];
   const color = new THREE.Color();
 
   poly.faces.forEach((face, fi) => {
-    color.setHex(paletteColor(palette, poly.faceClasses[fi] ?? 0));
+    const faceClass=poly.faceClasses[fi];
+    if(faceClass===undefined)throw Error("Missing face class for face "+fi);
+    if(classColors){
+      const rgb=classColors.get(faceClass);
+      if(!rgb)throw Error("Chromatica colour missing for face class "+faceClass);
+      color.setRGB(rgb[0],rgb[1],rgb[2],THREE.SRGBColorSpace);
+    }else color.setHex(paletteColor(palette,faceClass));
     const [v0, ...rest] = face;
     for (let i = 0; i + 1 < rest.length; i++) {
       for (const idx of [v0, rest[i], rest[i + 1]]) {
