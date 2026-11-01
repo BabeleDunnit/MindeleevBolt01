@@ -11,34 +11,36 @@
  */
 export type NamedColor={
  id:string;name:string;hex:`#${string}`;italian:string;script?:string;
+ /** Original descriptive name, not an official Pantone designation. */
+ shadeName:string;
 };
 export const LATIN_SOURCES:readonly NamedColor[]=[
- {id:"niger",name:"Niger",hex:"#191c2b",italian:"nero"},
- {id:"albus",name:"Albus",hex:"#f1eee3",italian:"avorio"},
- {id:"ruber",name:"Ruber",hex:"#c93d50",italian:"rosso cremisi"},
- {id:"fulvus",name:"Fulvus",hex:"#cc7846",italian:"arancio fulvo"},
- {id:"aureus",name:"Aureus",hex:"#dfb657",italian:"oro"},
- {id:"flavus",name:"Flavus",hex:"#ecda68",italian:"giallo"},
- {id:"viridis",name:"Viridis",hex:"#37a477",italian:"verde"},
- {id:"caesius",name:"Caesius",hex:"#55b3be",italian:"turchese"},
- {id:"caeruleus",name:"Caeruleus",hex:"#3474bd",italian:"blu"},
- {id:"purpureus",name:"Purpureus",hex:"#8853ae",italian:"viola"},
- {id:"roseus",name:"Roseus",hex:"#e98daa",italian:"rosa"},
- {id:"canus",name:"Canus",hex:"#909aa7",italian:"grigio"}
+ {id:"niger",name:"Niger",hex:"#28232b",italian:"nero",shadeName:"Ebano notturno"},
+ {id:"albus",name:"Albus",hex:"#e6e0da",italian:"avorio",shadeName:"Avorio pergamena"},
+ {id:"ruber",name:"Ruber",hex:"#d04355",italian:"rosso cremisi",shadeName:"Rosso cinabro"},
+ {id:"fulvus",name:"Fulvus",hex:"#c57545",italian:"arancio fulvo",shadeName:"Ambra ramata"},
+ {id:"aureus",name:"Aureus",hex:"#d8b44e",italian:"oro",shadeName:"Oro antico"},
+ {id:"flavus",name:"Flavus",hex:"#e6d85d",italian:"giallo",shadeName:"Giallo zafferano"},
+ {id:"viridis",name:"Viridis",hex:"#37a477",italian:"verde",shadeName:"Verde giada"},
+ {id:"caesius",name:"Caesius",hex:"#51b1bd",italian:"turchese",shadeName:"Turchese laguna"},
+ {id:"caeruleus",name:"Caeruleus",hex:"#3677c0",italian:"blu",shadeName:"Blu lapislazzuli"},
+ {id:"purpureus",name:"Purpureus",hex:"#875ab4",italian:"viola",shadeName:"Viola ametista"},
+ {id:"roseus",name:"Roseus",hex:"#ea8fab",italian:"rosa",shadeName:"Rosa quarzo"},
+ {id:"canus",name:"Canus",hex:"#909aa7",italian:"grigio",shadeName:"Grigio ardesia"}
 ] as const;
 export const GREEK_DESTINATIONS:readonly NamedColor[]=[
- {id:"melas",name:"Melas",hex:"#161b2b",italian:"nero",script:"Μέλας"},
- {id:"leukos",name:"Leukos",hex:"#f7f2e6",italian:"bianco",script:"Λευκός"},
- {id:"erythros",name:"Erythros",hex:"#b72d43",italian:"rosso",script:"Ἐρυθρός"},
- {id:"pyrrhos",name:"Pyrrhos",hex:"#e78249",italian:"rosso fuoco",script:"Πυρρός"},
- {id:"chrysos",name:"Chrysos",hex:"#f4c967",italian:"oro",script:"Χρυσός"},
- {id:"xanthos",name:"Xanthos",hex:"#f4e06d",italian:"giallo",script:"Ξανθός"},
- {id:"chloros",name:"Chloros",hex:"#8bc84d",italian:"gialloverde",script:"Χλωρός"},
- {id:"glaukos",name:"Glaukos",hex:"#81c7c9",italian:"azzurro mare",script:"Γλαυκός"},
- {id:"kyanos",name:"Kyanos",hex:"#285eaa",italian:"blu profondo",script:"Κυανός"},
- {id:"porphyra",name:"Porphyra",hex:"#893e9d",italian:"porpora",script:"Πορφύρα"},
- {id:"rhodon",name:"Rhodon",hex:"#de6d96",italian:"rosa",script:"Ῥόδον"},
- {id:"phaios",name:"Phaios",hex:"#747c8a",italian:"grigio",script:"Φαιός"}
+ {id:"melas",name:"Melas",hex:"#06132a",italian:"nero",script:"Μέλας",shadeName:"Ossidiana"},
+ {id:"leukos",name:"Leukos",hex:"#ffffef",italian:"bianco",script:"Λευκός",shadeName:"Porcellana chiara"},
+ {id:"erythros",name:"Erythros",hex:"#b0273f",italian:"rosso",script:"Ἐρυθρός",shadeName:"Rosso granato"},
+ {id:"pyrrhos",name:"Pyrrhos",hex:"#ee854a",italian:"rosso fuoco",script:"Πυρρός",shadeName:"Arancio lava"},
+ {id:"chrysos",name:"Chrysos",hex:"#ffc17f",italian:"oro",script:"Χρυσός",shadeName:"Oro solare"},
+ {id:"xanthos",name:"Xanthos",hex:"#fff48f",italian:"giallo",script:"Ξανθός",shadeName:"Giallo miele"},
+ {id:"chloros",name:"Chloros",hex:"#8bc84d",italian:"gialloverde",script:"Χλωρός",shadeName:"Verde cedro"},
+ {id:"glaukos",name:"Glaukos",hex:"#84c9ca",italian:"azzurro mare",script:"Γλαυκός",shadeName:"Azzurro opale"},
+ {id:"kyanos",name:"Kyanos",hex:"#275ba7",italian:"blu profondo",script:"Κυανός",shadeName:"Blu cobalto"},
+ {id:"porphyra",name:"Porphyra",hex:"#893597",italian:"porpora",script:"Πορφύρα",shadeName:"Porpora imperiale"},
+ {id:"rhodon",name:"Rhodon",hex:"#dd6b95",italian:"rosa",script:"Ῥόδον",shadeName:"Rosa corallo"},
+ {id:"phaios",name:"Phaios",hex:"#747c8a",italian:"grigio",script:"Φαιός",shadeName:"Grigio fumo"}
 ] as const;
 export const QUANTIZATION_STEPS=[3,5,8] as const;
 export type QuantizationSteps=3|5|8;
@@ -85,11 +87,59 @@ export const gradientPair=(row:number,column:number):GradientPair=>{
 };
 export const ALL_GRADIENTS:readonly GradientPair[]=LATIN_SOURCES.flatMap((_,row)=>
  GREEK_DESTINATIONS.map((_,column)=>gradientPair(row,column)));
+
+/** Threshold in ΔE_OK = 100 × Euclidean distance in OKLab (not CIEDE2000). */
+export const MIN_ENDPOINT_DISTANCE=8;
+
+/** Convert an sRGB hex endpoint to OKLab (D65). */
+const srgbLinear=(v:number)=>{
+ const c=v/255;
+ return c<=.04045?c/12.92:((c+.055)/1.055)**2.4;
+};
+export function oklab(hex:string):readonly [number,number,number]{
+ const [r,g,b]=components(hex).map(srgbLinear);
+ const l=Math.cbrt(.4122214708*r+.5363325363*g+.0514459929*b);
+ const m=Math.cbrt(.2119034982*r+.6806995451*g+.1073969566*b);
+ const s=Math.cbrt(.0883024619*r+.2817188376*g+.6299787005*b);
+ return [
+  .2104542553*l+.793617785*m-.0040720468*s,
+  1.9779984951*l-2.428592205*m+.4505937099*s,
+  .0259040371*l+.7827717662*m-.808675766*s
+ ];
+}
+export const perceptualDistance=(start:string,end:string):number=>{
+ const a=oklab(start),b=oklab(end);
+ return 100*Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);
+};
+
+/**
+ * This is a REPORT, not a runtime endpoint correction: all 24 named endpoint
+ * colors are preselected so all 12 × 12 pairs meet the minimum 8-unit
+ * perceptual distance. The actual palette stays EXACTLY on the line joining
+ * its two endpoints: no bending, lightness bumps, or hidden adaptations.
+ */
+export function auditGradientMatrix(){
+ const combinations=ALL_GRADIENTS.map(pair=>({
+  id:pair.id,
+  name:pair.name,
+  distance:perceptualDistance(pair.primary.hex,pair.secondary.hex)
+ }));
+ const sorted=[...combinations].sort((a,b)=>a.distance-b.distance);
+ return {
+  total:combinations.length,
+  threshold:MIN_ENDPOINT_DISTANCE,
+  minimum:sorted[0]?.distance??NaN,
+  belowThreshold:combinations.filter(p=>p.distance<MIN_ENDPOINT_DISTANCE).length,
+  closest:sorted
+ };
+}
+
 export function gradientPaletteExport(pair:GradientPair,highContrastSteps:QuantizationSteps=8){
  const {hex:start}=pair.primary,{hex:end}=pair.secondary;
  return {id:pair.id,name:pair.name,
-  primary:{name:pair.primary.name,hex:start},
-  secondary:{name:pair.secondary.name,hex:end},
+  primary:{name:pair.primary.name,shadeName:pair.primary.shadeName,hex:start},
+  secondary:{name:pair.secondary.name,shadeName:pair.secondary.shadeName,hex:end},
+  perceptualDistance:perceptualDistance(start,end),
   continuous:{from:start,to:end},
   steps3:quantizedGradient(start,end,3),
   steps5:quantizedGradient(start,end,5),
@@ -99,7 +149,9 @@ export function gradientPaletteExport(pair:GradientPair,highContrastSteps:Quanti
    colors:flippedGradient(start,end,highContrastSteps)}};
 }
 export const exportGradientMatrix=(highContrastSteps:QuantizationSteps=8)=>
- ({version:1,method:"sRGB channel interpolation",orientation:{
+ ({version:2,method:"sRGB channel interpolation",metric:"ΔE_OK × 100",
+  minimumEndpointDistance:MIN_ENDPOINT_DISTANCE,
+  audit:auditGradientMatrix(),orientation:{
   rows:"Latin source",columns:"Greek destination"},
   highContrastOrder:"start, end, 80% start, 80% end, 60% start, 60% end, 90% start, 90% end",
   sources:LATIN_SOURCES,destinations:GREEK_DESTINATIONS,
