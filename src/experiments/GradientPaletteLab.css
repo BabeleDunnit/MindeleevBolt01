@@ -78,3 +78,20 @@
 .gp-footer b{color:#d8e9ee}
 @media(max-width:1050px){.gp-head{align-items:start}.gp-metrics{gap:10px;padding:11px}.gp-metrics strong{font-size:17px}.gp-metrics span{font-size:9px}}
 @media(max-width:690px){.gp-head{display:block}.gp-metrics{margin-top:14px;justify-content:space-around}.gp-table-frame{height:67vh}.gp-top-actions{align-items:start}.gp-colhead,.gp-cell-button{width:160px;min-width:160px}.gp-corner,.gp-rowhead{width:112px;min-width:112px}.gp-big-bars .gp-bar-label{flex-basis:75px}.gp-color-values>div small{font-size:9px}}
+
+/* Sprint 38 · fixed linear palette endpoints and perceptual audit */
+.gp-distance-audit{max-width:1550px;margin:0 auto 18px;padding:15px 19px;
+ background:#152d37;border:1px solid #48776e;border-radius:13px;
+ display:flex;align-items:center;justify-content:space-between;gap:10px 22px;flex-wrap:wrap}
+.gp-distance-audit p{margin:4px 0;color:#c7e2dc;font-size:12px;line-height:1.6}
+.gp-distance-audit p strong{color:#f3fff9}
+.gp-audit-metrics{display:flex;flex-wrap:wrap;gap:12px;color:#a8cbbe;font-size:12px}
+.gp-audit-metrics b{color:#a1f4d1}
+.gp-distance-audit .gp-audit-note{flex:1 1 100%;color:#a9c5bd;font-size:11px;margin:0}
+.gp-audit-nearest{display:flex;flex-wrap:wrap;gap:6px}
+.gp-audit-nearest .gp-chip{font-size:10px;padding:5px 9px}
+.gp-shade-name{display:block;font-size:10px;color:#a1bac9;font-weight:400;
+ margin-top:3px;line-height:1.3;white-space:normal}
+.gp-colhead{height:96px}
+.gp-rowhead small{color:#b6d1d8}
+@media(max-width:690px){.gp-colhead{height:100px}.gp-shade-name{font-size:9px}}
