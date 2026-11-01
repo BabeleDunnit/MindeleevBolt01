@@ -65,8 +65,8 @@ try{
  assert.deepEqual(table.entries.slice(0,15).map(e=>({number:e.number,dna:e.dna})),before);
  const markup=renderToString(React.createElement(ui.default));
  for(const required of ["Tavola periodica dei Polytroni",
-  "Righe da enumerare","Famiglia di palette","Rotazione 3D","Equivalenti",
-  "ShapeDNA","Trova numero o ConwayDNA","Mineral 00-09","Neon 10-19"]){
+  "Righe da enumerare","Chromatica · 144 gradienti","Palette originali","Rotazione 3D","Equivalenti",
+  "ShapeDNA","Trova numero o ConwayDNA","Ruber","Chrysos"]){
   assert(markup.includes(required),"Missing UI "+required);
  }
  const src=await readFile("src/experiments/PolytronPeriodicLab.tsx","utf8");
