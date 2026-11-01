@@ -8,6 +8,9 @@ import {dnaFromPolitronNumber,politronNumberFromDNA,
  rowIndexToOps} from "@/polytron/politronicNumber";
 import {MAX_CATALOG_ROWS,type PeriodicEntry} from "@/polytron/periodicCatalog";
 import {faceColorUsage} from "@/polytron/faceColorUsage";
+import {gradientFaceUsage,type GradientSelection,type GradientOrder} from "@/polytron/gradientFacePalette";
+import {gradientPair} from "@/polytron/gradientPalettes";
+import PeriodicGradientPicker from "@/experiments/PeriodicGradientPicker";
 
 const ink="#e9f8ff",soft="#a6c4d3",mint="#80e3d2",line="#456a7b",bg="#071623",card="#102b3c";
 const control:CSSProperties={background:"#153d51",color:ink,border:"1px solid #548195",padding:"9px 11px",borderRadius:9,fontSize:13};
@@ -21,7 +24,7 @@ const fmt=(n:number)=>n.toLocaleString("it-IT");
  * Its transparent fixed canvas is scissored to only visible 3D viewport boxes.
  * Each viewport contains REAL generated polyhedron geometry, rotated in 3D.
  */
-function SharedPeriodic3D({palette,rotate}:{palette:number;rotate:boolean}){
+function SharedPeriodic3D({palette,rotate,gradient}:{palette:number;rotate:boolean;gradient?:GradientSelection}){
  const root=useRef<HTMLCanvasElement>(null);
  const rotateRef=useRef(rotate);rotateRef.current=rotate;
  useEffect(()=>{
@@ -52,7 +55,7 @@ function SharedPeriodic3D({palette,rotate}:{palette:number;rotate:boolean}){
   const getGeo=(dna:string)=>{
    let value=cache.get(dna);
    if(value){cache.delete(dna);cache.set(dna,value);return value;}
-   const geos=polytronGeometry(dna,()=>palette);
+   const geos=polytronGeometry(dna,()=>palette,gradient);
    geos.solid.computeBoundingSphere();
    const radius=geos.solid.boundingSphere?.radius??2;
    value={...geos,scale:1.33/Math.max(.2,radius)};
@@ -112,16 +115,22 @@ function SharedPeriodic3D({palette,rotate}:{palette:number;rotate:boolean}){
    mesh.geometry.dispose();edges.geometry.dispose();
    mat.dispose();edgeMat.dispose();renderer.dispose();
   };
- },[palette]);
+ },[palette,gradient]);
  return <canvas ref={root} aria-hidden="true" style={{
   position:"fixed",inset:0,width:"100vw",height:"100vh",
   pointerEvents:"none",zIndex:100,background:"transparent"
  }}/>;
 }
 
-export function PeriodicCell({entry,showSpectrum,showEquivalent,palette}:{entry:PeriodicEntry;
- showSpectrum:boolean;showEquivalent:boolean;palette:number}){
- const usage=entry.faceClassIds?faceColorUsage(entry.faceClassIds,palette):null;
+export function PeriodicCell({entry,showSpectrum,showEquivalent,palette,gradient}:{entry:PeriodicEntry;
+ showSpectrum:boolean;showEquivalent:boolean;palette:number;gradient?:GradientSelection}){
+ const usage=entry.faceClassIds?(gradient?
+  gradientFaceUsage(entry.faceClassIds,gradient):
+  faceColorUsage(entry.faceClassIds,palette)):null;
+ const swatches=entry.faceClassIds?(gradient?
+  gradientFaceUsage(entry.faceClassIds,gradient).colors:
+  faceColorUsage(entry.faceClassIds,palette).colors.map(color=>
+   "#"+color.toString(16).padStart(6,"0"))):[];
  return <article aria-label={"Polytrone "+entry.number+" · "+entry.dna}
   style={{border:"1px solid "+(entry.equivalents.length?"#7aaead":line),
    background:card,borderRadius:10,minWidth:0,overflow:"hidden",
@@ -153,9 +162,10 @@ export function PeriodicCell({entry,showSpectrum,showEquivalent,palette}:{entry:
    </div>
    {usage&&<div style={{display:"flex",gap:3,alignItems:"center"}}
     aria-label={"Colori effettivamente utilizzati: "+usage.colorsUsed}>
-    {usage.colors.map(color=><span key={color} title={"#"+color.toString(16).padStart(6,"0")}
+    {swatches.slice(0,24).map((color,i)=><span key={i} title={color}
      style={{width:13,height:9,borderRadius:2,display:"inline-block",
-      border:"1px solid #ffffff30",background:"#"+color.toString(16).padStart(6,"0")}}/>)}
+      border:"1px solid #ffffff30",background:color}}/>)}
+    {swatches.length>24&&<span style={{fontSize:9,color:soft}}>+{swatches.length-24}</span>}
    </div>}
    {showEquivalent&&<div style={{fontSize:11,color:entry.equivalents.length?mint:soft,
     wordBreak:"break-word"}}>
@@ -187,6 +197,10 @@ export default function PolytronPeriodicLab(){
  const [entries,setEntries]=useState<PeriodicEntry[]>([]);
  const [paletteGroup,setPaletteGroup]=useState(0);
  const [paletteSlot,setPaletteSlot]=useState(2);
+ const [paletteMode,setPaletteMode]=useState<"chromatica"|"legacy">("chromatica");
+ const [gradientRow,setGradientRow]=useState(2);
+ const [gradientCol,setGradientCol]=useState(4);
+ const [gradientOrder,setGradientOrder]=useState<GradientOrder>("contrast");
  const [rotate,setRotate]=useState(true);
  const [showEquivalent,setShowEquivalent]=useState(true);
  const [showSpectrum,setShowSpectrum]=useState(false);
@@ -194,6 +208,10 @@ export default function PolytronPeriodicLab(){
  const [lookupMessage,setLookupMessage]=useState("");
  const [currentFocus,setCurrentFocus]=useState<number|null>(null);
  const palette=PALETTE_SETS[paletteGroup].offset+paletteSlot;
+ const gradient=useMemo<GradientSelection|undefined>(()=>
+  paletteMode==="chromatica"?
+   {pair:gradientPair(gradientRow,gradientCol),order:gradientOrder}:undefined,
+  [paletteMode,gradientRow,gradientCol,gradientOrder]);
  const rowTarget=Math.min(rows*5,MAX_CATALOG_ROWS*5);
  useEffect(()=>{
   let active=true;
@@ -234,7 +252,8 @@ export default function PolytronPeriodicLab(){
   const distribution=[0,0,0,0,0,0];
   let maxFaceTypes=0,maxColors=0,classified=0;
   for(const entry of visible)if(entry?.faceClassIds){
-   const result=faceColorUsage(entry.faceClassIds,palette);
+   const result=gradient?gradientFaceUsage(entry.faceClassIds,gradient):
+     faceColorUsage(entry.faceClassIds,palette);
    distribution[Math.min(5,result.colorsUsed)]++;
    maxFaceTypes=Math.max(maxFaceTypes,result.faceTypes);
    maxColors=Math.max(maxColors,result.colorsUsed);
@@ -250,7 +269,7 @@ export default function PolytronPeriodicLab(){
    unrenderable:visible.filter(e=>e&&!e.renderable).length,
    classified,maxFaceTypes,maxColors,distribution
   };
- },[visible,palette]);
+ },[visible,palette,gradient]);
  const changeRows=(value:string)=>{
   setRowInput(value);
   if(/^\d+$/.test(value)&&Number(value)>0)setRows(clampRows(Number(value)));
@@ -281,7 +300,7 @@ export default function PolytronPeriodicLab(){
  };
  return <main style={{background:bg,color:ink,minHeight:"100vh",
   fontFamily:"system-ui,sans-serif",padding:"clamp(10px,2vw,24px)"}}>
-  <SharedPeriodic3D palette={palette} rotate={rotate}/>
+  <SharedPeriodic3D palette={palette} rotate={rotate} gradient={gradient}/>
   <header style={{maxWidth:1050,marginBottom:18}}>
    <div style={{color:mint,letterSpacing:2,fontSize:11}}>MINDELEEV · SPRINT 35 · CONWAY × SHAPEDNA</div>
    <h1 style={{fontSize:"clamp(26px,4vw,42px)",margin:"6px 0 9px"}}>
@@ -416,7 +435,7 @@ export default function PolytronPeriodicLab(){
        style={{outline:currentFocus===entry.number?"2px solid "+mint:"none",
         outlineOffset:2,borderRadius:10,scrollMarginTop:75}}>
        <PeriodicCell entry={entry} showSpectrum={showSpectrum}
-        showEquivalent={showEquivalent} palette={palette}/>
+        showEquivalent={showEquivalent} palette={palette} gradient={gradient}/>
       </div>
      </Fragment>)}
     </div>
