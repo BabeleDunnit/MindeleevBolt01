@@ -68,7 +68,7 @@ try{
  assert(geo.sameFullGeometry(geo.fullGeometrySignature(largePoly),
   geo.fullGeometrySignature(reordered)),"Large equivalent mesh must pass full check");
  const html=renderToString(React.createElement(ui.default));
- for(const text of ["Riga","Geometrie verificate","Spettro non calcolato",
+ for(const text of ["Gruppi →","↓ Periodi","Geometrie verificate","Spettro non calcolato",
   "Verifiche incomplete","Tavola periodica dei Polytroni"]){
   assert(html.includes(text),"Missing new UI copy: "+text);
  }
