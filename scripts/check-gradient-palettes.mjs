@@ -67,11 +67,61 @@ try{
    if(steps>=5)assert.equal(exportEntry.flipped.colors[3],p.mixColors(pair.primary.hex,pair.secondary.hex,.8));
   }
  }
+ // No color manipulation inside the gradient: resampling happens ONLY in
+ // the 24 shared endpoint definitions. All five bars remain linear.
+ assert.equal(p.MIN_ENDPOINT_DISTANCE,8);
+ const audit=p.auditGradientMatrix();
+ assert.equal(audit.total,144);
+ assert.equal(audit.belowThreshold,0,
+  "Every Latin/Greek pair must have visibly distinct start and end colors");
+ assert(audit.minimum>=8,"Perceptual minimum violated: "+audit.minimum);
+ assert(audit.minimum<10,"Threshold should be meaningful, not artificially huge");
+ assert(p.perceptualDistance("#f1eee3","#f7f2e6")<8,
+  "Original near-white pair is a regression fixture");
+ assert(p.perceptualDistance(
+  p.LATIN_SOURCES.find(x=>x.id==="albus").hex,
+  p.GREEK_DESTINATIONS.find(x=>x.id==="leukos").hex)>=8);
+ const shadeNames=[...p.LATIN_SOURCES,...p.GREEK_DESTINATIONS].map(x=>x.shadeName);
+ assert(shadeNames.every(x=>typeof x==="string"&&x.length>=7));
+ assert.equal(new Set(shadeNames).size,24);
+ for(const pair of p.ALL_GRADIENTS){
+  const {hex:a}=pair.primary,{hex:b}=pair.secondary;
+  assert(p.perceptualDistance(a,b)>=8,
+   pair.name+" violates OKLab endpoint threshold");
+  assert.deepEqual(p.flippedGradient(a,b,8).slice(0,2),[a,b],
+   "High contrast must begin with visibly distinct original endpoints");
+  const allBars=[p.quantizedGradient(a,b,3),p.quantizedGradient(a,b,5),
+   p.quantizedGradient(a,b,8),p.flippedGradient(a,b,8)];
+  for(const bar of allBars){
+   for(const sample of bar){
+    // Independent channel-wise collinearity check accounting for 8-bit
+    // sRGB rounding error; no curved or nonlinear palette variations.
+    const av=[1,3,5].map(i=>parseInt(a.slice(i,i+2),16));
+    const bv=[1,3,5].map(i=>parseInt(b.slice(i,i+2),16));
+    const cv=[1,3,5].map(i=>parseInt(sample.slice(i,i+2),16));
+    const d=bv.map((v,i)=>v-av[i]);
+    const axis=d.findIndex(v=>Math.abs(v)>=4);
+    if(axis>=0){
+     const t=(cv[axis]-av[axis])/d[axis];
+     assert(cv.every((value,i)=>Math.abs(value-(av[i]+d[i]*t))<=2),
+      "Sample deviated from line joining endpoints "+pair.name);
+    }
+   }
+  }
+ }
+ console.log("OKLAB AUDIT",JSON.stringify({
+  total:audit.total,threshold:audit.threshold,
+  minimum:Number(audit.minimum.toFixed(3)),belowThreshold:audit.belowThreshold,
+  closest:audit.closest.slice(0,12).map(x=>[x.name,Number(x.distance.toFixed(2))])
+ }));
  const exported=p.exportGradientMatrix(8);
  assert.equal(exported.palettes.length,144);
  assert.equal(exported.sources.length,12);
  assert.equal(exported.destinations.length,12);
  assert.equal(exported.method,"sRGB channel interpolation");
+ assert.equal(exported.minimumEndpointDistance,8);
+ assert.equal(exported.audit.belowThreshold,0);
+ assert.equal(exported.version,2);
  assert(exported.palettes.every(x=>x.flipped.colors.length===8));
  assert.equal(p.gradientCss("#000000","#ffffff"),
   "linear-gradient(90deg, #000000 0%, #ffffff 100%)");
@@ -79,7 +129,8 @@ try{
  const markup=renderToString(React.createElement(ui.default));
  for(const term of ["Chromatica","LA MATRICE","MATERIA","EIDOS","Esporta JSON",
   "Continuo","Tre colori","Cinque colori","Otto colori","Capovolto","Chrysos","Ruber",
-  "Χρυσός","colori"]){
+  "Χρυσός","colori","Avorio pergamena","Porcellana chiara","Blu lapislazzuli",
+  "Distanza percettiva"]){
   assert(markup.includes(term),"Missing UI text: "+term);
  }
  assert.equal((markup.match(/class="gp-cell-button/g)||[]).length,144,
