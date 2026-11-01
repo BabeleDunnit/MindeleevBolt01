@@ -90,22 +90,24 @@ try{
    pair.name+" violates OKLab endpoint threshold");
   assert.deepEqual(p.flippedGradient(a,b,8).slice(0,2),[a,b],
    "High contrast must begin with visibly distinct original endpoints");
-  const allBars=[p.quantizedGradient(a,b,3),p.quantizedGradient(a,b,5),
-   p.quantizedGradient(a,b,8),p.flippedGradient(a,b,8)];
-  for(const bar of allBars){
-   for(const sample of bar){
-    // Independent channel-wise collinearity check accounting for 8-bit
-    // sRGB rounding error; no curved or nonlinear palette variations.
-    const av=[1,3,5].map(i=>parseInt(a.slice(i,i+2),16));
-    const bv=[1,3,5].map(i=>parseInt(b.slice(i,i+2),16));
-    const cv=[1,3,5].map(i=>parseInt(sample.slice(i,i+2),16));
-    const d=bv.map((v,i)=>v-av[i]);
-    const axis=d.findIndex(v=>Math.abs(v)>=4);
-    if(axis>=0){
-     const t=(cv[axis]-av[axis])/d[axis];
-     assert(cv.every((value,i)=>Math.abs(value-(av[i]+d[i]*t))<=2),
-      "Sample deviated from line joining endpoints "+pair.name);
-    }
+  // Validate every quantized sample against an INDEPENDENT linear sRGB
+  // formula at its known parameter t. This is stronger than estimating t
+  // from rounded channel values (which is unstable for similar endpoints).
+  const samples=[
+   {bar:p.quantizedGradient(a,b,3),ts:[0,.5,1]},
+   {bar:p.quantizedGradient(a,b,5),ts:[0,.25,.5,.75,1]},
+   {bar:p.quantizedGradient(a,b,8),ts:Array.from({length:8},(_,i)=>i/7)},
+   {bar:p.flippedGradient(a,b,8),ts:[0,1,.2,.8,.4,.6,.1,.9]}
+  ];
+  const av=[1,3,5].map(i=>parseInt(a.slice(i,i+2),16));
+  const bv=[1,3,5].map(i=>parseInt(b.slice(i,i+2),16));
+  for(const {bar,ts} of samples){
+   assert.equal(bar.length,ts.length);
+   for(let i=0;i<ts.length;i++){
+    const hex="#"+av.map((v,channel)=>
+     Math.round(v+(bv[channel]-v)*ts[i]).toString(16).padStart(2,"0")).join("");
+    assert.equal(bar[i],hex,
+     "Non-linear or misordered sample at "+pair.name+" / "+i);
    }
   }
  }
