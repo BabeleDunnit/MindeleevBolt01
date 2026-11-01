@@ -1,7 +1,8 @@
 import {useMemo,useState,type CSSProperties} from "react";
 import {ALL_GRADIENTS,GREEK_DESTINATIONS,LATIN_SOURCES,QUANTIZATION_STEPS,
  gradientCss,gradientPair,quantizedGradient,flippedGradient,
- gradientPaletteExport,exportGradientMatrix,
+ gradientPaletteExport,exportGradientMatrix,perceptualDistance,
+ auditGradientMatrix,MIN_ENDPOINT_DISTANCE,
  type GradientPair,type QuantizationSteps} from "@/polytron/gradientPalettes";
 import "./GradientPaletteLab.css";
 
@@ -31,7 +32,8 @@ function PaletteCell({pair,selected,highSteps,onChoose}:{pair:GradientPair;
   className={"gp-cell-button"+(selected?" gp-cell-selected":"")}
   onClick={onChoose} aria-pressed={selected}
   aria-label={pair.name+" · gradiente continuo, 3, 5, 8 e capovolto in "+highSteps+" colori"}
-  title={pair.name+" · "+a+" → "+b}>
+  title={pair.name+" · "+pair.primary.shadeName+" → "+pair.secondary.shadeName+
+   " · distanza OKLab "+perceptualDistance(a,b).toFixed(2)}>
   <Bar label="∞" kind="continuous" start={a} end={b}/>
   <Bar label="3" kind="quantized" steps={3} start={a} end={b}/>
   <Bar label="5" kind="quantized" steps={5} start={a} end={b}/>
@@ -51,6 +53,7 @@ function downloadMatrix(steps:QuantizationSteps){
 function PaletteInspector({pair,highSteps}:{pair:GradientPair;highSteps:QuantizationSteps}){
  const a=pair.primary.hex,b=pair.secondary.hex;
  const blocks=gradientPaletteExport(pair,highSteps);
+ const perceptual=perceptualDistance(a,b);
  const [copied,setCopied]=useState(false);
  const copy=()=>{
   void navigator.clipboard?.writeText(JSON.stringify(blocks,null,2))
@@ -62,14 +65,16 @@ function PaletteInspector({pair,highSteps}:{pair:GradientPair;highSteps:Quantiza
     <span className="gp-eyebrow">PALETTE SELEZIONATA</span>
     <h2>{pair.name}</h2>
     <p>Materia <b>{pair.primary.name}</b> <span aria-hidden="true">→</span> Eidos <b>{pair.secondary.name}</b></p>
+    <p>Distanza percettiva <strong>ΔE OK × 100: {perceptual.toFixed(2)}</strong>
+     {" "}· soglia minima {MIN_ENDPOINT_DISTANCE} · interpolazione rigorosamente lineare.</p>
    </div>
    <button className="gp-outline-button" type="button" onClick={copy}>Copia JSON</button>
   </div>
   <div className="gp-endpoints">
-   <div><span className="gp-color-dot" style={colorChip(a)}/> <span>{pair.primary.name}</span>
+   <div><span className="gp-color-dot" style={colorChip(a)}/> <span>{pair.primary.shadeName}</span>
     <code>{a.toUpperCase()}</code></div>
    <span className="gp-arrow">→</span>
-   <div><span className="gp-color-dot" style={colorChip(b)}/> <span>{pair.secondary.name}</span>
+   <div><span className="gp-color-dot" style={colorChip(b)}/> <span>{pair.secondary.shadeName}</span>
     <code>{b.toUpperCase()}</code></div>
   </div>
   <div className="gp-big-bars">
@@ -94,13 +99,11 @@ export default function GradientPaletteLab(){
  const [column,setColumn]=useState(4);
  const [highSteps,setHighSteps]=useState<QuantizationSteps>(8);
  const [highlight,setHighlight]=useState<"all"|"same"|"contrast">("all");
+ const audit=useMemo(()=>auditGradientMatrix(),[]);
  const selected=gradientPair(row,column);
  const filter=(a:string,b:string)=>{
-  if(highlight==="all")return true;
-  const toRgb=(hex:string)=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16));
-  const av=toRgb(a),bv=toRgb(b);
-  const dist=Math.sqrt(av.reduce((sum,v,i)=>sum+(v-bv[i])**2,0));
-  return highlight==="contrast"?dist>=150:dist<150;
+  const distance=perceptualDistance(a,b);
+  return highlight==="all"?true:highlight==="contrast"?distance>=30:distance<15;
  };
  const shown=useMemo(()=>ALL_GRADIENTS.filter(p=>filter(p.primary.hex,p.secondary.hex)).length,[highlight]);
  return <main className="gp-lab">
@@ -131,6 +134,29 @@ export default function GradientPaletteLab(){
      onClick={()=>downloadMatrix(highSteps)}>Esporta JSON · 144 palette</button>
    </div>
   </div>
+  <section className="gp-distance-audit" aria-label="Audit percettivo delle palette">
+   <div><span className="gp-eyebrow">CONTROLLO DI DISTANZA · OKLab</span>
+    <p>Tutte le <strong>{audit.total} palette</strong> rispettano la soglia minima
+     <strong> ΔE OK ≥ {audit.threshold}</strong>. Minimo effettivo:
+     <strong> {audit.minimum.toFixed(2)}</strong>.</p>
+   </div>
+   <div className="gp-audit-metrics">
+    <span><b>{audit.belowThreshold}</b> sotto soglia</span>
+    <span><b>{audit.closest.filter(p=>p.distance<15).length}</b> toni vicini</span>
+   </div>
+   <p className="gp-audit-note">I 24 colori di base sono stati ricalibrati
+    una sola volta per l'intera matrice 12 × 12, non per singola cella.
+    Nessuna curvatura: le palette continue, quantizzate e capovolte campionano
+    sempre la stessa interpolazione lineare.</p>
+   <div className="gp-audit-nearest" aria-label="Palette con estremi più vicini">
+    {audit.closest.slice(0,11).map(pair=><button key={pair.id} type="button"
+     className={pair.id===selected.id?"gp-chip gp-chip-active":"gp-chip"}
+     onClick={()=>{
+      const index=ALL_GRADIENTS.findIndex(p=>p.id===pair.id);
+      setRow(Math.floor(index/12));setColumn(index%12);
+     }}>{pair.name} · {pair.distance.toFixed(1)}</button>)}
+   </div>
+  </section>
   <PaletteInspector pair={selected} highSteps={highSteps}/>
   <div className="gp-section-head">
    <div>
@@ -139,7 +165,7 @@ export default function GradientPaletteLab(){
     <p>Scorri la tabella in orizzontale e verticale, poi seleziona una cella per ingrandire
      i cinque trattamenti. Le intestazioni rimangono visibili durante lo scorrimento.</p>
    </div>
-   <div className="gp-filters" role="group" aria-label="Evidenzia per contrasto RGB">
+   <div className="gp-filters" role="group" aria-label="Filtra per distanza percettiva OKLab">
     {([["all","Tutte"],["contrast","Alto contrasto"],["same","Toni vicini"]] as const).map(([value,label])=>
      <button key={value} className={highlight===value?"gp-chip gp-chip-active":"gp-chip"}
       aria-pressed={highlight===value}
@@ -166,6 +192,7 @@ export default function GradientPaletteLab(){
        <span className="gp-column-swatch" style={colorChip(c.hex)}/>
        <strong>{c.name}</strong>
        <small>{c.script}</small>
+       <span className="gp-shade-name">{c.shadeName}</span>
       </th>)}
      </tr>
     </thead>
@@ -174,7 +201,7 @@ export default function GradientPaletteLab(){
       <th scope="row" className={"gp-rowhead"+(row===i?" gp-selected-head":"")}>
        <div><span className="gp-row-swatch" style={colorChip(source.hex)}/>
         <strong>{source.name}</strong></div>
-       <small>{source.italian}</small>
+       <small>{source.shadeName}</small>
       </th>
       {GREEK_DESTINATIONS.map((destination,j)=>{
        const pair=gradientPair(i,j);
@@ -192,10 +219,14 @@ export default function GradientPaletteLab(){
    <p><b>Come funziona il capovolto:</b> i primi colori sono 100% partenza e 100% arrivo;
     il terzo è 80% partenza / 20% arrivo, il quarto 20% partenza / 80% arrivo.
     Proseguono le coppie 60/40 e 40/60, poi 90/10 e 10/90 (nella versione a 8).</p>
-   <p><b>Stato del prototipo:</b> questa matrice non modifica né la tavola periodica
-    né le palette attualmente usate dai Polytroni. L'interpolazione è sui canali
-    sRGB. I nomi latini e greci sono un lessico artistico ispirato a parole
-    storiche, non una tassonomia filologica rigorosa.</p>
+   <p><b>Distanza percettiva:</b> usiamo ΔE OK = 100 volte la distanza euclidea
+    nello spazio OKLab; 8 è il minimo progettuale fra gli estremi, non una
+    garanzia di distinguibilità di ogni passaggio negli otto colori.</p>
+   <p><b>Nomenclatura:</b> i nomi descrittivi sono originali, non sono nomi né
+    codici Pantone ufficiali. Manteniamo nomi latini e scritte greche.</p>
+   <p><b>Stato del prototipo:</b> la tavola periodica e le palette oggi usate
+    dai Polytroni restano intatte. L'interpolazione sui canali sRGB è lineare,
+    anche nella versione capovolta.</p>
   </footer>
  </main>;
 }
