@@ -329,13 +329,13 @@ export default function PolytronPeriodicLab(){
       onBlur={()=>setRowInput(String(rows))}
       style={{...control,width:106,fontVariantNumeric:"tabular-nums"}}/>
     </label>
-    <label style={{display:"grid",gap:5,color:soft,fontSize:12}}>
+    {paletteMode==="legacy"&&<label style={{display:"grid",gap:5,color:soft,fontSize:12}}>
      Famiglia di palette · catalogo originale
      <select style={control} aria-label="Famiglia palette" value={paletteGroup}
       onChange={e=>setPaletteGroup(Number(e.target.value))}>
       {PALETTE_SETS.map((set,i)=><option key={set.id} value={i}>{set.label}</option>)}
      </select>
-    </label>
+    </label>}
     <label style={{display:"flex",gap:7,color:soft,fontSize:12,alignItems:"center",paddingBottom:8}}>
      <input type="checkbox" checked={rotate} onChange={e=>setRotate(e.target.checked)}/>
      Rotazione 3D
