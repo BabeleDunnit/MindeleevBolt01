@@ -172,7 +172,7 @@ try{
  const donorMarkup=renderToString(React.createElement(energyPanel.default,{
   cell:p.predictions.get("1,0"),ledger:donor,bonus:0,treasury:90
  }));
- for(const label of ["Se usi «Recupera» adesso","+1 E al budget",
+ for(const label of ["Se usi «Recupera» adesso","E al budget",
   "Restituita al budget","Energia attuale","Energia ceduta"]){
   assert(donorMarkup.includes(label),"Missing occupied-cell energy UI "+label);
  }
