@@ -14,11 +14,12 @@ async function load(path,name,ui=false){
  return import(pathToFileURL(outfile).href);
 }
 try{
- const [num,cat,ui,prior]=await Promise.all([
+ const [num,cat,ui,prior,life]=await Promise.all([
   load("src/polytron/politronicNumber.ts","number"),
   load("src/polytron/periodicCatalog.ts","catalog"),
   load("src/experiments/PolytronPeriodicLab.tsx","ui",true),
-  load("src/polytron/mapping.ts","existing")
+  load("src/polytron/mapping.ts","existing"),
+  load("src/polytron/mindeleevLife.ts","life")
  ]);
  assert.deepEqual([...num.PERIODIC_OPERATORS],[...prior.OPERATORS]);
  assert.deepEqual([...num.PERIODIC_SEEDS],["T","C","O","D","I"]);
@@ -63,6 +64,30 @@ try{
  const before=table.entries.map(e=>({number:e.number,dna:e.dna}));
  table.appendRows(1);
  assert.deepEqual(table.entries.slice(0,15).map(e=>({number:e.number,dna:e.dna})),before);
+ // Validate every cell in the default 50 periods, including entries whose
+ // geometries cannot be rendered. Numeric energy is shared with Life logic.
+ for(let n=1;n<=250;n++){
+  const group=((n-1)%5)+1,period=Math.floor((n-1)/5)+1;
+  const expected=2+(period-1)+(group-1);
+  assert.equal(life.intrinsicEnergy(n,0),expected,
+   "Mindeleev Life/periodic energy mismatch at #"+n);
+  const entry={...first[0],number:n,row:period-1,col:group-1,
+   seed:num.PERIODIC_SEEDS[group-1],
+   dna:num.dnaFromPolitronNumber(n),renderable:n%17!==0,
+   faceClassIds:undefined,faceTypeCount:undefined,equivalents:[]};
+  const cell=renderToString(React.createElement(ui.PeriodicCell,{
+   entry,showEquivalent:false,showSpectrum:false,palette:0
+  }));
+  assert(cell.includes('data-intrinsic-energy="'+expected+'"'),
+   "Card #"+n+" must display energy "+expected);
+  assert(cell.includes('Energia intrinseca'),
+   "Card #"+n+" must explicitly label intrinsic energy");
+  assert(cell.includes('aria-label="Energia intrinseca: '+expected+' unità"'),
+   "Card #"+n+" must announce the correct energy accessibly");
+ }
+ for(const [n,expected] of [[1,2],[5,6],[6,3],[10,7],[11,4],[250,55],[10000,2005]]){
+  assert.equal(life.intrinsicEnergy(n,0),expected,"Boundary energy #"+n);
+ }
  const markup=renderToString(React.createElement(ui.default));
  for(const required of ["Tavola periodica dei Polytroni",
   "Periodi da enumerare","Chromatica · 144 gradienti","Palette originali","Rotazione 3D","Equivalenti",
@@ -71,7 +96,8 @@ try{
  }
  for(const required of ["Gruppi →","↓ Periodi","Gruppo dei tetraedri",
   "Gruppo dei cubi","Gruppo degli ottaedri","Gruppo dei dodecaedri",
-  "Gruppo degli icosaedri","Periodi generati:"]){
+  "Gruppo degli icosaedri","Periodi generati:",
+  "Energia intrinseca di ogni Polytrone","Il contributo di Chromatica è fisso a 0"]){
   assert(markup.includes(required),"Missing periodic table terminology "+required);
  }
  const src=await readFile("src/experiments/PolytronPeriodicLab.tsx","utf8");
@@ -82,5 +108,5 @@ try{
  const app=await readFile("src/App.tsx","utf8");
  assert(app.includes('experiment") === "polytron-periodic"'));
  console.log("DUAL EQUIVALENCES",JSON.stringify({dC:dC.equivalents,dO:dO.equivalents}));
- console.log("PASS sprint35: BigInt reversible palette-free numbering, canonical operator order, ShapeDNA predecessor equivalences and shared 3D table");
+ console.log("PASS periodic: all 250 default Polytron cards display canonical intrinsic energy (including nonrenderable), matching Mindeleev Life; numbering and shared 3D unchanged");
 }finally{await rm(root,{recursive:true,force:true});}
