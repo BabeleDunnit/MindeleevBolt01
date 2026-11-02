@@ -43,9 +43,9 @@ try{
  assert.equal(life.intrinsicEnergy(11,2),6);
  assert.equal(life.recoveryEnergy(11,2),3);
  assert.equal(life.paletteEnergyBonus(8.5),0);
- assert.equal(life.paletteEnergyBonus(20),1);
- assert.equal(life.paletteEnergyBonus(60),3);
- assert.equal(life.paletteEnergyBonus(100),3);
+ assert.equal(life.paletteEnergyBonus(20),0);
+ assert.equal(life.paletteEnergyBonus(60),0);
+ assert.equal(life.paletteEnergyBonus(100),0);
  assert.throws(()=>life.intrinsicEnergy(0,0));
  assert.throws(()=>life.paletteEnergyBonus(-1));
 
@@ -77,6 +77,22 @@ try{
  assert.equal(centerLedger.actualEnergyCeded,0,
   "Birth counts neighbour energy without actually debiting it");
  assert.equal(centerLedger.returnedToTreasury,0);
+ const available=life.previewPlacement(nucleus,92,"0,0",11,0,p);
+ assert(available.isEmpty&&available.affordable);
+ assert.equal(available.cost,4);
+ assert.equal(available.newBirths,0,
+  "Adding a polytron on an already synthesized empty cell replaces, not duplicates, that birth");
+ const initialNear=life.previewPlacement(new Map([["1,0",1],["-1,0",6]]),90,
+  "0,1",2,0);
+ assert.equal(initialNear.localBirths.length,1);
+ assert.deepEqual(initialNear.localBirths,[11]);
+ assert.equal(initialNear.cost,3);
+ const inaccessible=life.previewPlacement(nucleus,2,"0,0",11,0);
+ assert.equal(inaccessible.affordable,false);
+ const occupied=life.previewPlacement(nucleus,100,"1,0",11,0);
+ assert.equal(occupied.isEmpty,false);
+ assert.equal(occupied.newBirths,0);
+ assert.equal(initialNear.newBirths,1);
  assert.deepEqual(centerLedger.neighbourContributions.map(x=>x.energy).sort(),
   [2,3,3],"Each of the three neighbours needs a visible energy entry");
  const donor=life.lifeEnergyLedger(nucleus,p,"1,0",0);
@@ -146,7 +162,7 @@ try{
  for(const pair of palette.ALL_GRADIENTS){
   const bonus=life.paletteEnergyBonus(palette.perceptualDistance(
    pair.primary.hex,pair.secondary.hex));
-  assert(bonus>=0&&bonus<=3);
+  assert.equal(bonus,0,"Chromatica must have exactly ZERO effect on energy");
   const trial=life.calculateLife(nucleus,bonus);
   assert.equal(trial.predictions.get("0,0").outcome,"birth");
   assert.equal(trial.predictions.get("0,0").next,11);
@@ -159,14 +175,15 @@ try{
  const markup=renderToString(React.createElement(ui.default));
  for(const label of ["Mindeleev","AUTOMI CELLULARI","La prossima generazione",
   "Sintesi +5","Anello stabile","Costellazione","Tabula rasa",
-  "Richiama","Sposta","Recupera","Esamina","Avanza di una generazione",
+  "Sposta","Recupera","Avanza di una generazione",
   "Tavola periodica","CONWAYDNA","ENERGIA DISPONIBILE","Bonus energia",
   "Sopravvivenza · S23","Calcolo simultaneo","Ruber","Chrysos",
   "Sintesi prevista","11","127 celle",
   "Bilancio energetico locale","Energia attuale","Energia prossimo turno",
   "Energia ceduta","Restituita al budget",
   "Energia dai 3 vicini","Soglia richiesta","Energia dei vicini",
-  "0 unità","non cedono energia"]){
+  "0 unità","non cedono energia","Scegli chi richiamare",
+  "Piazzamento WYSIWYG","ammissibili","contributo energetico","zero"]){
   assert(markup.includes(label),"Missing accessible Life UI content: "+label);
  }
  const donorMarkup=renderToString(React.createElement(energyPanel.default,{
@@ -181,7 +198,9 @@ try{
  const uiSource=await readFile("src/experiments/MindeleevLifeLab.tsx","utf8");
  for(const feature of ["onPointerEnter","onPointerMove","onFocus",
   'role="tooltip"',"lifeEnergyLedger(game.board,plan,selectedKey,bonus)",
-  "LifeEnergyPanel cell={hoverCell}"]){
+  "LifeEnergyPanel cell={hoverCell}","previewPlacement(",
+  "pointerUp(","data-life-polytron","affordableChoices",
+  "setPreviewNumber(item.number)"]){
   assert(uiSource.includes(feature),"Hover and keyboard energy tooltip missing "+feature);
  }
  assert.equal((markup.match(/role="button"/g)??[]).length,127,
@@ -193,5 +212,5 @@ try{
   "The periodic table must link back to the new gameplay prototype");
  console.log("LIFE NUCLEUS",JSON.stringify({input:[...nucleus],births:p.born,
   departures:p.departed,refund:p.recovery}));
- console.log("PASS Sprint41: local energy ledger for 127 cells; actual transfers 0, summable refunds, visible neighbour contributions, candidate deficits, hover and selected inspector; Sprint40 rules unchanged");
+ console.log("PASS Sprint42: actual 3D Conway Polytrons, WYSIWYG cell-first context choices, 250 affordable candidates, budget gating, local energy preflight, drag and zero Chromatica energy");
 }finally{await rm(temp,{recursive:true,force:true});}
