@@ -62,6 +62,32 @@ try{
  assert.equal(center.neighbours.length,3);
  assert.equal(center.sumEnergy,8);
  assert.equal(center.requiredEnergy,8);
+ assert.equal(center.candidate,11);
+ assert.equal(center.parent,6);
+ const centerLedger=life.lifeEnergyLedger(nucleus,p,"0,0",0);
+ assert.equal(centerLedger.currentEnergy,0);
+ assert.equal(centerLedger.projectedEnergy,4);
+ assert.equal(centerLedger.candidate,11);
+ assert.equal(centerLedger.candidateEnergy,4);
+ assert.equal(centerLedger.neighbourTotal,8);
+ assert.equal(centerLedger.requiredEnergy,8);
+ assert.equal(centerLedger.surplus,0);
+ assert.equal(centerLedger.deficit,0);
+ assert.equal(centerLedger.actualEnergyCeded,0,
+  "Birth counts neighbour energy without actually debiting it");
+ assert.equal(centerLedger.returnedToTreasury,0);
+ assert.deepEqual(centerLedger.neighbourContributions.map(x=>x.energy).sort(),
+  [2,3,3],"Each of the three neighbours needs a visible energy entry");
+ const donor=life.lifeEnergyLedger(nucleus,p,"1,0",0);
+ assert.equal(donor.occupant,1);
+ assert.equal(donor.currentEnergy,2);
+ assert.equal(donor.projectedEnergy,0);
+ assert.equal(donor.returnedToTreasury,1);
+ assert.equal(donor.actualEnergyCeded,0);
+ assert.deepEqual(donor.supportedBirths,[{key:"0,0",number:11,potential:2}]);
+ assert.equal([...p.predictions.keys()].reduce((sum,key)=>
+  sum+life.lifeEnergyLedger(nucleus,p,key,0).returnedToTreasury,0),p.recovery,
+  "The inspector's local treasury credits must sum to the exact turn refund");
  assert.equal(p.next.get("0,0"),11);
  assert.equal(p.born.length,1);
  assert.equal(p.born[0].n,11);
@@ -82,6 +108,20 @@ try{
  assert.equal(blocked.outcome,"no-energy");
  assert(blocked.requiredEnergy>blocked.sumEnergy);
  assert.equal(blocked.next,undefined);
+ assert.equal(blocked.candidate,206);
+ const poorPlan=life.calculateLife(poor,0);
+ const poorLedger=life.lifeEnergyLedger(poor,poorPlan,"0,0",0);
+ assert.equal(poorLedger.candidate,206);
+ assert.equal(poorLedger.requiredEnergy,blocked.requiredEnergy);
+ assert.equal(poorLedger.neighbourTotal,blocked.sumEnergy);
+ assert.equal(poorLedger.deficit,blocked.requiredEnergy-blocked.sumEnergy);
+ assert.equal(poorLedger.projectedEnergy,0);
+ assert.equal(poorLedger.actualEnergyCeded,0);
+ assert.throws(()=>life.lifeEnergyLedger(poor,poorPlan,"99,99",0));
+ const diffLedger=life.lifeEnergyLedger(different,life.calculateLife(different,0),"0,0",0);
+ assert.equal(diffLedger.candidate,undefined);
+ assert.equal(diffLedger.requiredEnergy,0);
+ assert.equal(diffLedger.neighbourContributions.length,3);
 
  // Survival at exactly 2 or 3 occupied neighbours, regardless of direction.
  for(const count of [0,1,2,3,4,5,6]){
@@ -108,6 +148,10 @@ try{
   assert.equal(trial.predictions.get("0,0").outcome,"birth");
   assert.equal(trial.predictions.get("0,0").next,11);
   assert.equal(life.startingBalance(nucleus,bonus),100-(8+3*bonus));
+  const audit=life.lifeEnergyLedger(nucleus,trial,"0,0",bonus);
+  assert.equal(audit.neighbourTotal,trial.predictions.get("0,0").sumEnergy);
+  assert.equal(audit.requiredEnergy,trial.predictions.get("0,0").requiredEnergy);
+  assert.equal(audit.actualEnergyCeded,0);
  }
  const markup=renderToString(React.createElement(ui.default));
  for(const label of ["Mindeleev","AUTOMI CELLULARI","La prossima generazione",
@@ -115,8 +159,20 @@ try{
   "Richiama","Sposta","Recupera","Esamina","Avanza di una generazione",
   "Tavola periodica","CONWAYDNA","ENERGIA DISPONIBILE","Bonus energia",
   "Sopravvivenza · S23","Calcolo simultaneo","Ruber","Chrysos",
-  "Sintesi prevista","11","127 celle"]){
+  "Sintesi prevista","11","127 celle",
+  "Bilancio energetico locale","Energia attuale","Energia prossimo turno",
+  "Energia ceduta","Restituita al budget",
+  "Energia dai 3 vicini","Soglia richiesta","Energia dei vicini",
+  "0 unità","non cedono energia"]){
   assert(markup.includes(label),"Missing accessible Life UI content: "+label);
+ }
+ assert(markup.includes("Energia attuale")&&markup.includes("Energia ceduta"),
+  "Selected-cell inspector must reveal exact energy values");
+ const uiSource=await readFile("src/experiments/MindeleevLifeLab.tsx","utf8");
+ for(const feature of ["onPointerEnter","onPointerMove","onFocus",
+  'role="tooltip"',"lifeEnergyLedger(game.board,plan,selectedKey,bonus)",
+  "LifeEnergyPanel cell={hoverCell}"]){
+  assert(uiSource.includes(feature),"Hover and keyboard energy tooltip missing "+feature);
  }
  assert.equal((markup.match(/role="button"/g)??[]).length,127,
   "All 127 hexagonal cells must be interactive and keyboard accessible");
@@ -127,5 +183,5 @@ try{
   "The periodic table must link back to the new gameplay prototype");
  console.log("LIFE NUCLEUS",JSON.stringify({input:[...nucleus],births:p.born,
   departures:p.departed,refund:p.recovery}));
- console.log("PASS Sprint40: hex adjacency, B3/S23, +5 same-group synthesis, energy gating, stable ring, 144 palette bonuses, immutable synchronous updates, 127-cell accessible UI");
+ console.log("PASS Sprint41: local energy ledger for 127 cells; actual transfers 0, summable refunds, visible neighbour contributions, candidate deficits, hover and selected inspector; Sprint40 rules unchanged");
 }finally{await rm(temp,{recursive:true,force:true});}
