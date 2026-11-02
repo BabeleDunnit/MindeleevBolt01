@@ -19,6 +19,7 @@ try{
  const life=await load("src/polytron/mindeleevLife.ts","engine");
  const palette=await load("src/polytron/gradientPalettes.ts","chromatica");
  const ui=await load("src/experiments/MindeleevLifeLab.tsx","ui",true);
+ const energyPanel=await load("src/experiments/LifeEnergyPanel.tsx","energy-panel",true);
  assert.equal(life.allHexes(6).length,127);
  assert.equal(life.allHexes(0).length,1);
  assert.equal(new Set(life.allHexes().map(({q,r})=>life.hexKey(q,r))).size,127);
@@ -165,8 +166,15 @@ try{
   "Bilancio energetico locale","Energia attuale","Energia prossimo turno",
   "Energia ceduta","Restituita al budget",
   "Energia dai 3 vicini","Soglia richiesta","Energia dei vicini",
-  "0 unità","non cedono energia","Se usi «Recupera» adesso"]){
+  "0 unità","non cedono energia"]){
   assert(markup.includes(label),"Missing accessible Life UI content: "+label);
+ }
+ const donorMarkup=renderToString(React.createElement(energyPanel.default,{
+  cell:p.predictions.get("1,0"),ledger:donor,bonus:0,treasury:90
+ }));
+ for(const label of ["Se usi «Recupera» adesso","+1 E al budget",
+  "Restituita al budget","Energia attuale","Energia ceduta"]){
+  assert(donorMarkup.includes(label),"Missing occupied-cell energy UI "+label);
  }
  assert(markup.includes("Energia attuale")&&markup.includes("Energia ceduta"),
   "Selected-cell inspector must reveal exact energy values");
