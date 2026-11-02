@@ -317,7 +317,8 @@ export default function PolytronPeriodicLab(){
     politronico, senza bloccare la scena 3D.
    </p>
    <div style={{display:"flex",gap:15,fontSize:12,flexWrap:"wrap"}}>
-    <a style={{color:mint}} href={import.meta.env.BASE_URL+"?experiment=orbital-mut"}>Orbital Mutatron</a>
+    <a style={{color:mint}} href={import.meta.env.BASE_URL+"?experiment=mindeleev-life"}>Mindeleev Life · Automa</a>
+     <a style={{color:mint}} href={import.meta.env.BASE_URL+"?experiment=orbital-mut"}>Orbital Mutatron</a>
     <a style={{color:mint}} href={import.meta.env.BASE_URL}>Catalogo esagonale originale</a>
     <a style={{color:mint}} href={import.meta.env.BASE_URL+"?experiment=phenotype"}>Laboratorio ShapeDNA</a>
    </div>
