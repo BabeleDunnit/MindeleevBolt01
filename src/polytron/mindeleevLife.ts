@@ -141,7 +141,7 @@ export type LifeEnergyLedger={
  neighbourTotal:number;
  candidate?:number;candidateEnergy?:number;requiredEnergy:number;
  surplus?:number;deficit?:number;
- actualEnergyCeded:number;returnedToTreasury:number;
+ actualEnergyCeded:number;returnedToTreasury:number;manualRecovery:number;
  supportedBirths:SupportedBirth[];
 };
 export function lifeEnergyLedger(
@@ -182,6 +182,7 @@ export function lifeEnergyLedger(
   actualEnergyCeded:0,
   returnedToTreasury:cell.outcome==="depart"?
    recoveryEnergy(cell.occupant!,bonus):0,
+  manualRecovery:cell.occupant===undefined?0:recoveryEnergy(cell.occupant,bonus),
   supportedBirths
  };
 }
