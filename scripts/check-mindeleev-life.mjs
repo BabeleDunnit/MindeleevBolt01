@@ -83,6 +83,8 @@ try{
  assert.equal(donor.currentEnergy,2);
  assert.equal(donor.projectedEnergy,0);
  assert.equal(donor.returnedToTreasury,1);
+ assert.equal(donor.manualRecovery,1);
+ assert.equal(centerLedger.manualRecovery,0);
  assert.equal(donor.actualEnergyCeded,0);
  assert.deepEqual(donor.supportedBirths,[{key:"0,0",number:11,potential:2}]);
  assert.equal([...p.predictions.keys()].reduce((sum,key)=>
@@ -163,7 +165,7 @@ try{
   "Bilancio energetico locale","Energia attuale","Energia prossimo turno",
   "Energia ceduta","Restituita al budget",
   "Energia dai 3 vicini","Soglia richiesta","Energia dei vicini",
-  "0 unità","non cedono energia"]){
+  "0 unità","non cedono energia","Se usi «Recupera» adesso"]){
   assert(markup.includes(label),"Missing accessible Life UI content: "+label);
  }
  assert(markup.includes("Energia attuale")&&markup.includes("Energia ceduta"),
