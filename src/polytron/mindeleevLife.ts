@@ -20,6 +20,8 @@ export type CellOutcome="empty"|"survive"|"depart"|"birth"|"no-majority"|"no-ene
 export type CellPrediction={
  key:string;q:number;r:number;ring:number;occupant?:number;next?:number;
  neighbours:number[];reason:string;outcome:CellOutcome;
+ /** Candidate is known even when available energy is too low for birth. */
+ candidate?:number;parent?:number;
  sumEnergy:number;requiredEnergy:number;
 };
 export type LifePlan={
@@ -78,6 +80,7 @@ export function calculateLife(board:Board,bonus:number,radius=LIFE_RADIUS):LifeP
   const key=hexKey(q,r),occupant=board.get(key);
   const neighbours=neighboursOf(board,q,r);
   let outcome:CellOutcome="empty",reason="",future: number|undefined;
+  let candidate:number|undefined,parent:number|undefined;
   let sumEnergy=0,requiredEnergy=0;
   if(occupant!==undefined){
    if(neighbours.length===2||neighbours.length===3){
@@ -100,8 +103,9 @@ export function calculateLife(board:Board,bonus:number,radius=LIFE_RADIUS):LifeP
     reason="Tre vicini, ma tutti di gruppi diversi: nessuna sintesi.";
    }else{
     const [,sameGroup]=majority;
-    const parent=Math.max(...sameGroup);
+    parent=Math.max(...sameGroup);
     const child=parent+5;
+    candidate=child;
     sumEnergy=neighbours.reduce((sum,n)=>sum+intrinsicEnergy(n,bonus),0);
     requiredEnergy=2*intrinsicEnergy(child,bonus);
     if(sumEnergy>=requiredEnergy){
@@ -116,10 +120,72 @@ export function calculateLife(board:Board,bonus:number,radius=LIFE_RADIUS):LifeP
   }else reason=`Cella vuota: ${neighbours.length} vicini; la sintesi ne richiede esattamente 3.`;
   if(future!==undefined)next.set(key,future);
   predictions.set(key,{key,q,r,ring:hexRing(q,r),occupant,next:future,
-   neighbours,outcome,reason,sumEnergy,requiredEnergy});
+   neighbours,outcome,reason,candidate,parent,sumEnergy,requiredEnergy});
  }
  return {predictions,next,born,departed,survivors,recovery};
 }
+/**
+ * Read-only, per-cell energy account derived from the SAME LifePlan used by
+ * the transition. A participating neighbour provides its intrinsic energy
+ * as a condition of birth, NOT as a deducted transfer: this prototype has
+ * no per-Polytron charge/depletion and no energy conservation rule.
+ */
+export type LifeNeighbourEnergy={
+ key:string;number:number;group:number;period:number;energy:number;
+ participatesInBirth:boolean;
+};
+export type SupportedBirth={key:string;number:number;potential:number};
+export type LifeEnergyLedger={
+ key:string;occupant?:number;currentEnergy:number;projectedEnergy:number;
+ neighbourContributions:LifeNeighbourEnergy[];
+ neighbourTotal:number;
+ candidate?:number;candidateEnergy?:number;requiredEnergy:number;
+ surplus?:number;deficit?:number;
+ actualEnergyCeded:number;returnedToTreasury:number;
+ supportedBirths:SupportedBirth[];
+};
+export function lifeEnergyLedger(
+ board:Board,plan:LifePlan,key:string,bonus:number
+):LifeEnergyLedger{
+ const cell=plan.predictions.get(key);
+ if(!cell)throw Error("Unknown grid cell: "+key);
+ const neighbourContributions:LifeNeighbourEnergy[]=[];
+ for(const d of HEX_DIRECTIONS){
+  const nearKey=hexKey(cell.q+d.q,cell.r+d.r);
+  const number=board.get(nearKey);
+  if(number===undefined)continue;
+  const nearPlan=plan.predictions.get(nearKey);
+  neighbourContributions.push({
+   key:nearKey,number,group:groupOf(number),period:periodOf(number),
+   energy:intrinsicEnergy(number,bonus),
+   participatesInBirth:cell.outcome==="birth"
+  });
+ }
+ const currentEnergy=cell.occupant===undefined?0:intrinsicEnergy(cell.occupant,bonus);
+ const projectedEnergy=cell.next===undefined?0:intrinsicEnergy(cell.next,bonus);
+ const candidateEnergy=cell.candidate===undefined?undefined:intrinsicEnergy(cell.candidate,bonus);
+ const neighbourTotal=neighbourContributions.reduce((sum,n)=>sum+n.energy,0);
+ const supportedBirths:SupportedBirth[]=[];
+ if(cell.occupant!==undefined)for(const d of HEX_DIRECTIONS){
+  const nearKey=hexKey(cell.q+d.q,cell.r+d.r);
+  const target=plan.predictions.get(nearKey);
+  if(target?.outcome==="birth"&&target.next!==undefined)
+   supportedBirths.push({key:nearKey,number:target.next,potential:currentEnergy});
+ }
+ const requiredEnergy=candidateEnergy===undefined?0:2*candidateEnergy;
+ return {
+  key,occupant:cell.occupant,currentEnergy,projectedEnergy,
+  neighbourContributions,neighbourTotal,
+  candidate:cell.candidate,candidateEnergy,requiredEnergy,
+  surplus:candidateEnergy===undefined?undefined:Math.max(0,neighbourTotal-requiredEnergy),
+  deficit:candidateEnergy===undefined?undefined:Math.max(0,requiredEnergy-neighbourTotal),
+  actualEnergyCeded:0,
+  returnedToTreasury:cell.outcome==="depart"?
+   recoveryEnergy(cell.occupant!,bonus):0,
+  supportedBirths
+ };
+}
+
 export type LifePreset="nucleus"|"ring"|"constellation"|"empty";
 export function makeLifePreset(kind:LifePreset):Map<string,number>{
  const board=new Map<string,number>();
