@@ -11,6 +11,7 @@ import {faceColorUsage} from "@/polytron/faceColorUsage";
 import {gradientFaceUsage,type GradientSelection,type GradientOrder} from "@/polytron/gradientFacePalette";
 import {gradientPair} from "@/polytron/gradientPalettes";
 import PeriodicGradientPicker from "@/experiments/PeriodicGradientPicker";
+import {intrinsicEnergy} from "@/polytron/mindeleevLife";
 
 const ink="#e9f8ff",soft="#a6c4d3",mint="#80e3d2",line="#456a7b",bg="#071623",card="#102b3c";
 const control:CSSProperties={background:"#153d51",color:ink,border:"1px solid #548195",padding:"9px 11px",borderRadius:9,fontSize:13};
@@ -127,6 +128,8 @@ function SharedPeriodic3D({palette,rotate,gradient}:{palette:number;rotate:boole
 
 export function PeriodicCell({entry,showSpectrum,showEquivalent,palette,gradient}:{entry:PeriodicEntry;
  showSpectrum:boolean;showEquivalent:boolean;palette:number;gradient?:GradientSelection}){
+ // Use the same canonical calculation as Mindeleev Life, with Chromatica fixed at 0.
+ const energy=intrinsicEnergy(entry.number,0);
  const usage=entry.faceClassIds?(gradient?
   gradientFaceUsage(entry.faceClassIds,gradient):
   faceColorUsage(entry.faceClassIds,palette)):null;
@@ -154,6 +157,18 @@ export function PeriodicCell({entry,showSpectrum,showEquivalent,palette,gradient
    </div>}
   <div style={{padding:"5px 11px 10px",display:"grid",gap:4,minHeight:65}}>
    <code style={{fontSize:14,fontWeight:700,color:ink}}>{entry.dna}</code>
+   <div data-intrinsic-energy={energy}
+    aria-label={"Energia intrinseca: "+fmt(energy)+" unità"}
+    title={"E = 2 + (periodo "+(entry.row+1)+" − 1) + (gruppo "+(entry.col+1)+" − 1). Chromatica: +0."}
+    style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+     gap:8,padding:"7px 9px",borderRadius:7,
+     background:"#1a423d",border:"1px solid #417f6c"}}>
+    <span style={{fontSize:11,fontWeight:700,color:"#b8e5d1"}}>
+     Energia intrinseca
+    </span>
+    <strong style={{fontSize:17,color:"#d7f9c7",whiteSpace:"nowrap",
+     fontVariantNumeric:"tabular-nums"}}>{fmt(energy)} E</strong>
+   </div>
    <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}
     title="Classi di facce distinte (lati e angoli) e colori RGB effettivi della palette">
     <strong style={{fontSize:12,color:usage&&usage.colorsUsed>1?mint:ink}}>
@@ -315,6 +330,11 @@ export default function PolytronPeriodicLab(){
     Le equivalenze vengono verificate geometricamente, anche se lo spettro
     ShapeDNA v2 non è disponibile. Il calcolo procede nel Worker in ordine
     politronico, senza bloccare la scena 3D.
+   </p>
+   <p style={{maxWidth:880,color:"#b8e5d1",fontSize:12,lineHeight:1.5,marginTop:0}}>
+    Energia intrinseca di ogni Polytrone: E = 2 + (periodo − 1) + (gruppo − 1).
+    Il contributo di Chromatica è fisso a 0. Gli stessi valori sono utilizzati
+    da Mindeleev Life.
    </p>
    <div style={{display:"flex",gap:15,fontSize:12,flexWrap:"wrap"}}>
     <a style={{color:mint}} href={import.meta.env.BASE_URL+"?experiment=mindeleev-life"}>Mindeleev Life · Automa</a>
