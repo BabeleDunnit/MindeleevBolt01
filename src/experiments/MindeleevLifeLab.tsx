@@ -196,6 +196,8 @@ export default function MindeleevLifeLab(){
   setDragging(null);
   if(distance<10)return;
   suppressClick.current=true;
+  // A drag may not produce a click event; do not eat the next separate tap.
+  window.setTimeout(()=>{suppressClick.current=false;},0);
   const svg=event.currentTarget.ownerSVGElement;
   if(!svg||!game.board.has(key))return;
   const p=pointerPosition(svg,event.clientX,event.clientY);
@@ -437,6 +439,7 @@ export default function MindeleevLifeLab(){
           {item.localBirths.length?
            `+${item.localBirths.length} sintesi locale${item.localBirths.length>1?"i":""}`:
            item.newBirths?`+${item.newBirths} sintesi altrove`:
+           item.localDeficits.length?`Mancano ${Math.min(...item.localDeficits)} E`:
            "Nessuna sintesi immediata"}
          </em>
         </button>)}
