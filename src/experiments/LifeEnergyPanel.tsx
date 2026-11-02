@@ -81,6 +81,10 @@ export default function LifeEnergyPanel({cell,ledger,bonus,compact=false,treasur
    </span>)}</div>
    <small>Il contributo viene conteggiato nella soglia, ma non sottratto al Polytrone.</small>
   </div>}
+  {occupant!==undefined&&<div className="le-manual-refund">
+    <span>Se usi «Recupera» adesso</span>
+    <strong>+{ledger.manualRecovery} E al budget</strong>
+   </div>}
   {compact?
    <p className="le-caption">
     {isCandidate?
@@ -92,12 +96,17 @@ export default function LifeEnergyPanel({cell,ledger,bonus,compact=false,treasur
    <>
     <div className="le-formula">
      <span>Energia intrinseca</span>
-     <strong>E = 2 + (P − 1) + (G − 1) + {bonus}</strong>
+     <strong>{(occupant??cell.candidate)!==undefined?
+      <>E(#{occupant??cell.candidate}) = 2 + {periodOf((occupant??cell.candidate)!)-1}
+       {" + "}{groupOf((occupant??cell.candidate)!)-1} + {bonus}
+       {" = "}{occupant!==undefined?ledger.currentEnergy:ledger.candidateEnergy}</>:
+      <>E = 2 + (P − 1) + (G − 1) + {bonus}</>}</strong>
      <small>Bonus Chromatica = {bonus}; il Polytrone non possiede una carica consumabile in questa versione.</small>
     </div>
     <p className="le-clarification"><b>Come funziona davvero:</b> i vicini offrono una
      <em> verifica di soglia</em>, non cedono energia. Durante la sintesi,
-     <strong> 0 unità</strong> vengono sottratte a loro o al budget.
+     <strong> 0 unità</strong> vengono sottratte a loro o al budget:
+     i vicini non cedono energia.
      Il Polytrone nato riceve la propria energia intrinseca.
      I Polytroni che tornano a casa restituiscono invece ⌊E/2⌋ al budget.
      {treasury!==undefined&&<> Budget attuale: <strong>{show(treasury)}</strong>.</>}</p>
