@@ -176,7 +176,7 @@ try{
  const markup=renderToString(React.createElement(ui.default));
  for(const label of ["Mindeleev","AUTOMI CELLULARI","La prossima generazione",
   "Sintesi +5","Anello stabile","Costellazione","Tabula rasa",
-  "Trascina","Recupera","Avanza di una generazione",
+  "Trascina","Avanza di una generazione",
   "Tavola periodica","ENERGIA DISPONIBILE","Bonus energia",
   "Sopravvivenza · S23","Calcolo simultaneo","Ruber","Chrysos",
   "Sintesi prevista","11","127 celle",
@@ -184,7 +184,7 @@ try{
   "Energia ceduta","Restituita al budget",
   "Energia dai 3 vicini","Soglia richiesta","Energia dei vicini",
   "0 unità","non cedono energia","Scegli chi richiamare",
-  "Piazzamento WYSIWYG","ammissibili","contributo energetico","zero"]){
+  "PIAZZAMENTO WYSIWYG","ammissibili","contributo energetico","zero"]){
   assert(markup.includes(label),"Missing accessible Life UI content: "+label);
  }
  const donorMarkup=renderToString(React.createElement(energyPanel.default,{
