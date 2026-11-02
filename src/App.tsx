@@ -8,6 +8,7 @@ import IslandAffinityLab from "@/experiments/IslandAffinityLab";
 import PlanarRapierLab from "@/experiments/PlanarRapierLab";
 import PolytronPeriodicLab from "@/experiments/PolytronPeriodicLab";
 import GradientPaletteLab from "@/experiments/GradientPaletteLab";
+import MindeleevLifeLab from "@/experiments/MindeleevLifeLab";
 import HexWorld, { PALETTE_SETS } from "@/components/HexWorld";
 import { runCodecSelfTests } from "@/polytron/mapping";
 import { runInterestingSelfTests } from "@/polytron/interesting";
@@ -88,6 +89,7 @@ function App() {
   if (new URLSearchParams(window.location.search).get("experiment") === "planar-rapier") return <PlanarRapierLab />;
   if (new URLSearchParams(window.location.search).get("experiment") === "orbital-mut") return <PlanarRapierLab initialMode="gravity" />;
   if (new URLSearchParams(window.location.search).get("experiment") === "polytron-periodic") return <PolytronPeriodicLab />;
+  if (new URLSearchParams(window.location.search).get("experiment") === "mindeleev-life") return <MindeleevLifeLab />;
   if (new URLSearchParams(window.location.search).get("experiment") === "gradient-palettes") return <GradientPaletteLab />;
   if (new URLSearchParams(window.location.search).get("experiment") === "phase-shift") return <MutatronPhaseLab />;
   if (new URLSearchParams(window.location.search).get("experiment") === "conway-ring") return <ConwayRingLab />;
