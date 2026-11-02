@@ -57,7 +57,7 @@ jobs:
           test -f dist/index.html
           grep -r -q 'Mindeleev' dist/assets/
           grep -r -q 'Sintesi +5' dist/assets/
-          grep -r -q 'Piazzamento WYSIWYG' dist/assets/
+          grep -r -q 'PIAZZAMENTO WYSIWYG' dist/assets/
           grep -r -q 'Scegli chi richiamare' dist/assets/
           grep -r -q 'Energia ceduta' dist/assets/
           grep -r -q 'Energia attuale' dist/assets/
