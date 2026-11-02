@@ -176,8 +176,8 @@ try{
  const markup=renderToString(React.createElement(ui.default));
  for(const label of ["Mindeleev","AUTOMI CELLULARI","La prossima generazione",
   "Sintesi +5","Anello stabile","Costellazione","Tabula rasa",
-  "Sposta","Recupera","Avanza di una generazione",
-  "Tavola periodica","CONWAYDNA","ENERGIA DISPONIBILE","Bonus energia",
+  "Trascina","Recupera","Avanza di una generazione",
+  "Tavola periodica","ENERGIA DISPONIBILE","Bonus energia",
   "Sopravvivenza · S23","Calcolo simultaneo","Ruber","Chrysos",
   "Sintesi prevista","11","127 celle",
   "Bilancio energetico locale","Energia attuale","Energia prossimo turno",
