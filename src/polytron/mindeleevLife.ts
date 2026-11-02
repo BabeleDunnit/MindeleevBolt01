@@ -49,9 +49,10 @@ export const GROUP_CODES=["T","C","O","D","I"] as const;
  * Palette is a GLOBAL ruleset per game. Contrast is the OKLab distance
  * between the 2 fixed endpoints. A flipped gradient changes appearance only.
  */
+/** Sprint 42: Chromatica remains visual-only until energy rules are designed. */
 export function paletteEnergyBonus(distance:number):number{
  if(!Number.isFinite(distance)||distance<0)throw Error("Invalid palette distance");
- return Math.min(3,Math.floor(distance/20));
+ return 0;
 }
 export function intrinsicEnergy(n:number,bonus:number):number{
  if(!Number.isSafeInteger(n)||n<1)throw Error("Invalid politronic number: "+n);
@@ -187,6 +188,42 @@ export function lifeEnergyLedger(
  };
 }
 
+/**
+ * Fast, read-only preview of one potential placement. The exact cellular
+ * automaton calculates the consequences before an action is committed.
+ * An option is admissible iff the cell is empty and the treasury covers E.
+ */
+export type PlacementPreview={
+ number:number;cost:number;affordable:boolean;isEmpty:boolean;
+ births:number;departures:number;newBirths:number;newSurvivors:number;
+ unlocked:number[];localBirths:number[];localDeficits:number[];
+};
+export function previewPlacement(
+ board:Board,credits:number,key:string,number:number,bonus:number,
+ baseline?:LifePlan
+):PlacementPreview{
+ const isEmpty=!board.has(key);
+ const cost=intrinsicEnergy(number,bonus);
+ const affordable=credits>=cost;
+ if(!isEmpty||!affordable)return {number,cost,affordable,isEmpty,
+  births:0,departures:0,newBirths:0,newSurvivors:0,
+  unlocked:[],localBirths:[],localDeficits:[]};
+ const prior=baseline??calculateLife(board,bonus);
+ const trial=new Map(board);trial.set(key,number);
+ const after=calculateLife(trial,bonus);
+ const oldBirths=new Set(prior.born.map(x=>x.key));
+ const unlocked=after.born.filter(x=>!oldBirths.has(x.key));
+ const [q,r]=key.split(",").map(Number);
+ const near=new Set(HEX_DIRECTIONS.map(d=>hexKey(q+d.q,r+d.r)));
+ const localBirths=unlocked.filter(x=>near.has(x.key)).map(x=>x.n);
+ const localDeficits=[...after.predictions.values()]
+  .filter(p=>near.has(p.key)&&p.outcome==="no-energy")
+  .map(p=>p.requiredEnergy-p.sumEnergy);
+ return {number,cost,affordable,isEmpty,births:after.born.length,
+  departures:after.departed.length,newBirths:unlocked.length,
+  newSurvivors:after.survivors-prior.survivors,
+  unlocked:unlocked.map(x=>x.n),localBirths,localDeficits};
+}
 export type LifePreset="nucleus"|"ring"|"constellation"|"empty";
 export function makeLifePreset(kind:LifePreset):Map<string,number>{
  const board=new Map<string,number>();
