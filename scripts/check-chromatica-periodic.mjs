@@ -109,6 +109,9 @@ try{
   assert(cell.includes("Colori usati: <!-- -->"+representative.faceTypeCount)||
    cell.includes("Colori usati: "+representative.faceTypeCount),
    "Displayed color count must match actual geometric categories");
+  const expectedEnergy=2+representative.row+representative.col;
+  assert(cell.includes('data-intrinsic-energy="'+expectedEnergy+'"'),
+   "Chromatica palette order must never change the card's intrinsic energy");
  }
  const pickerMarkup=renderToString(React.createElement(picker.default,{
   row:2,column:4,order:"contrast",onPairChange:()=>{},
@@ -128,6 +131,8 @@ try{
   assert(pageMarkup.includes(label),"Missing periodic nomenclature "+label);
  }
  assert(pageMarkup.includes("cpm-matrix"),"Chromatica is default selected mode");
+ assert(pageMarkup.includes("Energia intrinseca di ogni Polytrone"),
+  "Canonical Life energy formula must be explained above the table");
  const source=await readFile("src/experiments/PolytronPeriodicLab.tsx","utf8");
  assert(source.includes('setPaletteMode("legacy")'));
  assert(source.includes('polytronGeometry(dna,()=>palette,gradient)'));
