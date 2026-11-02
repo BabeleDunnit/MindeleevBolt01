@@ -71,3 +71,12 @@
  .le-compact .le-neighbour-list{grid-template-columns:repeat(3,minmax(0,1fr))}
  .le-compact{width:300px}
 }
+
+.le-manual-refund{
+ display:flex;align-items:center;justify-content:space-between;
+ flex-wrap:wrap;gap:6px;background:#1d3b3f;border:1px solid #3d6860;
+ border-radius:7px;padding:9px 11px;font-size:11px;
+}
+.le-manual-refund span{color:#adc9c7}
+.le-manual-refund strong{color:#abe9bb}
+.le-compact .le-manual-refund{font-size:10px;padding:6px 8px}
