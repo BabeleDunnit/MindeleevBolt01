@@ -5,7 +5,8 @@ import {dnaFromPolitronNumber} from "@/polytron/politronicNumber";
 import {gradientPair,gradientCss,LATIN_SOURCES,GREEK_DESTINATIONS,
  perceptualDistance} from "@/polytron/gradientPalettes";
 import {gradientSamples,cssSRGB,type GradientOrder} from "@/polytron/gradientFacePalette";
-import {allHexes,calculateLife,groupOf,periodOf,hexKey,hexRing,
+import LifeEnergyPanel from "@/experiments/LifeEnergyPanel";
+import {allHexes,calculateLife,lifeEnergyLedger,groupOf,periodOf,hexKey,hexRing,
  paletteEnergyBonus,intrinsicEnergy,recoveryEnergy,makeLifePreset,
  startingBalance,GROUP_LABELS,GROUP_CODES,STARTING_ENERGY,LIFE_RADIUS,
  type LifePreset,type CellPrediction
@@ -61,10 +62,20 @@ export default function MindeleevLifeLab(){
  const [pickNumber,setPickNumber]=useState(1);
  const [action,setAction]=useState<Action>("place");
  const [selectedKey,setSelectedKey]=useState("0,0");
+ const [hovered,setHovered]=useState<{key:string;x:number;y:number}|null>(null);
  const [moveSource,setMoveSource]=useState<string|null>(null);
  const [forecast,setForecast]=useState(true);
  const plan=useMemo(()=>calculateLife(game.board,bonus),[game.board,bonus]);
  const chosen=plan.predictions.get(selectedKey);
+ const ledger=chosen?lifeEnergyLedger(game.board,plan,selectedKey,bonus):null;
+ const hoverCell=hovered?plan.predictions.get(hovered.key):null;
+ const hoverLedger=hoverCell?lifeEnergyLedger(game.board,plan,hoverCell.key,bonus):null;
+ const onHover=(key:string,clientX:number,clientY:number)=>{
+  const x=Math.max(8,Math.min(clientX+18,window.innerWidth-348));
+  const y=Math.max(8,Math.min(clientY+18,window.innerHeight-405));
+  setHovered(previous=>previous?.key===key&&Math.abs(previous.x-x)<5&&
+   Math.abs(previous.y-y)<5?previous:{key,x,y});
+ };
  const previewColors=gradientSamples(pair.primary.hex,pair.secondary.hex,6,order).map(cssSRGB);
  const gradientStops=order==="linear"?
   <><stop offset="0%" stopColor={pair.primary.hex}/><stop offset="100%" stopColor={pair.secondary.hex}/></>:
@@ -220,6 +231,12 @@ export default function MindeleevLifeLab(){
          (source?" ml-source":"")}
          role="button" tabIndex={0} aria-label={label}
          onClick={()=>onHex(key)}
+         onPointerEnter={e=>{if(e.pointerType!=="touch")onHover(key,e.clientX,e.clientY);}}
+         onPointerMove={e=>{if(e.pointerType!=="touch")onHover(key,e.clientX,e.clientY);}}
+         onPointerLeave={()=>setHovered(prev=>prev?.key===key?null:prev)}
+         onFocus={e=>{const box=e.currentTarget.getBoundingClientRect();
+          onHover(key,box.right,box.top);}}
+         onBlur={()=>setHovered(prev=>prev?.key===key?null:prev)}
          onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();onHex(key);}}}>
          <polygon points={points(x,y,SIZE-1.2)}
           fill={n!==undefined?"url(#ml-poly-fill)":ring%2?"#102b3a":"#132f40"}
@@ -241,10 +258,15 @@ export default function MindeleevLifeLab(){
            unpowered?<text x={x} y={y+5} className="ml-hex-muted" textAnchor="middle">E−</text>:
            <circle cx={x} cy={y} r="1.7" fill="#608296" fillOpacity=".6"/>
          }
-         <title>{label}</title>
+         {/* Floating energy tooltip replaces the browser's brief SVG title. */}
         </g>;
        })}
       </svg>
+      {hoverCell&&hoverLedger&&hovered&&
+       <div id="ml-hover-energy" className="ml-hover-energy" role="tooltip"
+        style={{left:hovered.x,top:hovered.y}}>
+        <LifeEnergyPanel cell={hoverCell} ledger={hoverLedger} bonus={bonus} compact/>
+       </div>}
       <div className="ml-board-legend">
        <span><i className="ml-legend-birth"/> Sintesi prevista</span>
        <span><i className="ml-legend-leave"/> Torna a casa</span>
@@ -269,29 +291,14 @@ export default function MindeleevLifeLab(){
     </section>
     <section className="ml-inspector">
      <div className="ml-eyebrow">SPIEGAZIONE / CELLA SELEZIONATA</div>
-     {chosen&&<div className="ml-inspector-grid">
-      <div>
-       <h2>Cella ({chosen.q}, {chosen.r}) <span>· anello {chosen.ring}</span></h2>
-       <div className={"ml-result ml-result-"+chosen.outcome}>
-        {chosen.outcome==="birth"?<FlaskConical size={17}/>:
-         chosen.outcome==="survive"?<Check size={17}/>:<X size={16}/>}
-        <strong>{statusName(chosen)}</strong>
-       </div>
+     {chosen&&ledger&&<>
+      <div className="ml-inspector-intro">
+       <h2>Cella ({chosen.q}, {chosen.r}) · Anello {chosen.ring}</h2>
        <p>{chosen.reason}</p>
       </div>
-      <div className="ml-neighbor-inspector">
-       <span>VICINI OCCUPATI ({chosen.neighbours.length}/6)</span>
-       <div className="ml-neighbor-list">
-        {chosen.neighbours.length?
-         chosen.neighbours.map((n,i)=><span key={i} title={describe(n)}>
-          <i style={{background:GROUP_COLORS[groupOf(n)-1]}}/> #{n} · {GROUP_CODES[groupOf(n)-1]}
-         </span>):<em>Nessuno</em>}
-       </div>
-       {chosen.outcome==="birth"&&<small>Il Polytrone #{chosen.next} viene sintetizzato nella cella.</small>}
-       {chosen.outcome==="no-energy"&&
-        <small>Energia locale: {chosen.sumEnergy}/{chosen.requiredEnergy} necessaria.</small>}
-      </div>
-     </div>}
+      <LifeEnergyPanel cell={chosen} ledger={ledger} bonus={bonus}
+       treasury={game.credits}/>
+     </>}
     </section>
    </div>
    <aside className="ml-sidebar">
@@ -346,7 +353,8 @@ export default function MindeleevLifeLab(){
       </span>
      </div>
      <p className="ml-minitext">Richiamare costa E; recuperare volontariamente o perdere un Polytrone restituisce ⌊E/2⌋.
-      La sintesi automatica usa invece l'energia dei vicini.</p>
+      Nella sintesi automatica l'energia dei vicini è solo una soglia:
+      non viene sottratta.</p>
     </section>
     <section className="ml-side-card">
      <div className="ml-eyebrow">03 / CHROMATICA</div>
@@ -377,7 +385,8 @@ export default function MindeleevLifeLab(){
      <h2>Tutto è verificabile</h2>
      <div><b>Nascita · B3</b><p>Una cella vuota ha esattamente 3 vicini; almeno 2 sono dello stesso gruppo.</p></div>
      <div><b>Sintesi · +5</b><p>Il figlio è il maggiore dei vicini del gruppo maggioritario, più cinque.</p></div>
-     <div><b>Energia locale</b><p>La somma di E dei 3 vicini deve essere almeno il doppio di E del figlio.</p></div>
+     <div><b>Energia locale</b><p>La somma di E dei 3 vicini deve essere almeno il doppio di E del figlio.
+      In questo prototipo la somma è un requisito, non un trasferimento: i vicini cedono 0 E.</p></div>
      <div><b>Sopravvivenza · S23</b><p>Un Polytrone resta con 2 o 3 vicini; altrimenti torna a casa.</p></div>
      <div><b>Energia intrinseca</b><p>E = 2 + (periodo − 1) + (gruppo − 1) + bonus Chromatica (0–3).</p></div>
      <div><b>Calcolo simultaneo</b><p>Tutti gli esiti sono calcolati dalla stessa configurazione, senza dipendere dall'ordine delle celle.</p></div>
