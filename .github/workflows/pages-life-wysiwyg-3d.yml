@@ -61,6 +61,7 @@ jobs:
           grep -r -q 'Scegli chi richiamare' dist/assets/
           grep -r -q 'Energia ceduta' dist/assets/
           grep -r -q 'Energia attuale' dist/assets/
+          grep -r -q 'Energia intrinseca' dist/assets/
           grep -r -q 'Chromatica · 144 gradienti' dist/assets/
           grep -r -q 'senza wrapping' dist/assets/
           grep -r -q 'Palette originali' dist/assets/
