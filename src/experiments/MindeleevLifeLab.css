@@ -150,3 +150,21 @@
  .ml-stepbar{padding:12px}.ml-step-primary{flex:1}
  .ml-board{min-width:530px}.ml-hero h1{font-size:40px}
 }
+
+/* Sprint 41 · Energy accounting: static selected-cell inspector and
+   hover/focus popover that never intercepts a click on the hexagonal board. */
+.ml-inspector-intro{margin:8px 0 16px;padding-bottom:12px;border-bottom:1px solid #315361}
+.ml-inspector-intro h2{margin:4px 0 8px;font-size:19px}
+.ml-inspector-intro p{margin:0;font-size:12px;color:#b9d5cf}
+.ml-hover-energy{
+ position:fixed;z-index:450;pointer-events:none;
+ max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);
+ overflow:hidden;padding:12px;
+ border:1px solid #6da68f;border-radius:11px;
+ background:linear-gradient(140deg,#142f38,#0b2230);
+ box-shadow:0 16px 45px #0009,0 0 0 2px #18382f;
+}
+@media(max-width:600px){
+ .ml-inspector-intro h2{font-size:17px}
+ .ml-hover-energy{padding:9px}
+}
