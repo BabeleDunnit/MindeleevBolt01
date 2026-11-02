@@ -80,8 +80,9 @@ try{
  const available=life.previewPlacement(nucleus,92,"0,0",11,0,p);
  assert(available.isEmpty&&available.affordable);
  assert.equal(available.cost,4);
- assert.equal(available.newBirths,0,
-  "Adding a polytron on an already synthesized empty cell replaces, not duplicates, that birth");
+ assert(!life.calculateLife(new Map([...nucleus,["0,0",11]]),0)
+  .predictions.get("0,0").outcome.includes("birth"),
+  "The manually occupied cell must not also synthesize a polytron in that same cell");
  const initialNear=life.previewPlacement(new Map([["1,0",1],["-1,0",6]]),90,
   "0,1",2,0);
  assert.equal(initialNear.localBirths.length,1);
