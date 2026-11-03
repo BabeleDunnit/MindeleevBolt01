@@ -116,7 +116,7 @@ try{
   "Manual recovery is full intrinsic energy, without old Life half-refund");
  assert.equal(s.relocate(summoned,"0,0","1,0").board.get("1,0").seal,1);
  assert.equal(s.summon(summoned,"0,0",6),null);
- assert.equal(s.summon(summoned,"1,0",250),null);
+ assert.equal(s.summon(summoned,"1,0",500),null);
  assert.equal(s.summon(blank,"10,10",6),null);
  // Reject stale and double-spent plans even if the caller bypasses preview UI.
  assert.throws(()=>s.commitSpectralFuture(blank,
