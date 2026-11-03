@@ -1,0 +1,101 @@
+/* Mindeleev Spectral Futures · Sprint 43. The established Life WYSIWYG design
+   remains intact on its original route. */
+.ms-page{--ms-teal:#a5e9c7;--ms-violet:#b6b5f0}
+.ms-hero{margin-bottom:18px}
+.ms-hero h1 em{color:#a9e2ce}
+.ms-equation{border-color:#437966;background:linear-gradient(135deg,#183f3a,#172d46)}
+.ms-equation>div{letter-spacing:-.04em}
+.ms-layout{grid-template-columns:minmax(0,1fr) minmax(310px,365px)}
+.ms-seal-count{font-size:11px;white-space:nowrap;display:flex;gap:8px;align-items:center;
+ color:#ccead7;background:#173b3b;border:1px solid #396b61;border-radius:9px;padding:9px 12px}
+.ms-legend{display:flex;flex-wrap:wrap;gap:16px;padding:0 20px 14px;color:#b0c8ca;font-size:11px}
+.ms-legend span{display:flex;align-items:center;gap:7px}
+.ms-legend i{width:11px;height:11px;border-radius:3px;display:inline-block}
+.ms-ghost-swatch{background:#79dbb7;opacity:.5;border:1px dashed #b5f5d2}
+.ms-exit-swatch{background:#ec9587;opacity:.35}
+.ms-stable-swatch{background:#85c2d3}
+.ms-board-frame{position:relative}
+.ms-board{max-height:675px}
+.ms-cell-number{font-size:11px;fill:#e7f4eb;font-weight:800;paint-order:stroke;
+ stroke:#19323b;stroke-width:2px;pointer-events:none}
+.ms-hex.ms-picked polygon{stroke:#f2f3b9;stroke-width:3.4}
+.ms-hex.ms-arriving polygon{fill:#244b45}
+.ms-hex.ms-leaving polygon{fill:#503d43}
+.ms-flight circle{filter:drop-shadow(0 0 12px #abf7da)}
+.ms-futures{padding:20px;border-top:1px solid #315665}
+.ms-future-heading{display:flex;align-items:start;justify-content:space-between;gap:15px}
+.ms-future-heading h2{margin:7px 0}
+.ms-focus{display:flex;align-items:center;gap:7px;font-size:11px;color:#b4dbcf;
+ padding:8px 10px;background:#173c3c;border:1px solid #3a6860;border-radius:8px;cursor:pointer}
+.ms-focus input{accent-color:#94dbb3}
+.ms-hint{font-size:11px;color:#afc6c8;line-height:1.65;margin:3px 0 13px}
+.ms-future-active{display:flex;justify-content:space-between;align-items:center;gap:12px;
+ background:linear-gradient(120deg,#234b46,#1c344b);border:1px solid #538578;
+ border-radius:12px;padding:12px}
+.ms-future-active>button{width:40px;height:40px;flex:0 0 40px;background:#16373b;
+ border:1px solid #416c68;border-radius:9px;color:#def3e6;display:grid;place-items:center}
+.ms-future-active>button:hover{background:#2c5b56}
+.ms-future-title{display:grid;gap:5px;text-align:center;min-width:0}
+.ms-future-title strong{font-size:16px;color:#e7f7ee;overflow-wrap:anywhere}
+.ms-future-title span{font-size:11px;color:#b5d5cf}
+.ms-future-pills{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}
+.ms-future-pills button{width:30px;height:30px;border-radius:7px;background:#17323e;
+ border:1px solid #3d5e69;color:#b6cdd2;font-size:11px;font-weight:750}
+.ms-future-pills button.ms-active{background:#3d7766;border-color:#b3e7ca;color:#fff}
+.ms-future-pills button:hover{border-color:#c1e4bd}
+.ms-energy-sheet{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.ms-energy-item{display:grid;gap:7px;border:1px solid #335464;background:#102c37;
+ border-radius:9px;padding:12px}
+.ms-energy-item span{font-size:10px;color:#9fb9c3;line-height:1.5}
+.ms-energy-item strong{font-size:18px;color:#ebf5f0;font-variant-numeric:tabular-nums}
+.ms-positive{color:#9fe7b1!important}
+.ms-negative{color:#f3b2a7!important}
+.ms-collapse-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-top:16px}
+.ms-collapse-actions button{display:flex;align-items:center;gap:8px;justify-content:center;
+ border-radius:9px;padding:13px 15px;font-weight:800}
+.ms-empty{background:#193341;border:1px dashed #456579;border-radius:10px;
+ padding:20px;color:#c5d9d8;font-size:12px}
+.ms-inspector{padding:19px}
+.ms-inspector h2{margin:10px 0 12px}
+.ms-reaction{border:1px solid #365965;border-radius:9px;background:#122e3b;
+ padding:12px;margin-top:8px;display:grid;gap:8px}
+.ms-reaction>div:first-child{display:flex;justify-content:space-between;gap:10px;
+ flex-wrap:wrap}
+.ms-reaction b{color:#daeee5;font-size:12px}
+.ms-reaction span{font-size:10px;color:#a8c5cb}
+.ms-reaction code{font-size:14px;color:#dcf0bc}
+.ms-reaction-ledger{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.ms-reaction-ledger strong{font-size:13px}
+.ms-identity-note{font-size:11px;line-height:1.7;overflow-wrap:anywhere}
+.ms-presets{display:grid;gap:7px}
+.ms-presets button{display:grid;gap:5px;text-align:left;background:#16313e;
+ border:1px solid #365b6b;border-radius:8px;padding:11px 12px;color:#e3f1ef}
+.ms-presets button.ms-active{background:#285246;border-color:#a3d9c3}
+.ms-presets button strong{font-size:12px}
+.ms-presets button span{font-size:10px;color:#b1c7cc}
+.ms-occupant,.ms-summon{display:grid;gap:10px;margin-top:14px}
+.ms-occupant>strong{color:#d2ecce;font-size:13px}
+.ms-occupant>span,.ms-summon>span{color:#b0ccd0;font-size:11px}
+.ms-actions{display:flex;gap:7px;flex-wrap:wrap}
+.ms-actions button,.ms-summon button{display:flex;align-items:center;justify-content:center;
+ gap:7px;border:1px solid #537f71;background:#286352;color:#ebffef;border-radius:8px;
+ padding:10px;font-weight:700;font-size:11px}
+.ms-actions button:hover,.ms-summon button:hover{background:#337965}
+.ms-summon label{color:#a5c5c8;font-size:11px;font-weight:650}
+.ms-summon input{background:#132e3b;color:#f6fff9;border:1px solid #527383;
+ padding:12px;border-radius:9px;font-size:22px;font-weight:750;max-width:160px}
+.ms-summon button{padding:12px}
+.ms-source-note{display:flex;gap:8px;align-items:start;line-height:1.55;color:#98b7bf;
+ font-size:10px;margin-top:16px;border-top:1px solid #315463;padding-top:12px}
+.ms-source-note svg{flex-shrink:0}
+.ms-rules>div:not(.ml-eyebrow){padding:11px 0;border-bottom:1px solid #30505b}
+.ms-rules b{color:#d4f1e2}
+.ms-rules p{margin:4px 0;color:#abc3c7}
+@media(max-width:1130px){.ms-layout{grid-template-columns:minmax(0,1fr) 315px}
+ .ms-energy-sheet{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:950px){.ms-layout{grid-template-columns:1fr}
+ .ms-energy-sheet{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:620px){.ms-future-heading{display:grid}
+ .ms-futures{padding:14px}.ms-legend{padding:0 13px 13px}
+ .ms-energy-sheet{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .ms-future-title strong{font-size:13px}}
