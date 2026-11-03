@@ -49,12 +49,17 @@ function Flight({trip,kind}:{trip:Journey;kind:"return"|"summon"}){
   <path d={`M ${from.x} ${from.y} Q ${(from.x+to.x)/2} ${(from.y+to.y)/2-75} ${to.x} ${to.y}`}
    fill="none" stroke={kind==="return"?"#ffa796":"#9cf5cb"} strokeOpacity=".35"
    strokeWidth="1.8" strokeDasharray="5 7"/>
-  <circle cx={from.x} cy={from.y} r="10"
-   fill={kind==="return"?"#ffab91":"#a5f4c6"} opacity=".9">
-   <animate attributeName="cx" from={String(from.x)} to={String(to.x)} dur="1.55s" fill="freeze"/>
-   <animate attributeName="cy" from={String(from.y)} to={String(to.y)} dur="1.55s" fill="freeze"/>
-   <animate attributeName="r" values="10;15;7" dur="1.55s" fill="freeze"/>
-  </circle>
+  {/* The shared Three.js renderer tracks this animated SVG viewport:
+      real Conway geometry flies between the individual's home and its tile. */}
+  <g data-life-polytron={dnaFromPolitronNumber(trip.manifestation.number)}
+   data-life-kind="card" data-life-alpha="0.94">
+   <circle cx={from.x} cy={from.y} r="23"
+    fill={kind==="return"?"#ffab91":"#a5f4c6"} opacity=".16">
+    <animate attributeName="cx" from={String(from.x)} to={String(to.x)} dur="1.55s" fill="freeze"/>
+    <animate attributeName="cy" from={String(from.y)} to={String(to.y)} dur="1.55s" fill="freeze"/>
+    <animate attributeName="r" values="23;25;23" dur="1.55s" fill="freeze"/>
+   </circle>
+  </g>
  </g>;
 }
 export default function MindeleevSpectralLab(){
@@ -213,7 +218,7 @@ export default function MindeleevSpectralLab(){
         const changed=changedKeys.has(key),leaving=changed&&now&&!projection;
         const arriving=changed&&projection&&(!now||now.seal!==projection.seal);
         const displayed=leaving?now:projection??now;
-        const alpha=dance?1:arriving?.5:leaving?.23:1;
+        const alpha=dance?(changed?.12:1):arriving?.5:leaving?.23:1;
         const selected=selectedKey===key;
         const {x,y}=xy(q,r),color=displayed?hues[groupOf(displayed.number)-1]:"#3f5b71";
         return <g key={key} className={"ml-hex ms-hex"+(selected?" ms-picked":"")+
