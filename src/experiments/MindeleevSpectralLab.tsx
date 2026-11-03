@@ -3,7 +3,7 @@ import {ArrowRight,Atom,Check,ChevronLeft,ChevronRight,
  Home,Move,RotateCcw,Search,Undo2} from "lucide-react";
 import {dnaFromPolitronNumber} from "@/polytron/politronicNumber";
 import LifePolytron3D from "@/experiments/LifePolytron3D";
-import {allHexes,groupOf,intrinsicEnergy}
+import {allHexes,groupOf,hexKey,intrinsicEnergy}
  from "@/polytron/mindeleevLife";
 import {availableSeals,boardEnergy,commitSpectralFuture,
  enumerateSpectralFutures,invariantTotal,makeSpectralPreset,
