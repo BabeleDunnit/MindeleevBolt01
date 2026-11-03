@@ -30,7 +30,7 @@ export default function LifePolytron3D({row,col,order}:{
   const sun=new THREE.DirectionalLight(0xffffff,2.5);
   sun.position.set(4,5,9);scene.add(sun);
   const mat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.62,
-    metalness:.06,flatShading:true,side:THREE.DoubleSide});
+    metalness:.06,flatShading:true,side:THREE.DoubleSide,transparent:true,opacity:1,depthWrite:true});
   const outlines=new THREE.LineBasicMaterial({color:0xdff5ef,transparent:true,opacity:.43});
   const mesh=new THREE.Mesh(new THREE.BufferGeometry(),mat);
   const edges=new THREE.LineSegments(new THREE.BufferGeometry(),outlines);
@@ -90,6 +90,13 @@ export default function LifePolytron3D({row,col,order}:{
     if(width<12||height<12)continue;
     let geo;
     try{geo=getGeometry(dna);}catch{continue;}
+    // Ghost alpha belongs to this *individual viewport*; it must not leak
+    // from a spectral candidate into the next solid Polytron.
+    const requested=Number(element.getAttribute("data-life-alpha")??"1");
+    const alpha=Number.isFinite(requested)?Math.max(0,Math.min(1,requested)):1;
+    mat.opacity=alpha;
+    mat.depthWrite=alpha>=.99;
+    outlines.opacity=.43*alpha;
     mesh.geometry=geo.solid;edges.geometry=geo.edges;
     group.scale.setScalar(geo.scale);
     group.rotation.y=.65+time*.00026;
