@@ -1,10 +1,9 @@
 import {useEffect,useMemo,useRef,useState} from "react";
 import {ArrowRight,Atom,Check,ChevronLeft,ChevronRight,
- Home,Move,RotateCcw,Search,Split,Undo2,Wallet} from "lucide-react";
+ Home,Move,RotateCcw,Search,Undo2} from "lucide-react";
 import {dnaFromPolitronNumber} from "@/polytron/politronicNumber";
-import {gradientPair} from "@/polytron/gradientPalettes";
 import LifePolytron3D from "@/experiments/LifePolytron3D";
-import {allHexes,groupOf,hexKey,intrinsicEnergy,HEX_DIRECTIONS}
+import {allHexes,groupOf,intrinsicEnergy}
  from "@/polytron/mindeleevLife";
 import {availableSeals,boardEnergy,commitSpectralFuture,
  enumerateSpectralFutures,invariantTotal,makeSpectralPreset,
