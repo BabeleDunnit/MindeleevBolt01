@@ -96,6 +96,8 @@ try{
  assert(x.cells.includes("0,0")&&y.cells.includes("0,0"));
  assert.equal(s.projectSpectralFuture(overlap,[x,y]),null,
   "One Polytron cannot be consumed twice in a realised future");
+ assert.equal(s.enumerateSpectralFutures(overlap,"5,-5").futures.length,0,
+  "A selected-cell filter must never silently show unrelated futures");
  const options=s.enumerateSpectralFutures(overlap,"0,0");
  assert(options.futures.some(f=>f.reactions.some(r=>r.id===x.id)));
  assert(options.futures.some(f=>f.reactions.some(r=>r.id===y.id)));
