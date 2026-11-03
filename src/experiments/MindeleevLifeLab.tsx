@@ -222,6 +222,7 @@ export default function MindeleevLifeLab(){
      <p>Un automa esagonale in cui i Polytroni nascono, sopravvivono e tornano a casa.
       <strong> Sei vicini, regole visibili, sintesi per +5.</strong></p>
      <div className="ml-links">
+      <a href={import.meta.env.BASE_URL+"?experiment=mindeleev-spectral"}>Spectral Futures <ArrowRight size={14}/></a>
       <a href={import.meta.env.BASE_URL+"?experiment=polytron-periodic"}>Tavola periodica <ArrowRight size={14}/></a>
       <a href={import.meta.env.BASE_URL+"?experiment=gradient-palettes"}>Chromatica <ArrowRight size={14}/></a>
      </div>
