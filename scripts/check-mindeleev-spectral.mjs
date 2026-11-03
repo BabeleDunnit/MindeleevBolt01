@@ -133,12 +133,12 @@ try{
  for(const term of ["Mindeleev","Spectral","SPECTRAL FUTURES",
   "Seleziona un futuro","Interferenza","Corona 6","Fissione",
   "72 individui","Energia totale conservata","BUDGET DEL GIOCATORE",
-  "PolytronsDance","α 0,5","INSPECTOR","Collapse","Richiama da casa"]){
+  "PolytronsDance","α 0,5","INSPECTOR","Collapse"]){
   assert(html.toLowerCase().includes(term.toLowerCase()),"Missing UI term "+term);
  }
  assert.equal((html.match(/role="button"/g)??[]).length,127);
  const source=await readFile("src/experiments/MindeleevSpectralLab.tsx","utf8");
- for(const term of ["data-life-alpha","active.departures","active.arrivals",
+ for(const term of ["Richiama da casa","data-life-alpha","active.departures","active.arrivals",
   "setDance({future})","commitSpectralFuture","setSelectedFutureId",
   "enumerateSpectralFutures","aria-pressed","ms-future-pills",
   'role="status"']){
