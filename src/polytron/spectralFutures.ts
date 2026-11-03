@@ -259,8 +259,8 @@ export function enumerateSpectralFutures(
  state:SpectralState,focus:string|null=null,limit=24
 ):FuturesCatalog{
  const reactions=findSpectralReactions(state);
- const focused=focus===null?reactions:reactions.filter(r=>r.footprint.includes(focus));
- const candidates=focused.length?focused:reactions;
+ const candidates=focus===null?reactions:
+  reactions.filter(r=>r.footprint.includes(focus));
  const futures:SpectralFuture[]=[],seen=new Set<string>();
  const append=(choice:Reaction[])=>{
   const future=projectSpectralFuture(state,choice);
