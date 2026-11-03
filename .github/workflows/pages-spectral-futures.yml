@@ -1,0 +1,70 @@
+name: Pages · Mindeleev Spectral Futures (Sprint 43)
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experiments/sprint43-spectral-futures
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: mindeleev-pages
+  cancel-in-progress: false
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: phase-lab
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - name: Spectral symmetries, 72 stable names, energy conservation and atomic futures
+        run: node scripts/check-mindeleev-spectral.mjs
+      - name: Prior Mindeleev Life WYSIWYG and energy regression
+        run: node scripts/check-mindeleev-life.mjs
+      - name: Periodic table, Chromatica and geometry regression
+        run: |
+          node scripts/check-chromatica-periodic.mjs
+          node scripts/check-gradient-palettes.mjs
+          node scripts/check-polytron-periodic.mjs
+          node scripts/check-face-color-usage.mjs
+          node scripts/check-geometry-equivalence.mjs
+          node scripts/check-shapedna-v2.mjs
+          node scripts/check-shape-dna.mjs
+      - name: Mutatron physics and interactive regression
+        run: |
+          node scripts/check-orbital-mut.mjs
+          node scripts/check-multi-inspector.mjs
+          node scripts/check-hex-editor.mjs
+          node scripts/check-live-controls.mjs
+          node scripts/check-shape-equilibrium.mjs
+          node scripts/check-rapier-picking.mjs
+          node scripts/check-phase.mjs
+      - name: Generate phenotype atlas and build
+        run: |
+          node scripts/build-phenotype-atlas.mjs
+          npm run build
+      - name: Verify production bundle includes spectral UI
+        run: |
+          test -f dist/index.html
+          grep -r -q 'SPECTRAL FUTURES' dist/assets/
+          grep -r -q 'Seleziona questo futuro' dist/assets/
+          grep -r -q 'Energia totale' dist/assets/
+          grep -r -q 'PolytronsDance' dist/assets/
+          grep -r -q 'Mindeleev Life originale' dist/assets/
+          grep -r -q 'Energia intrinseca' dist/assets/
+          test -f dist/phenotype-atlas.json
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+      - id: deployment
+        uses: actions/deploy-pages@v4
