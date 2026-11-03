@@ -141,7 +141,8 @@ try{
  for(const term of ["Richiama da casa","data-life-alpha","active.departures","active.arrivals",
   "setDance({future})","commitSpectralFuture","setSelectedFutureId",
   "enumerateSpectralFutures","aria-pressed","ms-future-pills",
-  'role="status"']){
+  'role="status"','data-life-polytron={dnaFromPolitronNumber(trip.manifestation.number)}',
+  'data-life-kind="card"']){
   assert(source.includes(term),"Missing interactive implementation "+term);
  }
  const scene=await readFile("src/experiments/LifePolytron3D.tsx","utf8");
