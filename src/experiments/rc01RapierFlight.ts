@@ -6,11 +6,14 @@
  * Rapier integrates velocity, mass, torque and restitution at 120 Hz; capture
  * is armed only by a Rapier COLLISION EVENT, never by a proximity threshold.
  *
- * The player's tile decision remains deterministic: a damped spring pulls the
- * attacker toward the nominated tile and its final logical position snaps to
- * that tile only after the physical performance has completed. On an actual
- * collision, a directed "return home" field assists the departing opponent.
- * That field is a GAME LAW, not an assertion of purely passive mechanics.
+ * The tile decision is deterministic, but animation ends ONLY after the
+ * physical body actually settles: no completion based on a hard-coded flight
+ * duration, no visible reset of position or orientation.
+ *
+ * Polytrons hover in a zero-gravity 3D environment. There is deliberately NO
+ * Rapier ground or boundary to bounce against; the target attractor supplies
+ * vertical restoring forces. After a real collision, a one-way homeward field
+ * carries the victim out of view without a floor/viewport bounce.
  */
 import * as RAPIER from "@dimforge/rapier3d-compat";
 import {polytronGeometry} from "@/polytron/polytron";
@@ -19,9 +22,14 @@ import type {RCBoard,RCCell} from "@/polytron/rc01Board";
 import {rcScreenWorld} from "@/experiments/rc01ThreeScene";
 
 export const RC_RAPIER_FIXED_STEP=1/120;
-const MAX_SECONDS=4.0;
-const MIN_MOVE_TIME=.45;
-const MIN_CAPTURE_TIME=.95;
+const MAX_SECONDS=5.0; // failure guard only: never commits an unsettled move
+const MIN_MOVE_TIME=.25;
+const MIN_CAPTURE_TIME=.65;
+const REST_WINDOW=.14;
+const ATTRACTOR_OMEGA=7.4;
+const ATTRACTOR_DAMPING_RATIO=.88;
+const ATTRACTOR_K=ATTRACTOR_OMEGA*ATTRACTOR_OMEGA;
+const ATTRACTOR_D=2*ATTRACTOR_DAMPING_RATIO*ATTRACTOR_OMEGA;
 export type RCPhysicsPose={
  seal:number;
  position:{x:number;y:number;z:number};
@@ -84,6 +92,7 @@ export class RC01RapierFlight{
  private collided=false;
  private ended=false;
  private succeeded=false;
+ private restSeconds=0;
  private constructor(args:RCPhysicsStart,world:RAPIER.World,queue:RAPIER.EventQueue,
    attacker:ActorBody,victim:ActorBody|null,radius:number){
   this.board=args.board;this.world=world;this.queue=queue;
@@ -101,27 +110,25 @@ export class RC01RapierFlight{
  }
  static async create(args:RCPhysicsStart):Promise<RC01RapierFlight>{
   await RAPIER.init();
-  const world=new RAPIER.World(vec(0,0,-55));
+  // Zero gravity: floating Polytrons should not continuously strike a floor.
+  // Their height is maintained by the same damped attractor as x and y.
+  const world=new RAPIER.World(vec(0,0,0));
   world.timestep=RC_RAPIER_FIXED_STEP;
   const queue=new RAPIER.EventQueue(true);
-  // Common physical ground: no piece can fall through the board. Bodies are
-  // fully dynamic in x, y and z, with genuine angular inertia.
-  world.createCollider(
-   RAPIER.ColliderDesc.cuboid(args.board.width*1.7,args.board.height*1.7,3)
-    .setTranslation(0,0,0).setRestitution(.52).setFriction(.38)
-  );
+  // NO floor and NO lateral world boundaries: expelled bodies depart cleanly.
+  // Both bodies are still real Rapier dynamic rigid bodies with 3D hulls.
   const radius=rcRapierPawnRadius(args.board);
   const height=radius+4;
   const add=(pawn:RCPawn,where:RCCell,rotation?:RCPhysicsStart["attackerRotation"]):ActorBody=>{
    const xy=rcScreenWorld(args.board,where,height);
    const desc=RAPIER.RigidBodyDesc.dynamic()
     .setTranslation(xy.x,xy.y,xy.z)
-    .setLinearDamping(.22).setAngularDamping(.58)
+    .setLinearDamping(.15).setAngularDamping(1.45)
     .setCanSleep(false).setCcdEnabled(true);
    if(rotation)desc.setRotation(rotation);
    const body=world.createRigidBody(desc);
    const cdesc=makeRCPhysicalCollider(pawn,radius)
-    .setRestitution(.80).setFriction(.25)
+    .setRestitution(.46).setFriction(.18)
     .setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS)
     .setMass(1.2+Math.min(2,pawn.number/24));
    const collider=world.createCollider(cdesc,body);
@@ -130,10 +137,8 @@ export class RC01RapierFlight{
   const attacker=add(args.attacker,args.from,args.attackerRotation);
   const victim=args.victim?add(args.victim,args.to,args.victimRotation):null;
   const flight=new RC01RapierFlight(args,world,queue,attacker,victim,radius);
-  // Initial push is a physical impulse; the spring then pulls toward the
-  // destination. No linear interpolation, tween, or forced path keyframes.
-  const dir=flight.away;
-  attacker.body.applyImpulse(vec(dir.x*7,dir.y*7,4),true);
+  // Start at rest: the body ACCELERATES under the target attraction instead
+  // of receiving an instantaneous launch impulse.
   return flight;
  }
  get impactCount(){return this.hits;}
@@ -149,29 +154,29 @@ export class RC01RapierFlight{
   const body=this.attacker.body;
   const p=body.translation(),v=body.linvel();
   const mass=body.mass();
-  // Under-damped second-order controller: it accelerates into the target,
-  // decelerates before arrival, and can genuinely overshoot and rebound.
-  const spring=21,damping=5.2;
+  // F = m * (omega² * error - 2*zeta*omega * velocity).
+  // zeta = .88 means a small, quickly fading overshoot (never endless
+  // oscillation). The time constant is independent of trip distance and mass.
+  const spring=ATTRACTOR_K,damping=ATTRACTOR_D;
   body.addForce(vec(
    mass*(spring*(this.target.x-p.x)-damping*v.x),
    mass*(spring*(this.target.y-p.y)-damping*v.y),
-   mass*(32*(this.target.z-p.z)-8*v.z)
+   mass*(spring*(this.target.z-p.z)-damping*v.z)
   ),true);
  }
  private applyHomeField(){
   if(!this.collided||!this.victim)return;
-  const body=this.victim.body,p=body.translation();
-  const mass=body.mass();
-  const outward=this.away;
-  // Once the REAL contact occurs, the house draws the departing individual.
-  // This authored field acts on the rigid body, not on its rendered mesh.
-  const projection=p.x*outward.x+p.y*outward.y;
-  const additional=projection<Math.max(this.board.width,this.board.height)?
-   1250:0;
+  const body=this.victim.body;
+  const mass=body.mass(),v=body.linvel(),outward=this.away;
+  // A one-way attraction to an invisible home (outside the viewport).
+  // Drag acts only along the outward component. With no ground, screen wall
+  // or target restoring force on this body it cannot bounce at the edge.
+  const radialVelocity=v.x*outward.x+v.y*outward.y;
+  const drive=Math.max(0,1500-2.4*radialVelocity);
   body.addForce(vec(
-   mass*(additional*outward.x+120*this.away.y),
-   mass*(additional*outward.y-120*this.away.x),
-   mass*(260-10*body.linvel().z)
+   mass*drive*outward.x,
+   mass*drive*outward.y,
+   mass*(170-3*v.z)
   ),true);
  }
  step():RCPhysicsFrame{
@@ -193,24 +198,31 @@ export class RC01RapierFlight{
   });
   const p=this.attacker.body.translation(),v=this.attacker.body.linvel();
   const near=Math.hypot(p.x-this.target.x,p.y-this.target.y);
+  const heightError=Math.abs(p.z-this.target.z);
   const speed=Math.hypot(v.x,v.y);
+  const verticalSpeed=Math.abs(v.z);
   const elapsed=this.seconds;
+  const nearEnough=near<Math.max(.6,this.radius*.035)&&
+   heightError<Math.max(.6,this.radius*.05)&&
+   speed<2.5&&verticalSpeed<2.5;
+  // A short window of actual near-rest motion eliminates false success
+  // while crossing the target at high speed. The visible "snap" is <1px.
+  this.restSeconds=nearEnough?this.restSeconds+RC_RAPIER_FIXED_STEP:0;
+  const rested=this.restSeconds>=REST_WINDOW;
   if(this.victim){
-   const left=this.collided&&(
-    Math.hypot(this.victim.body.translation().x-this.target.x,
-     this.victim.body.translation().y-this.target.y)>
-       Math.max(4*this.radius,2.5*this.board.size));
-   if(this.collided&&elapsed>=MIN_CAPTURE_TIME&&
-     (left&&(near<this.radius*.65||elapsed>2.5))){
+   const vpos=this.victim.body.translation();
+   const left=Math.hypot(vpos.x-this.target.x,vpos.y-this.target.y)>
+    Math.max(3*this.radius,2.3*this.board.size);
+   if(this.collided&&elapsed>=MIN_CAPTURE_TIME&&left&&rested){
     this.ended=true;this.succeeded=true;
    }
-  }else if(elapsed>=MIN_MOVE_TIME&&near<this.radius*.13&&speed<14){
+  }else if(elapsed>=MIN_MOVE_TIME&&rested){
    this.ended=true;this.succeeded=true;
   }
-  if(elapsed>=MAX_SECONDS){
+  if(elapsed>=MAX_SECONDS&&!this.ended){
    this.ended=true;
-   // Captures may never commit without a genuine collision.
-   this.succeeded=this.victim?this.collided:true;
+   // Timeout is an abort, NOT success: never teleport an unsettled body.
+   this.succeeded=false;
   }
   return this.snapshot();
  }
