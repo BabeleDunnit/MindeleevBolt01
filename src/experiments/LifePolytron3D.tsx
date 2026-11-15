@@ -11,8 +11,8 @@ import type {GradientSelection,GradientOrder} from "@/polytron/gradientFacePalet
  * pitch; interactive SVG/picker controls remain above/below an inert canvas.
  * Geometry and face colours are real canonical Conway/Chromatica models.
  */
-export default function LifePolytron3D({row,col,order}:{
- row:number;col:number;order:GradientOrder
+export default function LifePolytron3D({row,col,order,scope,canvasClassName="ml-shared-3d"}:{
+ row:number;col:number;order:GradientOrder;scope?:string;canvasClassName?:string
 }){
  const node=useRef<HTMLCanvasElement>(null);
  useEffect(()=>{
@@ -75,8 +75,11 @@ export default function LifePolytron3D({row,col,order}:{
    renderer.setScissorTest(true);
    renderer.setViewport(0,0,w,h);renderer.setScissor(0,0,w,h);
    renderer.clear(true,true,true);
+   // When RC01 supplies a scope, its local board canvas only paints board
+   // Polytrons, and a separate sheet canvas paints the inspector model.
+   // The older labs retain their original global single-canvas behaviour.
    const viewports=document.querySelectorAll<SVGGraphicsElement|HTMLElement>(
-    "[data-life-polytron]"
+    scope?scope+" [data-life-polytron]":"[data-life-polytron]"
    );
    for(const element of viewports){
     const dna=element.getAttribute("data-life-polytron");
@@ -137,6 +140,6 @@ export default function LifePolytron3D({row,col,order}:{
    mesh.geometry.dispose();edges.geometry.dispose();
    mat.dispose();outlines.dispose();renderer.dispose();
   };
- },[row,col,order]);
- return <canvas ref={node} className="ml-shared-3d" aria-hidden="true"/>;
+ },[row,col,order,scope]);
+ return <canvas ref={node} className={canvasClassName} aria-hidden="true"/>;
 }
