@@ -16,6 +16,7 @@ export default function MindeleevRC01(){
   [viewport.width,viewport.height]);
  const [game,setGame]=useState<RCGame|null>(null);
  const [sheet,setSheet]=useState<Sheet>(null);
+ const [physicsBusy,setPhysicsBusy]=useState(false);
  useEffect(()=>{
   const node=stageRef.current;if(!node)return;
   const measure=()=>{
@@ -50,6 +51,7 @@ export default function MindeleevRC01(){
   });
  };
  const reset=()=>{
+  if(physicsBusy)return;
   setSheet(null);
   setGame(initialRCGame(board));
  };
@@ -66,12 +68,13 @@ export default function MindeleevRC01(){
   <section className="rc01-board-stage" ref={stageRef}
    aria-label="Mutatron 3D, scacchiera tattile">
    <RC01ThreeBoard board={board} game={game}
-    onSelect={select} onCommitMove={commitMove}/>
+    onSelect={select} onCommitMove={commitMove}
+    onBusyChange={setPhysicsBusy}/>
    <div className="rc01-scene-count" aria-hidden="true">
     <span className="rc01-scene-dot"/> {game?.pawns.length??5} / 72 IN SCENA
    </div>
    <button type="button" className="rc01-reset" aria-label="Nuova partita casuale"
-    onClick={reset}>↻</button>
+    disabled={physicsBusy} onClick={reset}>↻</button>
   </section>
   {/* Announcement for assistive technologies, not a visible status strip. */}
   <p className="rc01-visually-hidden" role="status" aria-live="polite">
