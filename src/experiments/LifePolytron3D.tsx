@@ -41,14 +41,14 @@ export default function LifePolytron3D({row,col,order}:{
    solid:THREE.BufferGeometry;edges:THREE.BufferGeometry;scale:number
   }>();
   const MAX_CACHED=70;
-  const getGeometry=(dna:string)=>{
-   const found=cache.get(dna);
-   if(found){cache.delete(dna);cache.set(dna,found);return found;}
-   const geo=polytronGeometry(dna,undefined,selection);
+  const getGeometry=(dna:string,custom:GradientSelection,key:string)=>{
+   const found=cache.get(key);
+   if(found){cache.delete(key);cache.set(key,found);return found;}
+   const geo=polytronGeometry(dna,undefined,custom);
    geo.solid.computeBoundingSphere();
    const radius=geo.solid.boundingSphere?.radius??2;
    const value={...geo,scale:1.25/Math.max(.2,radius)};
-   cache.set(dna,value);
+   cache.set(key,value);
    if(cache.size>MAX_CACHED){
     const oldest=cache.keys().next().value;
     if(oldest!==undefined){
@@ -78,8 +78,10 @@ export default function LifePolytron3D({row,col,order}:{
     const box=element.getBoundingClientRect();
     if(box.right<0||box.left>=w||box.bottom<0||box.top>=h)continue;
     const isCard=element.getAttribute("data-life-kind")==="card";
-    const size=isCard?Math.min(box.width,box.height)*.8:
-      Math.min(box.width,box.height)*.66;
+    const scaleOverride=Number(element.getAttribute("data-life-scale"));
+    const scale=Number.isFinite(scaleOverride)&&scaleOverride>0&&scaleOverride<=1.4?
+      scaleOverride:(isCard?.8:.66);
+    const size=Math.min(box.width,box.height)*scale;
     const centerX=(box.left+box.right)/2;
     const centerY=(box.top+box.bottom)/2-(isCard?0:box.height*.12);
     const x=Math.max(0,Math.round(centerX-size/2));
@@ -88,8 +90,16 @@ export default function LifePolytron3D({row,col,order}:{
     const top=Math.min(h,Math.round(h-centerY+size/2));
     const width=right-x,height=top-y;
     if(width<12||height<12)continue;
+    const customRow=Number(element.getAttribute("data-life-palette-row"));
+    const customCol=Number(element.getAttribute("data-life-palette-col"));
+    const hasCustom=element.hasAttribute("data-life-palette-row")&&
+     element.hasAttribute("data-life-palette-col");
+    const useRow=hasCustom?customRow:row,useCol=hasCustom?customCol:col;
     let geo;
-    try{geo=getGeometry(dna);}catch{continue;}
+    try{
+     const custom=hasCustom?{pair:gradientPair(useRow,useCol),order}:selection;
+     geo=getGeometry(dna,custom,dna+"|"+useRow+"|"+useCol+"|"+order);
+    }catch{continue;}
     // Ghost alpha belongs to this *individual viewport*; it must not leak
     // from a spectral candidate into the next solid Polytron.
     const requested=Number(element.getAttribute("data-life-alpha")??"1");
