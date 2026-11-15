@@ -15,7 +15,7 @@
 import * as RAPIER from "@dimforge/rapier3d-compat";
 import {polytronGeometry} from "@/polytron/polytron";
 import {pawnDNA,pawnPalette,type RCPawn} from "@/polytron/rc01Game";
-import type {RCBoard,RCPoint} from "@/polytron/rc01Board";
+import type {RCBoard,RCCell} from "@/polytron/rc01Board";
 import {rcScreenWorld} from "@/experiments/rc01ThreeScene";
 
 export const RC_RAPIER_FIXED_STEP=1/120;
@@ -61,7 +61,7 @@ export function makeRCPhysicalCollider(pawn:RCPawn,radius:number):RAPIER.Collide
  return hull??RAPIER.ColliderDesc.ball(radius*.78);
 }
 export type RCPhysicsStart={
- board:RCBoard;from:RCPoint;to:RCPoint;attacker:RCPawn;
+ board:RCBoard;from:RCCell;to:RCCell;attacker:RCPawn;
  victim:RCPawn|null;attackerRotation?:{x:number;y:number;z:number;w:number};
  victimRotation?:{x:number;y:number;z:number;w:number};
 };
@@ -89,7 +89,7 @@ export class RC01RapierFlight{
   this.board=args.board;this.world=world;this.queue=queue;
   this.attacker=attacker;this.victim=victim;this.radius=radius;
   this.attackerSeal=args.attacker.seal;this.victimSeal=args.victim?.seal??null;
-  this.from=args.attacker.cellKey;this.to=args.victim?.cellKey??"";
+  this.from=args.from.key;this.to=args.to.key;
   const xy=rcScreenWorld(args.board,args.to);
   const origin=rcScreenWorld(args.board,args.from);
   const z=radius+4;
@@ -112,7 +112,7 @@ export class RC01RapierFlight{
   );
   const radius=rcRapierPawnRadius(args.board);
   const height=radius+4;
-  const add=(pawn:RCPawn,where:RCPoint,rotation?:RCPhysicsStart["attackerRotation"]):ActorBody=>{
+  const add=(pawn:RCPawn,where:RCCell,rotation?:RCPhysicsStart["attackerRotation"]):ActorBody=>{
    const xy=rcScreenWorld(args.board,where,height);
    const desc=RAPIER.RigidBodyDesc.dynamic()
     .setTranslation(xy.x,xy.y,xy.z)
