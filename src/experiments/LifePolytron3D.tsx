@@ -38,7 +38,7 @@ export default function LifePolytron3D({row,col,order}:{
   const camera=new THREE.PerspectiveCamera(36,1,.05,60);
   camera.position.set(3,2.5,6.4);camera.lookAt(0,0,0);
   const cache=new Map<string,{
-   solid:THREE.BufferGeometry;edges:THREE.BufferGeometry;scale:number
+   solid:THREE.BufferGeometry;edges:THREE.BufferGeometry;scale:number;center:THREE.Vector3
   }>();
   const MAX_CACHED=70;
   const getGeometry=(dna:string,custom:GradientSelection,key:string)=>{
@@ -47,7 +47,8 @@ export default function LifePolytron3D({row,col,order}:{
    const geo=polytronGeometry(dna,undefined,custom);
    geo.solid.computeBoundingSphere();
    const radius=geo.solid.boundingSphere?.radius??2;
-   const value={...geo,scale:1.25/Math.max(.2,radius)};
+   const value={...geo,scale:1.25/Math.max(.2,radius),
+    center:geo.solid.boundingSphere?.center.clone()??new THREE.Vector3()};
    cache.set(key,value);
    if(cache.size>MAX_CACHED){
     const oldest=cache.keys().next().value;
@@ -83,7 +84,11 @@ export default function LifePolytron3D({row,col,order}:{
       scaleOverride:(isCard?.8:.66);
     const size=Math.min(box.width,box.height)*scale;
     const centerX=(box.left+box.right)/2;
-    const centerY=(box.top+box.bottom)/2-(isCard?0:box.height*.12);
+    // Prior Life lab intentionally floats polyhedra 12% above their viewport.
+    // RC01 explicitly requests centre alignment instead, so the model's
+    // projected centre coincides with the geometric centre of the hexagon.
+    const preciseCenter=element.getAttribute("data-life-center")==="true";
+    const centerY=(box.top+box.bottom)/2-(preciseCenter||isCard?0:box.height*.12);
     const x=Math.max(0,Math.round(centerX-size/2));
     const y=Math.max(0,Math.round(h-centerY-size/2));
     const right=Math.min(w,Math.round(centerX+size/2));
@@ -108,6 +113,13 @@ export default function LifePolytron3D({row,col,order}:{
     mat.depthWrite=alpha>=.99;
     outlines.opacity=.43*alpha;
     mesh.geometry=geo.solid;edges.geometry=geo.edges;
+    // Conway polyhedra are not guaranteed to be centred on (0,0,0).
+    // For the board, remove any offset BEFORE rotating; otherwise the
+    // apparent model would orbit around, not sit at, the hex centre.
+    if(preciseCenter){
+     mesh.position.copy(geo.center).multiplyScalar(-1);
+     edges.position.copy(geo.center).multiplyScalar(-1);
+    }else{mesh.position.set(0,0,0);edges.position.set(0,0,0);}
     group.scale.setScalar(geo.scale);
     group.rotation.y=.65+time*.00026;
     group.rotation.x=.25+Math.sin(time*.00023)*.10;
