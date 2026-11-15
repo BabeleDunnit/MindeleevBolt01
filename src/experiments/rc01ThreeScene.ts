@@ -132,6 +132,8 @@ export function createRC3DWorld(board:RCBoard){
   const loc=rcScreenWorld(board,core,4.2);
   ring.position.copy(loc);scene.add(ring);
  }
+ // Tiles must be pickable immediately, even before the first render frame.
+ scene.updateMatrixWorld(true);
  const shadowGeometry=new THREE.CircleGeometry(board.size*.58,36);
  const shadowMaterial=new THREE.MeshBasicMaterial({
   color:0x254e41,transparent:true,opacity:.10,depthWrite:false
