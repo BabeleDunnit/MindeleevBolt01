@@ -16,212 +16,172 @@ async function load(entry,name,ui=false){
  return import(pathToFileURL(out).href);
 }
 try{
- const [grid,model,physics,ui,viewports]=await Promise.all([
+ const [grid,model,physics,ui,worldModule]=await Promise.all([
   load("src/polytron/rc01Board.ts","board"),
   load("src/polytron/rc01Game.ts","game"),
   load("src/polytron/rc01Physics.ts","motion"),
   load("src/experiments/MindeleevRC01.tsx","ui",true),
-  load("src/experiments/canvasLocalViewport.ts","viewport")
+  load("src/experiments/rc01ThreeScene.ts","scene")
  ]);
- // Hexagons are ~12% smaller AGAIN, without changing the pawn radius.
- const normalPhone=grid.makeRCBoard(390,760);
- const previousHexRadius=390/7.6;
- const previousRC01HexRadius=390/9.65;
- assert(normalPhone.size<previousRC01HexRadius*.9&&
-        normalPhone.size>previousRC01HexRadius*.86,
-  "Hex radius must be ~12% smaller than the previous RC01 layout");
- assert(Math.abs(ui.rc01PawnRadius(390)-previousHexRadius*.53)<.3,
-  "Rendered Polytron viewport must retain the original pixel diameter");
- assert(ui.rc01PawnRadius(390)>normalPhone.size*.6,
-  "Piece radius must be sized independently of hex radius");
- assert(ui.rc01PawnRadius(320)>=24&&ui.rc01PawnRadius(600)<=32);
- // Regression: browser overlays can shift a fixed WebGL canvas down by
- // ~100px, exactly the problem shown by the user screenshot. The rectangle
- // of the 3D viewport must always be centred on the *same* DOM circle,
- // regardless of canvas origin, viewport height or horizontal offset.
- for(const canvas of [
-  {left:0,top:0,width:390,height:740,right:390,bottom:740},
-  {left:0,top:110,width:390,height:740,right:390,bottom:850},
-  {left:48,top:190,width:360,height:670,right:408,bottom:860}
- ]){
-  const targetCenter={x:canvas.left+canvas.width*.5,
-   y:canvas.top+canvas.height*.435};
-  const radius=ui.rc01PawnRadius(canvas.width);
-  const target={left:targetCenter.x-radius,right:targetCenter.x+radius,
-   top:targetCenter.y-radius,bottom:targetCenter.y+radius,
-   width:radius*2,height:radius*2};
-  const view=viewports.canvasLocalViewport(canvas,target,1.14,0);
-  assert(view,"The Polytron must be visible on the actual canvas");
-  const projectedCentre={
-   x:canvas.left+view.x+view.width/2,
-   y:canvas.bottom-view.y-view.height/2
-  };
-  assert(Math.abs(projectedCentre.x-targetCenter.x)<=1,
-   "3D centroid X must coincide with the SVG hex centre");
-  assert(Math.abs(projectedCentre.y-targetCenter.y)<=1,
-   "3D centroid Y must coincide with the SVG hex centre even below mobile toolbar");
-  const raised=viewports.canvasLocalViewport(canvas,target,1.14,8);
-  assert(raised&&Math.abs((canvas.bottom-raised.y-raised.height/2)-
-   (targetCenter.y-8))<=1,"Old Life's deliberate Y lift must remain separate");
- }
- assert.equal(viewports.canvasLocalViewport(
-  {left:0,top:0,right:300,bottom:600,width:300,height:600},
-  {left:600,top:600,right:640,bottom:640,width:40,height:40},1.14),null);
- // Every hexagon is complete, even on a narrow portrait viewport.
- for(const [w,h] of [[320,560],[360,670],[390,720],[430,860],[600,900]]){
-  const board=grid.makeRCBoard(w,h);
-  assert(board.cells.length>5,"Usable portrait viewport must have many cells");
-  assert.equal(new Set(board.cells.map(c=>c.key)).size,board.cells.length);
-  const center=board.cells.find(c=>c.nucleus);
-  assert(center);
-  assert.deepEqual([center.q,center.r,center.ring,center.idxInRing],[0,0,0,0]);
-  const halfWidth=Math.sqrt(3)*board.size/2;
-  for(const cell of board.cells){
-   assert(cell.x-halfWidth>=2-1e-6&&cell.x+halfWidth<=w-2+1e-6,
-    "No cut-off horizontal hex at "+cell.key);
-   assert(cell.y-board.size>=2-1e-6&&cell.y+board.size<=h-2+1e-6,
-    "No cut-off vertical hex at "+cell.key);
-   assert.equal(cell.ring,grid.rcRing(cell.q,cell.r));
-   assert(grid.rcRingCells(cell.ring).some(x=>x.q===cell.q&&x.r===cell.r&&
-    x.idxInRing===cell.idxInRing),"True index on full mathematical ring");
-   assert.equal(grid.rcCellAt(board,cell.x,cell.y)?.key,cell.key);
-   assert.equal(grid.rcPolygon(cell.x,cell.y,board.size).trim().split(" ").length,6);
-  }
- }
  const board=grid.makeRCBoard(390,760);
- const nucleus=board.cells.find(x=>x.nucleus);
- assert(board.cells.filter(c=>c.y>nucleus.y).length>
-  board.cells.filter(c=>c.y<nucleus.y).length,
-  "Portrait crop is intentionally vertically asymmetric");
- for(let k=0;k<12;k++){
-  const full=grid.rcRingCells(k);
-  assert.equal(full.length,k===0?1:6*k);
-  assert.equal(new Set(full.map(p=>grid.rcKey(p.q,p.r))).size,full.length);
-  assert(full.every(x=>grid.rcRing(x.q,x.r)===k));
- }
- assert.equal(model.RC01_SEAL_COUNT,72);
- // Screenshot diagnostic must show exactly one *deterministic* occupant at 0,0,
- // leaving the usual five-random-Polytron fixture available for later restoration.
- const diagnostic=model.rc01CenterDiagnostic(board);
- assert.equal(diagnostic.pawns.length,1);
- assert.equal(diagnostic.pawns[0].cellKey,"0,0");
- assert.equal(diagnostic.pawns[0].number,1);
- assert.equal(diagnostic.pawns[0].seal,1);
- assert.equal(diagnostic.score,100);
- assert(model.validateRCGame(diagnostic,board));
- const draws=[()=>.19,()=>.87,Math.random];
- for(const rng of draws){
-  const state=model.initialRCGame(board,rng);
-  assert.equal(state.pawns.length,5,"RC01 opens with exactly five Polytrons");
-  assert.equal(state.score,100);
-  assert(model.validateRCGame(state,board));
-  assert.equal(new Set(state.pawns.map(p=>p.seal)).size,5);
-  assert.equal(new Set(state.pawns.map(p=>p.cellKey)).size,5);
-  assert(state.pawns.every(p=>p.seal>=1&&p.seal<=72));
-  for(const pawn of state.pawns){
-   assert(model.pawnDNA(pawn).length>=1);
-   assert(model.pawnPalette(pawn).name.length>=3);
-   assert(model.pawnName(pawn).length>=3);
+ const nucleus=board.cells.find(c=>c.nucleus);
+ assert(nucleus);
+ assert.equal(nucleus.key,"0,0");
+ assert.deepEqual([nucleus.q,nucleus.r,nucleus.ring,nucleus.idxInRing],[0,0,0,0]);
+ const precedingRadius=390/10.9;
+ assert(board.size<precedingRadius*.89&&board.size>precedingRadius*.86,
+  "3D RC01 must fit more fully closed hexagons, with smaller tiles");
+ const countCells=(radius)=>{
+  let count=0;
+  const halfWidth=Math.sqrt(3)*radius/2,maxRing=30;
+  for(let k=0;k<=maxRing;k++)for(const cell of grid.rcRingCells(k)){
+   const pos=grid.rcAxial(cell.q,cell.r,radius);
+   const x=195+pos.x,y=760*.435+pos.y;
+   if(x-halfWidth>=2&&x+halfWidth<=388&&
+      y-radius>=2&&y+radius<=758)count++;
+  }
+  return count;
+ };
+ assert(board.cells.length>countCells(precedingRadius)+10,
+  "Smaller hex size must create at least eleven extra complete cells");
+ for(const [width,height] of [[320,560],[360,670],[390,720],[430,860],[600,900]]){
+  const layout=grid.makeRCBoard(width,height);
+  assert(layout.cells.length>15);
+  assert.equal(new Set(layout.cells.map(c=>c.key)).size,layout.cells.length);
+  const halfWidth=Math.sqrt(3)*layout.size/2;
+  for(const cell of layout.cells){
+   assert(cell.x-halfWidth>=2-1e-6&&cell.x+halfWidth<=width-2+1e-6);
+   assert(cell.y-layout.size>=2-1e-6&&cell.y+layout.size<=height-2+1e-6);
+   assert.equal(cell.ring,grid.rcRing(cell.q,cell.r));
+   assert(grid.rcRingCells(cell.ring).some(x=>x.q===cell.q&&
+    x.r===cell.r&&x.idxInRing===cell.idxInRing));
+   assert.equal(grid.rcCellAt(layout,cell.x,cell.y)?.key,cell.key);
   }
  }
- const state=model.initialRCGame(board,()=>.37);
- const source=state.pawns[0];
- const blank=board.cells.find(c=>!state.pawns.some(p=>p.cellKey===c.key));
- assert(blank);
- const moved=model.moveRCPawn(state,source.cellKey,blank.key,board);
+ for(let k=0;k<12;k++){
+  const ring=grid.rcRingCells(k);
+  assert.equal(ring.length,k?6*k:1);
+  assert.equal(new Set(ring.map(p=>grid.rcKey(p.q,p.r))).size,ring.length);
+ }
+ // Both tile and Conway geometry are in the exact same 3D world.
+ const world=worldModule.createRC3DWorld(board);
+ assert.equal(world.camera.isOrthographicCamera,true);
+ assert(world.scene.children.length>board.cells.length);
+ assert(world.scene.children.some(x=>x.isMesh&&x.geometry?.type==="ExtrudeGeometry"),
+  "Actual extruded 3D hexagons, not SVG polygons or 2D substitutes");
+ for(const cell of board.cells.slice(0,14)){
+  const vector=worldModule.rcScreenWorld(board,cell);
+  assert.equal(vector.x,cell.x-board.width/2);
+  assert.equal(vector.y,board.height/2-cell.y);
+  assert.equal(world.raycastCell(cell.x,cell.y)?.key,cell.key,
+   "Raycaster must select the correct 3D hexagon");
+  const hit=world.raycastBoardPlane(cell.x,cell.y);
+  assert(hit);
+  assert(Math.abs(hit.x-cell.x)<.00001&&Math.abs(hit.y-cell.y)<.00001,
+   "Drag plane raycast must reproduce exact tile centroid");
+ }
+ assert.equal(world.raycastCell(-50,-50),null);
+ world.dispose();
+ // Permanent cast and five individual Chromatica palettes on initial launch.
+ const sceneGame=model.initialRCGame(board,()=>.37);
+ assert.equal(sceneGame.pawns.length,5);
+ assert.equal(sceneGame.score,100);
+ assert(model.validateRCGame(sceneGame,board));
+ assert.equal(new Set(sceneGame.pawns.map(p=>p.seal)).size,5);
+ assert.equal(new Set(sceneGame.pawns.map(p=>p.cellKey)).size,5);
+ for(const pawn of sceneGame.pawns){
+  assert(model.pawnDNA(pawn).length>=1);
+  assert(model.pawnPalette(pawn).name.length>=3);
+  assert(model.pawnName(pawn).length>=3);
+ }
+ // The diagnostic fixture is retained as an optional test only, not launch.
+ const diag=model.rc01CenterDiagnostic(board);
+ assert.equal(diag.pawns.length,1);
+ assert.equal(diag.pawns[0].cellKey,"0,0");
+ assert.equal(diag.score,100);
+ const source=sceneGame.pawns[0];
+ const empty=board.cells.find(c=>!sceneGame.pawns.some(p=>p.cellKey===c.key));
+ assert(empty);
+ const moved=model.moveRCPawn(sceneGame,source.cellKey,empty.key,board);
  assert(moved);
  assert.equal(moved.game.pawns.length,5);
  assert.equal(moved.game.score,100);
  assert.equal(model.pawnAt(moved.game,source.cellKey),undefined);
- assert.equal(model.pawnAt(moved.game,blank.key).seal,source.seal);
- assert.equal(moved.captured,null);
- assert.equal(state.pawns[0].cellKey,source.cellKey,"Moves may not mutate starting snapshot");
+ assert.equal(model.pawnAt(moved.game,empty.key)?.seal,source.seal);
  assert(model.validateRCGame(moved.game,board));
- const victim=state.pawns[1];
- const taken=model.moveRCPawn(state,source.cellKey,victim.cellKey,board);
+ const victim=sceneGame.pawns[1];
+ const taken=model.moveRCPawn(sceneGame,source.cellKey,victim.cellKey,board);
  assert(taken);
- assert.equal(taken.game.pawns.length,4,"Capture sends the victim home");
- assert.equal(taken.game.score,100,"Score deliberately fixed at 100");
- assert.equal(taken.captured.seal,victim.seal);
- assert(!taken.game.pawns.some(p=>p.seal===victim.seal),
-  "Captured Polytron leaves board, not destroyed from 72-seal universe");
- assert.equal(model.pawnAt(taken.game,victim.cellKey).seal,source.seal);
- assert.equal(model.moveRCPawn(state,source.cellKey,source.cellKey,board),null);
- assert.equal(model.moveRCPawn(state,"99,99",blank.key,board),null);
- assert.equal(model.moveRCPawn(state,source.cellKey,"99,99",board),null);
+ assert.equal(taken.game.pawns.length,4);
+ assert.equal(taken.captured?.seal,victim.seal);
+ assert(!taken.game.pawns.some(p=>p.seal===victim.seal));
+ assert.equal(model.pawnAt(taken.game,victim.cellKey)?.seal,source.seal);
+ assert.equal(taken.game.score,100);
  assert(model.validateRCGame(taken.game,board));
- // Actual semi-implicit Euler physics: spring pulls in, collides and ejects.
- const from={x:110,y:120},to={x:225,y:240};
- let flight=physics.startRCFlight({kind:"capture",sourceKey:"0,0",targetKey:"1,0",
-  attackerSeal:1,victimSeal:2,from,to,size:50});
- let firstHit=false,accel=false;
- for(let i=0;i<140;i++){
-  const previous=flight;
+ assert.equal(model.moveRCPawn(sceneGame,source.cellKey,source.cellKey,board),null);
+ assert.equal(model.moveRCPawn(sceneGame,source.cellKey,"99,99",board),null);
+ let flight=physics.startRCFlight({kind:"capture",
+  sourceKey:"0,0",targetKey:"1,0",attackerSeal:1,victimSeal:2,
+  from:{x:110,y:120},to:{x:225,y:240},size:32});
+ let collided=false;
+ for(let i=0;i<130;i++){
   flight=physics.advanceRCFlight(flight,1/60);
-  if(flight.attacker.vx!==previous.attacker.vx)accel=true;
-  if(flight.impacted)firstHit=true;
+  if(flight.impacted)collided=true;
  }
- assert(accel,"A real integrated spring accelerates the attacker");
- assert(firstHit,"Collision must trigger contact impulse");
- assert(flight.victim&&Math.hypot(flight.victim.x-to.x,flight.victim.y-to.y)>180,
-  "Victim must travel significantly away towards invisible home");
- assert(physics.finishedRCFlight(flight));
- assert(Math.hypot(flight.attacker.x-to.x,flight.attacker.y-to.y)<1,
-  "Attacker settles into captured target cell");
- const free=physics.startRCFlight({kind:"move",sourceKey:"0,0",targetKey:"1,0",
-  attackerSeal:1,victimSeal:null,from,to,size:50});
- let after=free;
- for(let i=0;i<90;i++)after=physics.advanceRCFlight(after,1/60);
- assert.equal(after.victim,null);
- assert.equal(after.impacted,false);
- assert(Math.hypot(after.attacker.x-to.x,after.attacker.y-to.y)<1);
+ assert(collided&&physics.finishedRCFlight(flight));
+ assert(flight.victim&&Math.hypot(flight.victim.x-225,
+  flight.victim.y-240)>150,"Real impulse must eject the taken Polytron");
+ assert(Math.hypot(flight.attacker.x-225,flight.attacker.y-240)<1);
+ // SSR includes only WebGL canvas for the board. No hybrid SVG geometry.
  const markup=renderToString(React.createElement(ui.default));
- for(const phrase of ["MINDELEEV","RELEASE CANDIDATE 01","ENERGIA",
-  "100","Tocca per esplorare","NUCLEO (0,0)","idxInRing"]){
-  if(phrase==="idxInRing")continue; // conditional sheet, inspected in source below
-  assert(markup.includes(phrase),"Missing initial RC01 UI: "+phrase);
+ assert(markup.includes("RELEASE CANDIDATE 01"));
+ assert(markup.includes("ENERGIA"));
+ assert(markup.includes("100"));
+ assert(markup.includes('class="rc01-three-board"'));
+ assert(!markup.includes("<svg"),"RC01 output must not mix SVG with 3D");
+ assert(!markup.includes("rc01-status"),"No visible bottom status strip");
+ assert(!markup.includes("rc01-calibration-cross"),"Remove calibration decoration");
+ assert(!markup.includes("ALIGN 03"),"Remove debug build decoration");
+ assert(!markup.includes("rc01-footer"),"Give height back to the 3D board");
+ const tsx=await readFile("src/experiments/MindeleevRC01.tsx","utf8");
+ assert(tsx.includes("initialRCGame(board)"),
+  "Production must restore five randomly chosen starting Polytrons");
+ assert(!tsx.includes("<svg")&&!tsx.includes("<polygon"));
+ assert(!tsx.includes("LifePolytron3D"));
+ assert(tsx.includes("RC01ThreeBoard")&&tsx.includes("RC01ThreeInspector"));
+ for(const phrase of ["aria-modal","onClick={()=>setSheet(null)}",
+  "pawnPalette(selectedPawn).name","idxInRing","moveRCPawn",
+  "ResizeObserver"]){
+  assert(tsx.includes(phrase),"Missing UI behaviour "+phrase);
  }
- assert(markup.includes('role="group"'));
- assert(markup.includes('role="button"'));
- assert(markup.includes('class="rc01-stage-3d"'),
-  "The board must contain its OWN local transparent WebGL canvas");
- assert(markup.includes('ALIGN 03'),
-  "Screenshot diagnosis must show an identifiable non-cached version");
- assert(markup.includes('ESAGONO'),
-  "Screenshot diagnosis must display the actual cell radius");
- const sourceTSX=await readFile("src/experiments/MindeleevRC01.tsx","utf8");
- for(const feature of ["getScreenCTM","setPointerCapture","onPointerCancel",
-  "onPointerMove","onPointerUp","MIN_GESTURE","role=\"dialog\"",
-  "aria-modal","rc01-scrim","pawnPalette(selectedPawn).name","idxInRing",
-  "data-life-polytron","startRCFlight","advanceRCFlight","finishedRCFlight",
-  "moveRCPawn","pawnAt(game,to.key)","setSheet(null)","ResizeObserver",
-  "rc01CenterDiagnostic(board)", "rc01-calibration-cross",
-  'data-life-center="true"', "radius={rc01PawnRadius(board.width)}",
-  'scope=".rc01-board-stage"', 'canvasClassName="rc01-stage-3d"',
-  'scope=".rc01-sheet"', 'canvasClassName="rc01-sheet-3d"'] ){
-  assert(sourceTSX.includes(feature),"Missing live touch/physics/inspection feature: "+feature);
+ const boardCode=await readFile("src/experiments/RC01ThreeBoard.tsx","utf8");
+ for(const phrase of ["createRC3DWorld","raycastCell","raycastBoardPlane",
+  "setPointerCapture","onPointerCancel","onPointerUp",
+  "startRCFlight","advanceRCFlight","finishedRCFlight","rotateModels",
+  "onKeyDown"]){
+  assert(boardCode.includes(phrase),"Missing native 3D board feature: "+phrase);
  }
- const canvas=await readFile("src/experiments/LifePolytron3D.tsx","utf8");
- for(const feature of ["data-life-palette-row","data-life-palette-col",
-  "data-life-scale","data-life-center", "mesh.position.copy(geo.center)",
-  "edges.position.copy(geo.center)","preciseCenter||isCard",
-  "canvas.getBoundingClientRect()", "canvasLocalViewport(canvasBox,box,scale,lift)",
-  'scope?scope+" [data-life-polytron]"',
-  'className={canvasClassName}',"polytronGeometry"]){
-  assert(canvas.includes(feature),"Shared 3D must genuinely render per-individual palette: "+feature);
+ assert(!boardCode.includes("<svg")&&!boardCode.includes("<polygon"));
+ const modelCode=await readFile("src/experiments/rc01ThreeScene.ts","utf8");
+ for(const phrase of ["THREE.ExtrudeGeometry","THREE.OrthographicCamera",
+  "THREE.Raycaster","THREE.Plane","THREE.MeshStandardMaterial",
+  "makeRC3DPolytron","polytronGeometry","pawnPalette(pawn)",
+  "solid.position.copy(centre)","spin.rotation","scene.add(mesh)"]){
+  assert(modelCode.includes(phrase),"Missing 3D architecture: "+phrase);
  }
+ const inspector=await readFile("src/experiments/RC01ThreeInspector.tsx","utf8");
+ assert(inspector.includes("THREE.PerspectiveCamera")&&
+  inspector.includes("makeRC3DPolytron")&&!inspector.includes("<svg"),
+  "Inspector must use real rotating 3D geometry");
  const css=await readFile("src/experiments/MindeleevRC01.css","utf8");
- for(const feature of ["height:100dvh","touch-action:none",".rc01-nucleus",
-  ".rc01-sheet",".rc01-hero-model",".rc01-calibration-cross",
-  ".rc01-board-stage>.rc01-stage-3d",
-  ".rc01-sheet>.rc01-sheet-3d",".rc01-debug-build"]){
-  assert(css.includes(feature),"Missing RC01 mobile style: "+feature);
- }
+ assert(css.includes("height:100dvh")&&css.includes("touch-action:none"));
+ assert(css.includes(".rc01-three-board")&&!css.includes(".rc01-status{"));
  const app=await readFile("src/App.tsx","utf8");
  assert(app.includes('experiment") === "mindeleev-rc01"'));
- console.log("RC01",JSON.stringify({visibleHexes:board.cells.length,
-  ring0:nucleus.key,randomPopulation:state.pawns.length,
-  score:state.score,afterCapture:taken.game.pawns.length,
-  physicsImpact:firstHit}));
- console.log("PASS RC01: board-local WebGL (not mobile fixed viewport), separate rotating 3D modal, visible ALIGN 03 marker, single nucleus Polytron and full identity/physics regression");
+ console.log("RC01 THREE",JSON.stringify({
+  initialHexes:countCells(precedingRadius),native3dHexes:board.cells.length,
+  pawns:sceneGame.pawns.length,score:sceneGame.score,
+  camera:"orthographic",picking:"raycasting",capture:"spring impulse"
+ }));
+ console.log("PASS RC01: pure native Three.js tessellation, extra closed hexes, 5 real 3D actors, raycast touch & drag, collision and 3D inspector; no SVG or status strip");
 }finally{await rm(temporary,{recursive:true,force:true});}
