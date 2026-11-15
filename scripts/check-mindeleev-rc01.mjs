@@ -65,6 +65,15 @@ try{
   assert(full.every(x=>grid.rcRing(x.q,x.r)===k));
  }
  assert.equal(model.RC01_SEAL_COUNT,72);
+ // Screenshot diagnostic must show exactly one *deterministic* occupant at 0,0,
+ // leaving the usual five-random-Polytron fixture available for later restoration.
+ const diagnostic=model.rc01CenterDiagnostic(board);
+ assert.equal(diagnostic.pawns.length,1);
+ assert.equal(diagnostic.pawns[0].cellKey,"0,0");
+ assert.equal(diagnostic.pawns[0].number,1);
+ assert.equal(diagnostic.pawns[0].seal,1);
+ assert.equal(diagnostic.score,100);
+ assert(model.validateRCGame(diagnostic,board));
  const draws=[()=>.19,()=>.87,Math.random];
  for(const rng of draws){
   const state=model.initialRCGame(board,rng);
@@ -145,6 +154,7 @@ try{
   "aria-modal","rc01-scrim","pawnPalette(selectedPawn).name","idxInRing",
   "data-life-polytron","startRCFlight","advanceRCFlight","finishedRCFlight",
   "moveRCPawn","pawnAt(game,to.key)","setSheet(null)","ResizeObserver",
+  "rc01CenterDiagnostic(board)", "rc01-calibration-cross",
   'data-life-center="true"', "radius={rc01PawnRadius(board.width)}"]){
   assert(sourceTSX.includes(feature),"Missing live touch/physics/inspection feature: "+feature);
  }
@@ -157,7 +167,7 @@ try{
  }
  const css=await readFile("src/experiments/MindeleevRC01.css","utf8");
  for(const feature of ["height:100dvh","touch-action:none",".rc01-nucleus",
-  ".rc01-sheet",".rc01-hero-model"]){
+  ".rc01-sheet",".rc01-hero-model",".rc01-calibration-cross"]){
   assert(css.includes(feature),"Missing RC01 mobile style: "+feature);
  }
  const app=await readFile("src/App.tsx","utf8");
