@@ -43,6 +43,16 @@
 .rc01-pawn{pointer-events:none}
 .rc01-pawn-number{font-size:11px;font-weight:800;fill:#1e4541;
  paint-order:stroke;stroke:#f5fbf7;stroke-width:2.6px;letter-spacing:.02em}
+/* Temporary calibration cross drawn in the DOM above WebGL, exactly at the
+   axial nucleus centre. It is not a new Polytron or interactive target. */
+.rc01-calibration-cross{position:absolute;z-index:90;transform:translate(-50%,-50%);
+ width:21px;height:21px;pointer-events:none;
+ filter:drop-shadow(0 0 2px #ffffff)}
+.rc01-calibration-cross::before,.rc01-calibration-cross::after{
+ content:"";position:absolute;background:#e33b4c;border:1px solid #ffffff;
+ box-sizing:border-box;border-radius:2px}
+.rc01-calibration-cross::before{left:0;top:9px;width:21px;height:3px}
+.rc01-calibration-cross::after{left:9px;top:0;width:3px;height:21px}
 .rc01-stage-caption{position:absolute;left:50%;bottom:9px;transform:translateX(-50%);
  z-index:3;white-space:nowrap;display:flex;gap:9px;align-items:center;
  padding:6px 10px;border-radius:999px;background:#ffffffc5;border:1px solid #cbd6cf;
