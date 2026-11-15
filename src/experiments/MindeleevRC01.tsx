@@ -14,19 +14,22 @@ type Sheet={kind:"polytron";seal:number}|{kind:"cell";key:string}|null;
 type Press={pointerId:number;startX:number;startY:number;cell:RCCell;pawn:RCPawn|null};
 type Drag={seal:number;from:string;point:RCPoint;hover:string|null};
 const MIN_GESTURE=9;
+// Preserve the APPROVED 3D Polytron size on a phone even as the
+// hexagonal grid becomes denser. Previous radius was ~0.53*(width/7.6).
+export const rc01PawnRadius=(width:number)=>Math.max(24,Math.min(32,width/14.4));
 const initialViewport={width:390,height:700,ready:false};
 
-function BodyView({pawn,point,size,hidden}:{pawn:RCPawn;point:RCPoint;
- size:number;hidden:boolean}){
+function BodyView({pawn,point,radius,hidden}:{pawn:RCPawn;point:RCPoint;
+ radius:number;hidden:boolean}){
  return <g transform={`translate(${point.x} ${point.y})`}
   className="rc01-pawn" aria-hidden="true">
-  <circle r={size*.49} fill="#c9d2ce" fillOpacity=".17"/>
-  <circle r={size*.53} fill="transparent" pointerEvents="none"
+  <circle r={radius*.92} fill="#c9d2ce" fillOpacity=".17"/>
+  <circle r={radius} fill="transparent" pointerEvents="none"
    data-life-polytron={hidden?undefined:pawnDNA(pawn)}
    data-life-palette-row={pawn.row}
    data-life-palette-col={pawn.col}
-   data-life-scale="1.14"/>
-  <text x={0} y={size*.78} textAnchor="middle" className="rc01-pawn-number"
+   data-life-scale="1.14" data-life-center="true"/>
+  <text x={0} y={radius*1.46} textAnchor="middle" className="rc01-pawn-number"
    pointerEvents="none">#{pawn.number}</text>
  </g>;
 }
@@ -197,7 +200,7 @@ export default function MindeleevRC01(){
       flight.attacker:flight?.victimSeal===pawn.seal&&flight.victim?
        flight.victim:drag?.seal===pawn.seal?drag.point:cell;
      return <BodyView key={pawn.seal} pawn={pawn} point={point}
-      size={board.size} hidden={sheet!==null}/>;
+      radius={rc01PawnRadius(board.width)} hidden={sheet!==null}/>;
     })}
     {drag?.hover&&(()=>{
      const cell=cellMap.get(drag.hover);if(!cell)return null;
@@ -234,7 +237,7 @@ export default function MindeleevRC01(){
      <div className="rc01-hero-model" data-life-polytron={pawnDNA(selectedPawn)}
       data-life-palette-row={selectedPawn.row}
       data-life-palette-col={selectedPawn.col}
-      data-life-kind="card" data-life-scale="1.06"/>
+      data-life-kind="card" data-life-scale="1.06" data-life-center="true"/>
      <div className="rc01-sheet-kicker">POLYTRONE · {pawnName(selectedPawn)}</div>
      <h2>#{selectedPawn.number}</h2>
      <dl className="rc01-details">
