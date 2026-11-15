@@ -19,7 +19,7 @@ try{
  const [grid,model,physics,ui,worldModule]=await Promise.all([
   load("src/polytron/rc01Board.ts","board"),
   load("src/polytron/rc01Game.ts","game"),
-  load("src/polytron/rc01Physics.ts","motion"),
+  load("src/experiments/rc01RapierFlight.ts","rapier-motion"),
   load("src/experiments/MindeleevRC01.tsx","ui",true),
   load("src/experiments/rc01ThreeScene.ts","scene")
  ]);
@@ -120,18 +120,66 @@ try{
  assert(model.validateRCGame(taken.game,board));
  assert.equal(model.moveRCPawn(sceneGame,source.cellKey,source.cellKey,board),null);
  assert.equal(model.moveRCPawn(sceneGame,source.cellKey,"99,99",board),null);
- let flight=physics.startRCFlight({kind:"capture",
-  sourceKey:"0,0",targetKey:"1,0",attackerSeal:1,victimSeal:2,
-  from:{x:110,y:120},to:{x:225,y:240},size:32});
- let collided=false;
- for(let i=0;i<130;i++){
-  flight=physics.advanceRCFlight(flight,1/60);
-  if(flight.impacted)collided=true;
+ // Physically integrate the exact same geometries, velocities, restitution
+ // and collision events as the live mobile game. No proximity-script shortcuts.
+ const from=board.cells.find(c=>c.key==="0,0");
+ const to=board.cells.find(c=>c.key==="1,0");
+ assert(from&&to);
+ const actor={...sceneGame.pawns[0],cellKey:from.key,number:1};
+ const opponent={...sceneGame.pawns[1],cellKey:to.key,number:2};
+ const flight=await physics.RC01RapierFlight.create({
+  board,from,to,attacker:actor,victim:opponent
+ });
+ let contacted=false,topAttacker=0,topVictim=0,topRotation=0;
+ let collisionEvents=0,initialSpeed=flight.snapshot().attacker.speed;
+ let finished;
+ try{
+  for(let i=0;i<600;i++){
+   const sample=flight.step();
+   topAttacker=Math.max(topAttacker,sample.attacker.speed);
+   topVictim=Math.max(topVictim,sample.victim?.speed??0);
+   topRotation=Math.max(topRotation,sample.victim?.angularSpeed??0);
+   collisionEvents=Math.max(collisionEvents,sample.contacts);
+   if(sample.collided)contacted=true;
+   if(sample.done){finished=sample;break;}
+  }
+  assert(contacted,"The actual Rapier collision event MUST fire");
+  assert(collisionEvents>=1,"A real collider-vs-collider contact is required");
+  assert(topAttacker>initialSpeed+15,
+   "Engine must accelerate the attacking rigid body");
+  assert(topVictim>15,"Victim must receive nonzero physical momentum");
+  assert(topRotation>.01,"Rapier must rotate the struck polyhedron");
+  assert(finished?.success,"Contact-driven physical capture must complete");
+  assert(finished?.victim,"Capture keeps both bodies until the end of the dance");
+  assert.equal(flight.from,from.key);
+  assert.equal(flight.to,to.key);
+ }finally{flight.dispose();}
+ const emptyMove=await physics.RC01RapierFlight.create({
+  board,from,to,attacker:actor,victim:null
+ });
+ try{
+  let done;
+  for(let i=0;i<600;i++){
+   const frame=emptyMove.step();
+   if(frame.done){done=frame;break;}
+  }
+  assert(done?.success,"Free move must settle via Rapier spring");
+  assert.equal(done.victim,null);
+  assert.equal(emptyMove.impactCount,0);
+  assert.equal(emptyMove.to,to.key);
+ }finally{emptyMove.dispose();}
+ assert.equal(physics.RC_RAPIER_FIXED_STEP,1/120);
+ const physicalSource=await readFile("src/experiments/rc01RapierFlight.ts","utf8");
+ for(const phrase of ["@dimforge/rapier3d-compat","new RAPIER.World",
+  "RAPIER.ColliderDesc.convexHull","RAPIER.EventQueue",
+  "RAPIER.ActiveEvents.COLLISION_EVENTS","this.world.step(this.queue)",
+  "drainCollisionEvents","applyImpulse","applyTorqueImpulse","addForce",
+  "setRestitution","setMass","setCcdEnabled","setAngularDamping"]){
+  assert(physicalSource.includes(phrase),"Missing real rigid-body physics: "+phrase);
  }
- assert(collided&&physics.finishedRCFlight(flight));
- assert(flight.victim&&Math.hypot(flight.victim.x-225,
-  flight.victim.y-240)>150,"Real impulse must eject the taken Polytron");
- assert(Math.hypot(flight.attacker.x-225,flight.attacker.y-240)<1);
+ assert(!physicalSource.includes("startRCFlight")&&
+  !physicalSource.includes("advanceRCFlight"),
+  "RC01 cannot silently fall back to scripted pseudo-physics");
  // SSR includes only WebGL canvas for the board. No hybrid SVG geometry.
  const markup=renderToString(React.createElement(ui.default));
  assert(markup.includes("RELEASE CANDIDATE 01"));
@@ -157,8 +205,8 @@ try{
  const boardCode=await readFile("src/experiments/RC01ThreeBoard.tsx","utf8");
  for(const phrase of ["createRC3DWorld","raycastCell","raycastBoardPlane",
   "setPointerCapture","onPointerCancel","onPointerUp",
-  "startRCFlight","advanceRCFlight","finishedRCFlight","rotateModels",
-  "onKeyDown"]){
+  "RC01RapierFlight.create","flight.step()","world.physicalPose",
+  "RC_RAPIER_FIXED_STEP","rotateModels","onKeyDown"]){
   assert(boardCode.includes(phrase),"Missing native 3D board feature: "+phrase);
  }
  assert(!boardCode.includes("<svg")&&!boardCode.includes("<polygon"));
@@ -166,7 +214,8 @@ try{
  for(const phrase of ["THREE.ExtrudeGeometry","THREE.OrthographicCamera",
   "THREE.Raycaster","THREE.Plane","THREE.MeshStandardMaterial",
   "makeRC3DPolytron","polytronGeometry","pawnPalette(pawn)",
-  "solid.position.copy(centre)","spin.rotation","scene.add(mesh)"]){
+  "solid.position.copy(centre)","spin.rotation","scene.add(mesh)",
+  "actorOrientation","physicalPose","spin.quaternion.identity()"]){
   assert(modelCode.includes(phrase),"Missing 3D architecture: "+phrase);
  }
  const inspector=await readFile("src/experiments/RC01ThreeInspector.tsx","utf8");
@@ -181,7 +230,7 @@ try{
  console.log("RC01 THREE",JSON.stringify({
   initialHexes:countCells(precedingRadius),native3dHexes:board.cells.length,
   pawns:sceneGame.pawns.length,score:sceneGame.score,
-  camera:"orthographic",picking:"raycasting",capture:"spring impulse"
+  camera:"orthographic",picking:"raycasting",capture:"Rapier convex-hull restitution"
  }));
- console.log("PASS RC01: pure native Three.js tessellation, extra closed hexes, 5 real 3D actors, raycast touch & drag, collision and 3D inspector; no SVG or status strip");
+ console.log("PASS RC01: Rapier rigid-body real contact and rebound, Convex Conway colliders, 3D torque, proper free-move settling, 72 seals, native Three.js and no SVG");
 }finally{await rm(temporary,{recursive:true,force:true});}
