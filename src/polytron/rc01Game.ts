@@ -35,6 +35,20 @@ export function initialRCGame(board:RCBoard,rng:()=>number=Math.random):RCGame{
  return {pawns,score:RC01_START_SCORE,moves:0,
   lastAction:"Cinque Polytroni sono stati richiamati sul Mutatron."};
 }
+/**
+ * Temporary screenshot fixture: one unambiguous Polytron fixed at the
+ * mathematical nucleus. Keep the original five-actor initializer intact
+ * for restoring RC01 gameplay after viewport diagnostics.
+ */
+export function rc01CenterDiagnostic(board:RCBoard):RCGame{
+ if(!board.cells.some(c=>c.key==="0,0"&&c.nucleus))
+  throw Error("Nucleus (0,0) is not visible");
+ return {
+  pawns:[{seal:1,number:1,row:2,col:4,cellKey:"0,0"}],
+  score:RC01_START_SCORE,moves:0,
+  lastAction:"Diagnostica centratura: un solo Polytrone #1 nel nucleo (0,0)."
+ };
+}
 export type RCMoveResult={game:RCGame;captured:RCPawn|null;attacker:RCPawn};
 export function moveRCPawn(game:RCGame,source:string,target:string,board:RCBoard):RCMoveResult|null{
  if(source===target||!board.cells.some(c=>c.key===target))return null;
