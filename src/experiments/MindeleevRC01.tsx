@@ -157,7 +157,6 @@ export default function MindeleevRC01(){
   setStatus("Diagnostica ripristinata: Polytrone #1 nel nucleo (0,0).");
  };
  return <main className="rc01-page">
-  <LifePolytron3D row={2} col={4} order="contrast"/>
   <header className="rc01-header">
    <div className="rc01-brand">
     <span className="rc01-brand-mark">✳</span>
@@ -168,6 +167,10 @@ export default function MindeleevRC01(){
    </div>
   </header>
   <div className="rc01-board-stage" ref={stageRef}>
+   {/* Use the SAME positioned parent for the 2D hexes and their 3D
+       manifestations. No global fixed canvas or browser toolbar offsets. */}
+   <LifePolytron3D row={2} col={4} order="contrast"
+    scope=".rc01-board-stage" canvasClassName="rc01-stage-3d"/>
    <svg ref={svgRef} className="rc01-board" viewBox={`0 0 ${board.width} ${board.height}`}
     role="group" aria-label="Scacchiera esagonale di Mindeleev. Tocca per informazioni, trascina per muovere o prendere."
     onPointerMove={moved} onPointerUp={up} onPointerCancel={clearGesture}>
@@ -218,6 +221,9 @@ export default function MindeleevRC01(){
     <span key={cell.key} className="rc01-calibration-cross"
      style={{left:cell.x,top:cell.y}}
      title="Centro geometrico esatto del nucleo (0,0)" aria-hidden="true"/>)}
+   <div className="rc01-debug-build" aria-hidden="true">
+    ALIGN 03 · ESAGONO {Math.round(board.size)}px
+   </div>
    <div className="rc01-stage-caption" aria-hidden="true">
     <span className="rc01-core-dot"/> NUCLEO (0,0)
     <span>·</span> {game?.pawns.length??1} / 72 IN SCENA
@@ -236,6 +242,10 @@ export default function MindeleevRC01(){
    <section role="dialog" aria-modal="true"
     aria-label={sheet.kind==="polytron"?"Dettagli del Polytrone":"Dettagli della casella"}
     className="rc01-sheet">
+    {/* The sheet owns its own 3D viewport; it does not reuse the stage's
+        canvas, which is clipped to the board by design. */}
+    <LifePolytron3D row={2} col={4} order="contrast"
+     scope=".rc01-sheet" canvasClassName="rc01-sheet-3d"/>
     <div className="rc01-sheet-handle"/>
     <button className="rc01-close" type="button" aria-label="Chiudi"
      onClick={()=>setSheet(null)}><X size={20}/></button>
