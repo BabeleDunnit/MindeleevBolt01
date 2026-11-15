@@ -156,20 +156,33 @@ export function createRC3DWorld(board:RCBoard){
   if(!selection.ray.intersectPlane(plane,hit))return null;
   return {x:hit.x+board.width/2,y:board.height/2-hit.y};
  }
+ function disposeActor(actor:RCWorldModel){
+  scene.remove(actor.root);
+  actor.dispose();
+  (actor.label.material as THREE.SpriteMaterial).map?.dispose();
+  actor.label.material.dispose();
+ }
  function clearActors(){
-  for(const actor of actors.values()){
-   scene.remove(actor.root);
-   actor.dispose();
-   (actor.label.material as THREE.SpriteMaterial).map?.dispose();
-   actor.label.material.dispose();
-  }
+  for(const actor of actors.values())disposeActor(actor);
   actors.clear();
  }
  function setPawns(pawns:readonly RCPawn[]){
-  clearActors();
-  const next=new Map<number,RCWorldModel>();
+  const updated=new Map<number,RCWorldModel>();
   for(const pawn of pawns){
-   const cell=cellsByKey.get(pawn.cellKey);if(!cell)continue;
+   const cell=cellsByKey.get(pawn.cellKey);
+   if(!cell)continue;
+   const previous=actors.get(pawn.seal);
+   // Keep the SAME Three.js object when a pawn moves. Recreating it after
+   // every physics step would reset the quaternion and look like a jump cut.
+   const reusable=previous&&previous.pawn.number===pawn.number&&
+    previous.pawn.row===pawn.row&&previous.pawn.col===pawn.col;
+   if(reusable){
+    previous.pawn=pawn;
+    previous.root.position.copy(rcScreenWorld(board,cell,9));
+    updated.set(pawn.seal,previous);
+    continue;
+   }
+   if(previous)disposeActor(previous);
    let actor:ReturnType<typeof makeRC3DPolytron>;
    try{actor=makeRC3DPolytron(pawn,Math.max(23,Math.min(31,board.width/14.4))*.88);}
    catch{continue;}
@@ -179,12 +192,15 @@ export function createRC3DWorld(board:RCBoard){
    const label=makeTextSprite("#"+pawn.number);
    label.position.set(0,-board.size*.76,4.5);
    actor.root.add(label);
-   const xy=rcScreenWorld(board,cell,9);
-   actor.root.position.copy(xy);
+   actor.root.position.copy(rcScreenWorld(board,cell,9));
    scene.add(actor.root);
-   next.set(pawn.seal,{...actor,pawn,shadow,label});
+   updated.set(pawn.seal,{...actor,pawn,shadow,label});
   }
-  actors=next;
+  for(const [seal,actor] of actors){
+   if(!updated.has(seal)&&scene.children.includes(actor.root))
+    disposeActor(actor);
+  }
+  actors=updated;
  }
  function moveActor(seal:number,point:RCPoint,z=9){
   const actor=actors.get(seal);if(!actor)return;
@@ -217,12 +233,16 @@ export function createRC3DWorld(board:RCBoard){
     (occupied?captureEdgeMaterial:hoverEdgeMaterial);
   }
  }
+ let lastSpinTime:number|null=null;
  function rotateModels(time:number,active:ReadonlySet<number>=new Set()){
+  const dt=lastSpinTime===null?0:Math.max(0,Math.min(.05,(time-lastSpinTime)/1000));
+  lastSpinTime=time;
   for(const [seal,{spin}] of actors){
-   if(active.has(seal))continue; // Rapier owns the body's 3D orientation.
-   spin.rotation.y=.68+time*.00028;
-   spin.rotation.x=.25+Math.sin(time*.00021)*.11;
-   spin.rotation.z=Math.sin(time*.00013)*.09;
+   if(active.has(seal))continue; // Rapier owns the 3D orientation in flight.
+   // Incremental rotation: no absolute clock angle jump when returning from
+   // a physical flight. Root quaternion retains its physical landing pose.
+   spin.rotation.y+=dt*.28;
+   spin.rotation.x+=dt*.06;
   }
  }
  function dispose(){
