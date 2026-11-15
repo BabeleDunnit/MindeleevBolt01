@@ -183,6 +183,12 @@ try{
  }
  assert(markup.includes('role="group"'));
  assert(markup.includes('role="button"'));
+ assert(markup.includes('class="rc01-stage-3d"'),
+  "The board must contain its OWN local transparent WebGL canvas");
+ assert(markup.includes('ALIGN 03'),
+  "Screenshot diagnosis must show an identifiable non-cached version");
+ assert(markup.includes('ESAGONO'),
+  "Screenshot diagnosis must display the actual cell radius");
  const sourceTSX=await readFile("src/experiments/MindeleevRC01.tsx","utf8");
  for(const feature of ["getScreenCTM","setPointerCapture","onPointerCancel",
   "onPointerMove","onPointerUp","MIN_GESTURE","role=\"dialog\"",
@@ -190,7 +196,9 @@ try{
   "data-life-polytron","startRCFlight","advanceRCFlight","finishedRCFlight",
   "moveRCPawn","pawnAt(game,to.key)","setSheet(null)","ResizeObserver",
   "rc01CenterDiagnostic(board)", "rc01-calibration-cross",
-  'data-life-center="true"', "radius={rc01PawnRadius(board.width)}"]){
+  'data-life-center="true"', "radius={rc01PawnRadius(board.width)}",
+  'scope=".rc01-board-stage"', 'canvasClassName="rc01-stage-3d"',
+  'scope=".rc01-sheet"', 'canvasClassName="rc01-sheet-3d"'] ){
   assert(sourceTSX.includes(feature),"Missing live touch/physics/inspection feature: "+feature);
  }
  const canvas=await readFile("src/experiments/LifePolytron3D.tsx","utf8");
@@ -198,12 +206,15 @@ try{
   "data-life-scale","data-life-center", "mesh.position.copy(geo.center)",
   "edges.position.copy(geo.center)","preciseCenter||isCard",
   "canvas.getBoundingClientRect()", "canvasLocalViewport(canvasBox,box,scale,lift)",
-  "polytronGeometry"]){
+  'scope?scope+" [data-life-polytron]"',
+  'className={canvasClassName}',"polytronGeometry"]){
   assert(canvas.includes(feature),"Shared 3D must genuinely render per-individual palette: "+feature);
  }
  const css=await readFile("src/experiments/MindeleevRC01.css","utf8");
  for(const feature of ["height:100dvh","touch-action:none",".rc01-nucleus",
-  ".rc01-sheet",".rc01-hero-model",".rc01-calibration-cross"]){
+  ".rc01-sheet",".rc01-hero-model",".rc01-calibration-cross",
+  ".rc01-board-stage>.rc01-stage-3d",
+  ".rc01-sheet>.rc01-sheet-3d",".rc01-debug-build"]){
   assert(css.includes(feature),"Missing RC01 mobile style: "+feature);
  }
  const app=await readFile("src/App.tsx","utf8");
@@ -212,5 +223,5 @@ try{
   ring0:nucleus.key,randomPopulation:state.pawns.length,
   score:state.score,afterCapture:taken.game.pawns.length,
   physicsImpact:firstHit}));
- console.log("PASS RC01: denser closed hexes, unchanged-sized 3D Polytrons exactly centred with browser toolbar offset, 72 identity constraints and physics capture");
+ console.log("PASS RC01: board-local WebGL (not mobile fixed viewport), separate rotating 3D modal, visible ALIGN 03 marker, single nucleus Polytron and full identity/physics regression");
 }finally{await rm(temporary,{recursive:true,force:true});}
