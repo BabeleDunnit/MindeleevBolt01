@@ -36,9 +36,9 @@ export function rcPolygon(x:number,y:number,size:number):string{
 export function makeRCBoard(width:number,height:number):RCBoard{
  if(!Number.isFinite(width)||!Number.isFinite(height)||width<=0||height<=0)
   throw Error("Invalid board viewport");
- // Denser honeycomb, deliberately independent of the rendered Polytron size.
- // On a 390px phone the hex radius goes from ~51px to ~40px (-21%).
- const size=Math.max(34,Math.min(47,width/9.65));
+ // A further ~12% reduction over the previous RC01 grid. The 3D pawn
+ // radius is calculated independently and remains unchanged.
+ const size=Math.max(30,Math.min(42,width/10.9));
  const x0=width/2,y0=height*.435; // more complete rows BELOW the nucleus
  const margin=2;
  const halfW=Math.sqrt(3)*size/2;
