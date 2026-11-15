@@ -149,10 +149,14 @@ try{
    "Engine must accelerate the attacking rigid body");
   assert(topVictim>15,"Victim must receive nonzero physical momentum");
   assert(topRotation>.01,"Rapier must rotate the struck polyhedron");
-  console.log("RC01 CAPTURE DIAGNOSTIC",JSON.stringify({
-   last:finished,collided:contacted,contacts:collisionEvents,
-   topAttacker,topVictim,topRotation,
-   end:flight.snapshot()
+  console.log("RC01 CAPTURE",JSON.stringify({
+   time:+(finished?.time??0).toFixed(3),contacts:collisionEvents,
+   attackerEndSpeed:+(finished?.attacker.speed??0).toFixed(3),
+   victimOffscreen:!!finished?.victim&&
+    (Math.abs(finished.victim.position.x)>board.width/2+
+      physics.rcRapierPawnRadius(board)||
+     Math.abs(finished.victim.position.y)>board.height/2+
+      physics.rcRapierPawnRadius(board))
   }));
   assert(finished?.success,"Contact-driven physical capture must complete");
   assert(finished?.victim,"Capture keeps both bodies until the end of the dance");
@@ -180,7 +184,9 @@ try{
   "RAPIER.ActiveEvents.COLLISION_EVENTS","this.world.step(this.queue)",
   "drainCollisionEvents","applyTorqueImpulse","addForce",
   "setRestitution","setMass","setCcdEnabled","setAngularDamping",
-  "ATTRACTOR_DAMPING_RATIO","REST_WINDOW","this.restSeconds"]){
+  "ATTRACTOR_DAMPING_RATIO","REST_WINDOW","this.restSeconds",
+  "this.attacker.body.resetForces(true)",
+  "this.victim?.body.resetForces(true)"]){
   assert(physicalSource.includes(phrase),"Missing real rigid-body physics: "+phrase);
  }
  assert(!physicalSource.includes("startRCFlight")&&
@@ -221,6 +227,8 @@ try{
    "The body must accelerate before decelerating, rather than moving at constant speed");
   assert(peak>20&&speeds.at(-1)<2.6,
    "Speed must physically decay to near zero before the move completes");
+  assert(peak<395,
+   "Ordinary moves must not hit Rapier's ~400m/s velocity cap; use a gentler attractor");
   const goal=worldModule.rcScreenWorld(board,extendedTo,
    physics.rcRapierPawnRadius(board)+4);
   const landed=last.attacker.position;
