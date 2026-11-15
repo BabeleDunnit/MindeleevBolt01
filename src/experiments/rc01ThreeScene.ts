@@ -86,6 +86,7 @@ export function createRC3DWorld(board:RCBoard){
   -board.width/2,board.width/2,board.height/2,-board.height/2,.1,2600
  );
  camera.position.set(0,0,1200);camera.lookAt(0,0,0);
+ camera.updateProjectionMatrix();camera.updateMatrixWorld(true);
  // The camera is an explicit Three.js camera: a future zoom-to-3D view can
  // animate its pose instead of replacing a flat SVG layer.
  scene.add(new THREE.HemisphereLight(0xf8fff7,0x7e969a,2.0));
