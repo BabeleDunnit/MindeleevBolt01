@@ -16,22 +16,57 @@ async function load(entry,name,ui=false){
  return import(pathToFileURL(out).href);
 }
 try{
- const [grid,model,physics,ui]=await Promise.all([
+ const [grid,model,physics,ui,viewports]=await Promise.all([
   load("src/polytron/rc01Board.ts","board"),
   load("src/polytron/rc01Game.ts","game"),
   load("src/polytron/rc01Physics.ts","motion"),
-  load("src/experiments/MindeleevRC01.tsx","ui",true)
+  load("src/experiments/MindeleevRC01.tsx","ui",true),
+  load("src/experiments/canvasLocalViewport.ts","viewport")
  ]);
- // Hexagons are 20–22% smaller while pawns retain their previous size.
+ // Hexagons are ~12% smaller AGAIN, without changing the pawn radius.
  const normalPhone=grid.makeRCBoard(390,760);
  const previousHexRadius=390/7.6;
- assert(normalPhone.size<previousHexRadius*.81&&normalPhone.size>previousHexRadius*.77,
-  "New hexes must be about 21% smaller than RC01 initial layout");
+ const previousRC01HexRadius=390/9.65;
+ assert(normalPhone.size<previousRC01HexRadius*.9&&
+        normalPhone.size>previousRC01HexRadius*.86,
+  "Hex radius must be ~12% smaller than the previous RC01 layout");
  assert(Math.abs(ui.rc01PawnRadius(390)-previousHexRadius*.53)<.3,
   "Rendered Polytron viewport must retain the original pixel diameter");
  assert(ui.rc01PawnRadius(390)>normalPhone.size*.6,
   "Piece radius must be sized independently of hex radius");
  assert(ui.rc01PawnRadius(320)>=24&&ui.rc01PawnRadius(600)<=32);
+ // Regression: browser overlays can shift a fixed WebGL canvas down by
+ // ~100px, exactly the problem shown by the user screenshot. The rectangle
+ // of the 3D viewport must always be centred on the *same* DOM circle,
+ // regardless of canvas origin, viewport height or horizontal offset.
+ for(const canvas of [
+  {left:0,top:0,width:390,height:740,right:390,bottom:740},
+  {left:0,top:110,width:390,height:740,right:390,bottom:850},
+  {left:48,top:190,width:360,height:670,right:408,bottom:860}
+ ]){
+  const targetCenter={x:canvas.left+canvas.width*.5,
+   y:canvas.top+canvas.height*.435};
+  const radius=ui.rc01PawnRadius(canvas.width);
+  const target={left:targetCenter.x-radius,right:targetCenter.x+radius,
+   top:targetCenter.y-radius,bottom:targetCenter.y+radius,
+   width:radius*2,height:radius*2};
+  const view=viewports.canvasLocalViewport(canvas,target,1.14,0);
+  assert(view,"The Polytron must be visible on the actual canvas");
+  const projectedCentre={
+   x:canvas.left+view.x+view.width/2,
+   y:canvas.bottom-view.y-view.height/2
+  };
+  assert(Math.abs(projectedCentre.x-targetCenter.x)<=1,
+   "3D centroid X must coincide with the SVG hex centre");
+  assert(Math.abs(projectedCentre.y-targetCenter.y)<=1,
+   "3D centroid Y must coincide with the SVG hex centre even below mobile toolbar");
+  const raised=viewports.canvasLocalViewport(canvas,target,1.14,8);
+  assert(raised&&Math.abs((canvas.bottom-raised.y-raised.height/2)-
+   (targetCenter.y-8))<=1,"Old Life's deliberate Y lift must remain separate");
+ }
+ assert.equal(viewports.canvasLocalViewport(
+  {left:0,top:0,right:300,bottom:600,width:300,height:600},
+  {left:600,top:600,right:640,bottom:640,width:40,height:40},1.14),null);
  // Every hexagon is complete, even on a narrow portrait viewport.
  for(const [w,h] of [[320,560],[360,670],[390,720],[430,860],[600,900]]){
   const board=grid.makeRCBoard(w,h);
@@ -162,6 +197,7 @@ try{
  for(const feature of ["data-life-palette-row","data-life-palette-col",
   "data-life-scale","data-life-center", "mesh.position.copy(geo.center)",
   "edges.position.copy(geo.center)","preciseCenter||isCard",
+  "canvas.getBoundingClientRect()", "canvasLocalViewport(canvasBox,box,scale,lift)",
   "polytronGeometry"]){
   assert(canvas.includes(feature),"Shared 3D must genuinely render per-individual palette: "+feature);
  }
@@ -176,5 +212,5 @@ try{
   ring0:nucleus.key,randomPopulation:state.pawns.length,
   score:state.score,afterCapture:taken.game.pawns.length,
   physicsImpact:firstHit}));
- console.log("PASS RC01: smaller closed portrait hexagons with original-size centred 3D Polytrons, 5 persistent actors, mobile pointer capture, spring movement and chess capture");
+ console.log("PASS RC01: denser closed hexes, unchanged-sized 3D Polytrons exactly centred with browser toolbar offset, 72 identity constraints and physics capture");
 }finally{await rm(temporary,{recursive:true,force:true});}
