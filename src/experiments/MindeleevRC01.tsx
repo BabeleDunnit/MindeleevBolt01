@@ -3,7 +3,7 @@ import type {PointerEvent as ReactPointerEvent,KeyboardEvent as ReactKeyboardEve
 import {X,Move,Info,RotateCcw} from "lucide-react";
 import {makeRCBoard,rcCellAt,rcPolygon,type RCCell,type RCPoint}
  from "@/polytron/rc01Board";
-import {initialRCGame,moveRCPawn,pawnAt,pawnDNA,pawnName,pawnPalette,
+import {rc01CenterDiagnostic,moveRCPawn,pawnAt,pawnDNA,pawnName,pawnPalette,
  RC01_START_SCORE,type RCGame,type RCPawn} from "@/polytron/rc01Game";
 import {advanceRCFlight,finishedRCFlight,startRCFlight,
  type RCFlight} from "@/polytron/rc01Physics";
@@ -45,7 +45,7 @@ export default function MindeleevRC01(){
  const [sheet,setSheet]=useState<Sheet>(null);
  const [drag,setDrag]=useState<Drag|null>(null);
  const [flight,setFlight]=useState<RCFlight|null>(null);
- const [status,setStatus]=useState("Tocca un Polytrone o trascinalo su un'altra casella.");
+ const [status,setStatus]=useState("Diagnostica: un solo Polytrone nel nucleo (0,0).");
  const locked=flight!==null;
  useEffect(()=>{
   const node=stageRef.current;if(!node)return;
@@ -66,7 +66,7 @@ export default function MindeleevRC01(){
  },[]);
  useEffect(()=>{
   if(!viewport.ready||game!==null)return;
-  setGame(initialRCGame(board));
+  setGame(rc01CenterDiagnostic(board));
  },[viewport.ready,board,game]);
  useEffect(()=>()=>{if(frameId.current!==null)cancelAnimationFrame(frameId.current);},[]);
  const cellMap=useMemo(()=>new Map(board.cells.map(c=>[c.key,c])),[board]);
@@ -153,8 +153,8 @@ export default function MindeleevRC01(){
  };
  const reset=()=>{
   if(locked)return;
-  setGame(initialRCGame(board));setSheet(null);
-  setStatus("Nuova partita con cinque Polytroni casuali.");
+  setGame(rc01CenterDiagnostic(board));setSheet(null);
+  setStatus("Diagnostica ripristinata: Polytrone #1 nel nucleo (0,0).");
  };
  return <main className="rc01-page">
   <LifePolytron3D row={2} col={4} order="contrast"/>
@@ -221,7 +221,7 @@ export default function MindeleevRC01(){
    <div className="rc01-help"><Move size={16}/>
     <span>Tocca per esplorare · Trascina per muovere o prendere</span></div>
    <button type="button" onClick={reset} disabled={locked}
-    aria-label="Nuova disposizione casuale"><RotateCcw size={16}/></button>
+    aria-label="Ripristina Polytrone al nucleo (0,0)"><RotateCcw size={16}/></button>
   </footer>
   <p className="rc01-status" role="status" aria-live="polite">{status}</p>
   {sheet&&<div className="rc01-modal-layer">
