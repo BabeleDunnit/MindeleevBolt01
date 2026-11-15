@@ -36,9 +36,9 @@ export function rcPolygon(x:number,y:number,size:number):string{
 export function makeRCBoard(width:number,height:number):RCBoard{
  if(!Number.isFinite(width)||!Number.isFinite(height)||width<=0||height<=0)
   throw Error("Invalid board viewport");
- // A further ~12% reduction over the previous RC01 grid. The 3D pawn
- // radius is calculated independently and remains unchanged.
- const size=Math.max(30,Math.min(42,width/10.9));
+ // RC01 native 3D: a denser portrait tessellation with more complete cells.
+ // The Polytron model radius remains INDEPENDENT of the tile radius.
+ const size=Math.max(27,Math.min(38,width/12.5));
  const x0=width/2,y0=height*.435; // more complete rows BELOW the nucleus
  const margin=2;
  const halfW=Math.sqrt(3)*size/2;
