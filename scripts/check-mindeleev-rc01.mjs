@@ -22,6 +22,16 @@ try{
   load("src/polytron/rc01Physics.ts","motion"),
   load("src/experiments/MindeleevRC01.tsx","ui",true)
  ]);
+ // Hexagons are 20–22% smaller while pawns retain their previous size.
+ const normalPhone=grid.makeRCBoard(390,760);
+ const previousHexRadius=390/7.6;
+ assert(normalPhone.size<previousHexRadius*.81&&normalPhone.size>previousHexRadius*.77,
+  "New hexes must be about 21% smaller than RC01 initial layout");
+ assert(Math.abs(ui.rc01PawnRadius(390)-previousHexRadius*.53)<.3,
+  "Rendered Polytron viewport must retain the original pixel diameter");
+ assert(ui.rc01PawnRadius(390)>normalPhone.size*.6,
+  "Piece radius must be sized independently of hex radius");
+ assert(ui.rc01PawnRadius(320)>=24&&ui.rc01PawnRadius(600)<=32);
  // Every hexagon is complete, even on a narrow portrait viewport.
  for(const [w,h] of [[320,560],[360,670],[390,720],[430,860],[600,900]]){
   const board=grid.makeRCBoard(w,h);
@@ -134,12 +144,15 @@ try{
   "onPointerMove","onPointerUp","MIN_GESTURE","role=\"dialog\"",
   "aria-modal","rc01-scrim","pawnPalette(selectedPawn).name","idxInRing",
   "data-life-polytron","startRCFlight","advanceRCFlight","finishedRCFlight",
-  "moveRCPawn","pawnAt(game,to.key)","setSheet(null)","ResizeObserver"]){
+  "moveRCPawn","pawnAt(game,to.key)","setSheet(null)","ResizeObserver",
+  'data-life-center="true"', "radius={rc01PawnRadius(board.width)}"]){
   assert(sourceTSX.includes(feature),"Missing live touch/physics/inspection feature: "+feature);
  }
  const canvas=await readFile("src/experiments/LifePolytron3D.tsx","utf8");
  for(const feature of ["data-life-palette-row","data-life-palette-col",
-  "data-life-scale","polytronGeometry"]){
+  "data-life-scale","data-life-center", "mesh.position.copy(geo.center)",
+  "edges.position.copy(geo.center)","preciseCenter||isCard",
+  "polytronGeometry"]){
   assert(canvas.includes(feature),"Shared 3D must genuinely render per-individual palette: "+feature);
  }
  const css=await readFile("src/experiments/MindeleevRC01.css","utf8");
@@ -153,5 +166,5 @@ try{
   ring0:nucleus.key,randomPopulation:state.pawns.length,
   score:state.score,afterCapture:taken.game.pawns.length,
   physicsImpact:firstHit}));
- console.log("PASS RC01: full portrait honeycomb, identity-preserving 5 random actors, 3D per-palette board and modal, mobile pointer capture, physical movement and chess capture");
+ console.log("PASS RC01: smaller closed portrait hexagons with original-size centred 3D Polytrons, 5 persistent actors, mobile pointer capture, spring movement and chess capture");
 }finally{await rm(temporary,{recursive:true,force:true});}
