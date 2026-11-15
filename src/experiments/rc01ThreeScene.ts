@@ -190,6 +190,25 @@ export function createRC3DWorld(board:RCBoard){
   const actor=actors.get(seal);if(!actor)return;
   actor.root.position.copy(rcScreenWorld(board,point,z));
  }
+ function actorOrientation(seal:number){
+  const actor=actors.get(seal);
+  if(!actor)return undefined;
+  // Idle geometry lives on spin; once in physics, the entire rigid body
+  // follows the Rapier quaternion with no additional visual tween.
+  const q=actor.root.quaternion.clone().multiply(actor.spin.quaternion);
+  return {x:q.x,y:q.y,z:q.z,w:q.w};
+ }
+ function physicalPose(seal:number,pose:{
+  position:{x:number;y:number;z:number};
+  rotation:{x:number;y:number;z:number;w:number}
+ }){
+  const actor=actors.get(seal);if(!actor)return;
+  actor.root.position.set(pose.position.x,pose.position.y,pose.position.z);
+  actor.root.quaternion.set(
+   pose.rotation.x,pose.rotation.y,pose.rotation.z,pose.rotation.w
+  );
+  actor.spin.quaternion.identity();
+ }
  function hover(key:string|null,occupied:boolean){
   for(const [cellKey,line] of lines){
    const cell=cellsByKey.get(cellKey)!;
@@ -198,8 +217,9 @@ export function createRC3DWorld(board:RCBoard){
     (occupied?captureEdgeMaterial:hoverEdgeMaterial);
   }
  }
- function rotateModels(time:number){
-  for(const {spin} of actors.values()){
+ function rotateModels(time:number,active:ReadonlySet<number>=new Set()){
+  for(const [seal,{spin}] of actors){
+   if(active.has(seal))continue; // Rapier owns the body's 3D orientation.
    spin.rotation.y=.68+time*.00028;
    spin.rotation.x=.25+Math.sin(time*.00021)*.11;
    spin.rotation.z=Math.sin(time*.00013)*.09;
@@ -215,5 +235,5 @@ export function createRC3DWorld(board:RCBoard){
   shadowGeometry.dispose();shadowMaterial.dispose();
  }
  return {scene,camera,cellsByKey,raycastCell,raycastBoardPlane,
-  setPawns,moveActor,hover,rotateModels,dispose};
+  setPawns,moveActor,actorOrientation,physicalPose,hover,rotateModels,dispose};
 }
