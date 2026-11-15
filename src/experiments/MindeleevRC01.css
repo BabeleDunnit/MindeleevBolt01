@@ -11,9 +11,16 @@
 .rc01-page button{font:inherit;cursor:pointer}
 .rc01-page button:focus-visible,
 .rc01-page [role=button]:focus-visible{outline:3px solid #419d78;outline-offset:2px}
-.rc01-page>.ml-shared-3d{
- position:fixed;inset:0;z-index:75;width:100vw;height:100vh;
- background:transparent;pointer-events:none;touch-action:none
+/* The canvas MUST share the exact coordinate system and frame of the board.
+   On iOS an independent fixed full-screen canvas can be displaced by the
+   in-app browser chrome; a local canvas cannot acquire that offset. */
+.rc01-board-stage>.rc01-stage-3d{
+ position:absolute;inset:0;z-index:2;width:100%;height:100%;
+ display:block;background:transparent;pointer-events:none;touch-action:none
+}
+.rc01-sheet>.rc01-sheet-3d{
+ position:absolute;inset:0;z-index:4;width:100%;height:100%;
+ display:block;background:transparent;pointer-events:none;touch-action:none
 }
 .rc01-header{height:72px;min-height:72px;background:#fafbf9;border-bottom:1px solid #d5dcd7;
  display:flex;justify-content:space-between;align-items:center;padding:10px 20px;gap:16px;
@@ -53,6 +60,14 @@
  box-sizing:border-box;border-radius:2px}
 .rc01-calibration-cross::before{left:0;top:9px;width:21px;height:3px}
 .rc01-calibration-cross::after{left:9px;top:0;width:3px;height:21px}
+/* Visible diagnostic revision: screenshot can distinguish current JS/CSS
+   from a cached older release, and shows the actual hex radius. */
+.rc01-debug-build{
+ position:absolute;right:9px;top:9px;z-index:5;pointer-events:none;
+ background:#ffffffd9;border:1px solid #d4dfd8;border-radius:8px;
+ color:#4f745e;font-size:9px;font-weight:800;letter-spacing:.06em;
+ padding:5px 7px;box-shadow:0 1px 4px #325c3b13
+}
 .rc01-stage-caption{position:absolute;left:50%;bottom:9px;transform:translateX(-50%);
  z-index:3;white-space:nowrap;display:flex;gap:9px;align-items:center;
  padding:6px 10px;border-radius:999px;background:#ffffffc5;border:1px solid #cbd6cf;
@@ -83,9 +98,9 @@
  to{transform:translateY(0);opacity:1}}
 .rc01-sheet-handle{width:47px;height:5px;background:#c7d3cc;border-radius:5px;
  margin:0 auto 11px}
-.rc01-close{position:absolute;right:16px;top:15px;width:35px;height:35px;
+ .rc01-close{position:absolute;right:16px;top:15px;width:35px;height:35px;
  display:grid;place-items:center;border:1px solid #dbe5dc;background:#eef3ef;
- color:#416a55;border-radius:50%;z-index:2}
+ color:#416a55;border-radius:50%;z-index:6}
 .rc01-hero-model{width:100%;max-width:250px;height:190px;margin:0 auto 4px;
  border-radius:18px;background:radial-gradient(ellipse at center,#e1ebe5 0,#f4f8f4 72%);
  border:1px solid #e2ebe3}
