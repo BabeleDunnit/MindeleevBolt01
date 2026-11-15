@@ -2,6 +2,7 @@ import {useEffect,useRef} from "react";
 import * as THREE from "three";
 import {polytronGeometry} from "@/polytron/polytron";
 import {gradientPair} from "@/polytron/gradientPalettes";
+import {canvasLocalViewport} from "@/experiments/canvasLocalViewport";
 import type {GradientSelection,GradientOrder} from "@/polytron/gradientFacePalette";
 
 /**
@@ -65,7 +66,11 @@ export default function LifePolytron3D({row,col,order}:{
    raf=requestAnimationFrame(render);
    if(document.hidden||time-lastFrame<66)return;
    lastFrame=time;
-   const w=window.innerWidth,h=window.innerHeight;
+   // Measure the ACTUAL WebGL canvas, not window.innerHeight. On mobile
+   // embedded browsers its screen origin can be below a browser toolbar.
+   const canvasBox=canvas.getBoundingClientRect();
+   const w=Math.round(canvasBox.width),h=Math.round(canvasBox.height);
+   if(w<12||h<12)return;
    if(lastW!==w||lastH!==h){lastW=w;lastH=h;renderer.setSize(w,h,false);}
    renderer.setScissorTest(true);
    renderer.setViewport(0,0,w,h);renderer.setScissor(0,0,w,h);
@@ -77,24 +82,19 @@ export default function LifePolytron3D({row,col,order}:{
     const dna=element.getAttribute("data-life-polytron");
     if(!dna)continue;
     const box=element.getBoundingClientRect();
-    if(box.right<0||box.left>=w||box.bottom<0||box.top>=h)continue;
+    if(box.right<=canvasBox.left||box.left>=canvasBox.right||
+       box.bottom<=canvasBox.top||box.top>=canvasBox.bottom)continue;
     const isCard=element.getAttribute("data-life-kind")==="card";
     const scaleOverride=Number(element.getAttribute("data-life-scale"));
     const scale=Number.isFinite(scaleOverride)&&scaleOverride>0&&scaleOverride<=1.4?
       scaleOverride:(isCard?.8:.66);
-    const size=Math.min(box.width,box.height)*scale;
-    const centerX=(box.left+box.right)/2;
-    // Prior Life lab intentionally floats polyhedra 12% above their viewport.
-    // RC01 explicitly requests centre alignment instead, so the model's
-    // projected centre coincides with the geometric centre of the hexagon.
+    // Prior Life lab intentionally lifts polyhedra 12% above their viewport.
+    // RC01 requests exact centering. Both now use the proper canvas origin.
     const preciseCenter=element.getAttribute("data-life-center")==="true";
-    const centerY=(box.top+box.bottom)/2-(preciseCenter||isCard?0:box.height*.12);
-    const x=Math.max(0,Math.round(centerX-size/2));
-    const y=Math.max(0,Math.round(h-centerY-size/2));
-    const right=Math.min(w,Math.round(centerX+size/2));
-    const top=Math.min(h,Math.round(h-centerY+size/2));
-    const width=right-x,height=top-y;
-    if(width<12||height<12)continue;
+    const lift=(preciseCenter||isCard)?0:box.height*.12;
+    const viewport=canvasLocalViewport(canvasBox,box,scale,lift);
+    if(!viewport)continue;
+    const {x,y,width,height}=viewport;
     const customRow=Number(element.getAttribute("data-life-palette-row"));
     const customCol=Number(element.getAttribute("data-life-palette-col"));
     const hasCustom=element.hasAttribute("data-life-palette-row")&&
