@@ -181,6 +181,11 @@ export class RC01RapierFlight{
  }
  step():RCPhysicsFrame{
   if(this.ended)return this.snapshot();
+  // Rapier USER forces persist across ticks. Without explicit resets the
+  // attractor accumulates all past forces and accelerates wildly, producing
+  // endless oscillation and a visible hard stop (the original RC01 bug).
+  this.attacker.body.resetForces(true);
+  this.victim?.body.resetForces(true);
   this.applyAttackerField();
   this.applyHomeField();
   this.world.step(this.queue);
