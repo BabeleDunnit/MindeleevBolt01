@@ -212,9 +212,15 @@ export default function MindeleevRC01(){
      <circle cx={flight.target.x} cy={flight.target.y} r={board.size*.65}
       fill="#ffca9d" opacity=".3" pointerEvents="none"/>}
    </svg>
+   {/* Diagnostic target is DOM-positioned above the shared WebGL canvas,
+       so the exact geometric hex centre can be measured in a screenshot. */}
+   {board.cells.filter(cell=>cell.nucleus).map(cell=>
+    <span key={cell.key} className="rc01-calibration-cross"
+     style={{left:cell.x,top:cell.y}}
+     title="Centro geometrico esatto del nucleo (0,0)" aria-hidden="true"/>)}
    <div className="rc01-stage-caption" aria-hidden="true">
     <span className="rc01-core-dot"/> NUCLEO (0,0)
-    <span>·</span> {game?.pawns.length??5} / 72 IN SCENA
+    <span>·</span> {game?.pawns.length??1} / 72 IN SCENA
    </div>
   </div>
   <footer className="rc01-footer">
