@@ -3,8 +3,8 @@ import type {PointerEvent as ReactPointerEvent,KeyboardEvent as ReactKeyboardEve
 import * as THREE from "three";
 import type {RCBoard,RCCell,RCPoint} from "@/polytron/rc01Board";
 import {pawnAt,type RCGame,type RCPawn} from "@/polytron/rc01Game";
-import {advanceRCFlight,finishedRCFlight,startRCFlight,type RCFlight}
- from "@/polytron/rc01Physics";
+import {RC01RapierFlight,RC_RAPIER_FIXED_STEP}
+ from "@/experiments/rc01RapierFlight";
 import {createRC3DWorld} from "@/experiments/rc01ThreeScene";
 
 const MIN_DRAG_PIXELS=9;
@@ -15,23 +15,29 @@ type Press={
 type ThreeWorld=ReturnType<typeof createRC3DWorld>;
 
 export default function RC01ThreeBoard({
- board,game,onSelect,onCommitMove
+ board,game,onSelect,onCommitMove,onBusyChange
 }:{
  board:RCBoard;game:RCGame|null;
  onSelect:(cell:RCCell,pawn:RCPawn|null)=>void;
  onCommitMove:(source:string,target:string)=>void;
+ onBusyChange?:(busy:boolean)=>void;
 }){
  const canvasRef=useRef<HTMLCanvasElement>(null);
  const worldRef=useRef<ThreeWorld|null>(null);
  const gameRef=useRef(game);
  const selectRef=useRef(onSelect);
  const commitRef=useRef(onCommitMove);
+ const busyRef=useRef(onBusyChange);
  const pressRef=useRef<Press|null>(null);
- const flightRef=useRef<RCFlight|null>(null);
+ const flightRef=useRef<RC01RapierFlight|null>(null);
+ const launchingRef=useRef(false);
+ const epochRef=useRef(0);
  const focusKey=useRef("0,0");
  gameRef.current=game;
  selectRef.current=onSelect;
  commitRef.current=onCommitMove;
+ busyRef.current=onBusyChange;
+ const isBusy=()=>launchingRef.current||flightRef.current!==null;
  const screenPoint=(e:ReactPointerEvent<HTMLCanvasElement>):RCPoint|null=>{
   const rect=e.currentTarget.getBoundingClientRect();
   if(rect.width<=0||rect.height<=0)return null;
@@ -45,14 +51,13 @@ export default function RC01ThreeBoard({
   if(press&&canvas&&pointerId!==undefined&&canvas.hasPointerCapture(pointerId))
    canvas.releasePointerCapture(pointerId);
   if(press?.dragging&&press.pawn){
-   const world=worldRef.current;
-   world?.moveActor(press.pawn.seal,press.cell);
+   worldRef.current?.moveActor(press.pawn.seal,press.cell);
   }
   pressRef.current=null;
   worldRef.current?.hover(null,false);
  };
  const onPointerDown=(e:ReactPointerEvent<HTMLCanvasElement>)=>{
-  if(e.button!==0||flightRef.current||!gameRef.current)return;
+  if(e.button!==0||isBusy()||!gameRef.current)return;
   const world=worldRef.current,point=screenPoint(e);
   if(!world||!point)return;
   const cell=world.raycastCell(point.x,point.y);
@@ -66,7 +71,7 @@ export default function RC01ThreeBoard({
  };
  const onPointerMove=(e:ReactPointerEvent<HTMLCanvasElement>)=>{
   const press=pressRef.current,world=worldRef.current;
-  if(!press||press.pointerId!==e.pointerId||!world||flightRef.current)return;
+  if(!press||press.pointerId!==e.pointerId||!world||isBusy())return;
   if(!press.pawn)return;
   const distance=Math.hypot(e.clientX-press.startX,e.clientY-press.startY);
   if(distance<MIN_DRAG_PIXELS&&!press.dragging)return;
@@ -78,6 +83,33 @@ export default function RC01ThreeBoard({
   world.hover(target?.key??null,!!(target&&gameRef.current&&
    pawnAt(gameRef.current,target.key)));
  };
+ const launchPhysicalMove=(press:Press,target:RCCell)=>{
+  if(!press.pawn||isBusy()||!gameRef.current)return;
+  const world=worldRef.current;if(!world)return;
+  const victim=pawnAt(gameRef.current,target.key)??null;
+  const startedEpoch=epochRef.current;
+  launchingRef.current=true;
+  busyRef.current?.(true);
+  const args={
+   board,from:press.cell,to:target,attacker:press.pawn,victim,
+   attackerRotation:world.actorOrientation(press.pawn.seal),
+   victimRotation:victim?world.actorOrientation(victim.seal):undefined
+  };
+  void RC01RapierFlight.create(args).then(flight=>{
+   if(epochRef.current!==startedEpoch||worldRef.current!==world){
+    flight.dispose();
+    return;
+   }
+   launchingRef.current=false;
+   flightRef.current=flight;
+  }).catch(error=>{
+   if(epochRef.current!==startedEpoch)return;
+   launchingRef.current=false;
+   busyRef.current?.(false);
+   world.setPawns(gameRef.current?.pawns??[]);
+   console.error("Rapier RC01 physics initialization failed",error);
+  });
+ };
  const onPointerUp=(e:ReactPointerEvent<HTMLCanvasElement>)=>{
   const press=pressRef.current,world=worldRef.current;
   if(!press||press.pointerId!==e.pointerId||!world)return;
@@ -86,27 +118,19 @@ export default function RC01ThreeBoard({
   const wasDragging=press.dragging||
    Math.hypot(e.clientX-press.startX,e.clientY-press.startY)>=MIN_DRAG_PIXELS;
   cancelPointer(e.currentTarget,e.pointerId);
-  if(flightRef.current)return;
+  if(isBusy())return;
   if(!wasDragging){
    selectRef.current(press.cell,press.pawn);
    return;
   }
   if(!press.pawn||!target||target.key===press.cell.key)return;
-  const snapshot=gameRef.current;
-  if(!snapshot)return;
-  const victim=pawnAt(snapshot,target.key)??null;
-  flightRef.current=startRCFlight({
-   kind:victim?"capture":"move",
-   attackerSeal:press.pawn.seal,victimSeal:victim?.seal??null,
-   sourceKey:press.cell.key,targetKey:target.key,
-   from:press.cell,to:target,size:board.size
-  });
+  launchPhysicalMove(press,target);
  };
  const onPointerCancel=(e:ReactPointerEvent<HTMLCanvasElement>)=>
   cancelPointer(e.currentTarget,e.pointerId);
  const onKeyDown=(e:ReactKeyboardEvent<HTMLCanvasElement>)=>{
   const world=worldRef.current;
-  if(!world||flightRef.current)return;
+  if(!world||isBusy())return;
   const active=world.cellsByKey.get(focusKey.current)??world.cellsByKey.get("0,0");
   if(!active)return;
   const dir=e.key==="ArrowRight"?[1,0]:
@@ -138,39 +162,59 @@ export default function RC01ThreeBoard({
   const world=createRC3DWorld(board);
   worldRef.current=world;
   world.setPawns(gameRef.current?.pawns??[]);
-  let alive=true,raf=0,last=performance.now();
+  const epoch=++epochRef.current;
+  let alive=true,raf=0,last=performance.now(),accumulator=0;
   const frame=(now:number)=>{
    if(!alive)return;
    raf=requestAnimationFrame(frame);
-   const dt=Math.max(0,Math.min(.04,(now-last)/1000));last=now;
+   const dt=Math.max(0,Math.min(.06,(now-last)/1000));last=now;
    const flight=flightRef.current;
    if(flight){
-    const next=advanceRCFlight(flight,dt);
-    flightRef.current=next;
-    world.moveActor(next.attackerSeal,next.attacker,12);
-    if(next.victimSeal!==null&&next.victim)
-     world.moveActor(next.victimSeal,next.victim,14+(next.impacted?18:0));
-    if(finishedRCFlight(next)){
-     flightRef.current=null;
-     commitRef.current(next.sourceKey,next.targetKey);
+    accumulator+=dt;
+    let steps=0,physical=flight.snapshot();
+    // Stable integration regardless of the phone's rendering framerate.
+    while(accumulator>=RC_RAPIER_FIXED_STEP&&steps++<8){
+     physical=flight.step();
+     accumulator-=RC_RAPIER_FIXED_STEP;
+     if(physical.done)break;
     }
+    world.physicalPose(physical.attacker.seal,physical.attacker);
+    if(physical.victim)
+     world.physicalPose(physical.victim.seal,physical.victim);
+    if(physical.done){
+     flightRef.current=null;
+     flight.dispose();
+     busyRef.current?.(false);
+     if(physical.success)commitRef.current(flight.from,flight.to);
+     else world.setPawns(gameRef.current?.pawns??[]);
+     accumulator=0;
+    }
+   }else accumulator=0;
+   const running=flightRef.current;
+   const active=new Set<number>();
+   if(running){
+    active.add(running.attackerSeal);
+    if(running.victimSeal!==null)active.add(running.victimSeal);
    }
-   world.rotateModels(now);
+   world.rotateModels(now,active);
    renderer.render(world.scene,world.camera);
   };
   raf=requestAnimationFrame(frame);
   return ()=>{
    alive=false;cancelAnimationFrame(raf);
-   pressRef.current=null;flightRef.current=null;
+   epochRef.current=epoch+1;
+   pressRef.current=null;launchingRef.current=false;
+   flightRef.current?.dispose();flightRef.current=null;
    worldRef.current=null;
    world.dispose();renderer.dispose();
   };
  },[board]);
  useEffect(()=>{
-  worldRef.current?.setPawns(game?.pawns??[]);
+  // Game changes only after a completed, physically evaluated move.
+  if(!isBusy())worldRef.current?.setPawns(game?.pawns??[]);
  },[game]);
  return <canvas ref={canvasRef} className="rc01-three-board"
-  role="img" aria-label="Scacchiera 3D esagonale. Tocca una cella per i dettagli; trascina un Polytrone per spostarlo o effettuare una presa."
+  role="img" aria-label="Scacchiera 3D esagonale con motore Rapier: trascina per muovere o effettuare una presa fisica."
   tabIndex={0} onPointerDown={onPointerDown} onPointerMove={onPointerMove}
   onPointerUp={onPointerUp} onPointerCancel={onPointerCancel}
   onLostPointerCapture={()=>{if(pressRef.current)cancelPointer();}}
