@@ -1,5 +1,4 @@
 import {useEffect,useMemo,useRef,useState} from "react";
-import {RotateCcw,X} from "lucide-react";
 import {makeRCBoard,type RCCell} from "@/polytron/rc01Board";
 import {initialRCGame,moveRCPawn,pawnDNA,pawnName,pawnPalette,
  RC01_START_SCORE,type RCGame,type RCPawn} from "@/polytron/rc01Game";
@@ -72,7 +71,7 @@ export default function MindeleevRC01(){
     <span className="rc01-scene-dot"/> {game?.pawns.length??5} / 72 IN SCENA
    </div>
    <button type="button" className="rc01-reset" aria-label="Nuova partita casuale"
-    onClick={reset}><RotateCcw size={18}/></button>
+    onClick={reset}>↻</button>
   </section>
   {/* Announcement for assistive technologies, not a visible status strip. */}
   <p className="rc01-visually-hidden" role="status" aria-live="polite">
@@ -86,7 +85,7 @@ export default function MindeleevRC01(){
     className="rc01-sheet">
     <div className="rc01-sheet-handle"/>
     <button className="rc01-close" type="button" aria-label="Chiudi"
-     onClick={()=>setSheet(null)}><X size={20}/></button>
+     onClick={()=>setSheet(null)}>×</button>
     {selectedPawn&&<div className="rc01-poly-sheet">
      <RC01ThreeInspector pawn={selectedPawn}/>
      <div className="rc01-sheet-kicker">POLYTRONE · {pawnName(selectedPawn)}</div>
