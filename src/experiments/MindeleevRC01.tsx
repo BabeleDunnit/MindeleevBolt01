@@ -1,160 +1,58 @@
 import {useEffect,useMemo,useRef,useState} from "react";
-import type {PointerEvent as ReactPointerEvent,KeyboardEvent as ReactKeyboardEvent} from "react";
-import {X,Move,Info,RotateCcw} from "lucide-react";
-import {makeRCBoard,rcCellAt,rcPolygon,type RCCell,type RCPoint}
- from "@/polytron/rc01Board";
-import {rc01CenterDiagnostic,moveRCPawn,pawnAt,pawnDNA,pawnName,pawnPalette,
+import {RotateCcw,X} from "lucide-react";
+import {makeRCBoard,type RCCell} from "@/polytron/rc01Board";
+import {initialRCGame,moveRCPawn,pawnDNA,pawnName,pawnPalette,
  RC01_START_SCORE,type RCGame,type RCPawn} from "@/polytron/rc01Game";
-import {advanceRCFlight,finishedRCFlight,startRCFlight,
- type RCFlight} from "@/polytron/rc01Physics";
-import LifePolytron3D from "@/experiments/LifePolytron3D";
+import RC01ThreeBoard from "@/experiments/RC01ThreeBoard";
+import RC01ThreeInspector from "@/experiments/RC01ThreeInspector";
 import "./MindeleevRC01.css";
 
 type Sheet={kind:"polytron";seal:number}|{kind:"cell";key:string}|null;
-type Press={pointerId:number;startX:number;startY:number;cell:RCCell;pawn:RCPawn|null};
-type Drag={seal:number;from:string;point:RCPoint;hover:string|null};
-const MIN_GESTURE=9;
-// Preserve the APPROVED 3D Polytron size on a phone even as the
-// hexagonal grid becomes denser. Previous radius was ~0.53*(width/7.6).
-export const rc01PawnRadius=(width:number)=>Math.max(24,Math.min(32,width/14.4));
-const initialViewport={width:390,height:700,ready:false};
+const INITIAL_VIEWPORT={width:390,height:700,ready:false};
 
-function BodyView({pawn,point,radius,hidden}:{pawn:RCPawn;point:RCPoint;
- radius:number;hidden:boolean}){
- return <g transform={`translate(${point.x} ${point.y})`}
-  className="rc01-pawn" aria-hidden="true">
-  <circle r={radius*.92} fill="#c9d2ce" fillOpacity=".17"/>
-  <circle r={radius} fill="transparent" pointerEvents="none"
-   data-life-polytron={hidden?undefined:pawnDNA(pawn)}
-   data-life-palette-row={pawn.row}
-   data-life-palette-col={pawn.col}
-   data-life-scale="1.14" data-life-center="true"/>
-  <text x={0} y={radius*1.46} textAnchor="middle" className="rc01-pawn-number"
-   pointerEvents="none">#{pawn.number}</text>
- </g>;
-}
 export default function MindeleevRC01(){
  const stageRef=useRef<HTMLDivElement>(null);
- const svgRef=useRef<SVGSVGElement>(null);
- const gesture=useRef<Press|null>(null);
- const frameId=useRef<number|null>(null);
- const [viewport,setViewport]=useState(initialViewport);
+ const [viewport,setViewport]=useState(INITIAL_VIEWPORT);
  const board=useMemo(()=>makeRCBoard(viewport.width,viewport.height),
   [viewport.width,viewport.height]);
  const [game,setGame]=useState<RCGame|null>(null);
  const [sheet,setSheet]=useState<Sheet>(null);
- const [drag,setDrag]=useState<Drag|null>(null);
- const [flight,setFlight]=useState<RCFlight|null>(null);
- const [status,setStatus]=useState("Diagnostica: un solo Polytrone nel nucleo (0,0).");
- const locked=flight!==null;
  useEffect(()=>{
   const node=stageRef.current;if(!node)return;
   const measure=()=>{
-   const box=node.getBoundingClientRect();
-   const width=Math.round(box.width),height=Math.round(box.height);
-   if(width>=280&&height>=350)setViewport(prev=>
-    prev.width===width&&prev.height===height&&prev.ready?prev:
-     {width,height,ready:true});
+   const bounds=node.getBoundingClientRect();
+   const width=Math.round(bounds.width),height=Math.round(bounds.height);
+   if(width>=280&&height>=350)setViewport(previous=>
+    previous.width===width&&previous.height===height&&previous.ready?
+     previous:{width,height,ready:true});
   };
   measure();
-  if(typeof ResizeObserver==="undefined"){
-   window.addEventListener("resize",measure);
-   return ()=>window.removeEventListener("resize",measure);
+  if(typeof ResizeObserver!=="undefined"){
+   const observer=new ResizeObserver(measure);observer.observe(node);
+   return ()=>observer.disconnect();
   }
-  const observer=new ResizeObserver(measure);observer.observe(node);
-  return ()=>observer.disconnect();
+  window.addEventListener("resize",measure);
+  return ()=>window.removeEventListener("resize",measure);
  },[]);
  useEffect(()=>{
-  if(!viewport.ready||game!==null)return;
-  setGame(rc01CenterDiagnostic(board));
+  if(viewport.ready&&game===null)setGame(initialRCGame(board));
  },[viewport.ready,board,game]);
- useEffect(()=>()=>{if(frameId.current!==null)cancelAnimationFrame(frameId.current);},[]);
- const cellMap=useMemo(()=>new Map(board.cells.map(c=>[c.key,c])),[board]);
+ const cells=useMemo(()=>new Map(board.cells.map(c=>[c.key,c])),[board]);
  const selectedPawn=sheet?.kind==="polytron"?
   game?.pawns.find(p=>p.seal===sheet.seal):undefined;
- const selectedCell=sheet?.kind==="cell"?cellMap.get(sheet.key):undefined;
- const viewPoint=(e:ReactPointerEvent):RCPoint|null=>{
-  const node=svgRef.current;if(!node)return null;
-  const matrix=node.getScreenCTM();if(!matrix)return null;
-  const point=node.createSVGPoint();point.x=e.clientX;point.y=e.clientY;
-  const mapped=point.matrixTransform(matrix.inverse());
-  return {x:mapped.x,y:mapped.y};
- };
- const clearGesture=()=>{
-  gesture.current=null;setDrag(null);
- };
- const down=(e:ReactPointerEvent<SVGGElement>,cell:RCCell)=>{
-  if(locked||sheet||!game||e.button!==0)return;
-  gesture.current={pointerId:e.pointerId,startX:e.clientX,
-   startY:e.clientY,cell,pawn:pawnAt(game,cell.key)??null};
-  svgRef.current?.setPointerCapture(e.pointerId);
-  e.preventDefault();
- };
- const moved=(e:ReactPointerEvent<SVGSVGElement>)=>{
-  const active=gesture.current;
-  if(!active||active.pointerId!==e.pointerId||!active.pawn)return;
-  const dist=Math.hypot(e.clientX-active.startX,e.clientY-active.startY);
-  if(dist<MIN_GESTURE)return;
-  const point=viewPoint(e);if(!point)return;
-  const hover=rcCellAt(board,point.x,point.y);
-  setDrag({seal:active.pawn.seal,from:active.cell.key,
-   point,hover:hover?.key??null});
- };
- const beginMotion=(attacker:RCPawn,from:RCCell,to:RCCell)=>{
-  if(!game)return;
-  const victim=pawnAt(game,to.key)??null;
-  const initial=startRCFlight({kind:victim?"capture":"move",
-   attackerSeal:attacker.seal,victimSeal:victim?.seal??null,
-   sourceKey:from.key,targetKey:to.key,
-   from:{x:from.x,y:from.y},to:{x:to.x,y:to.y},size:board.size});
-  setFlight(initial);setStatus(victim?"Presa! Collisione e ritorno a casa.":"Spostamento fisico in corso.");
-  let current=initial,last=performance.now();
-  const tick=(now:number)=>{
-   const dt=Math.max(0,Math.min(.04,(now-last)/1000));last=now;
-   current=advanceRCFlight(current,dt);
-   if(finishedRCFlight(current)){
-    setGame(previous=>{
-     if(!previous)return previous;
-     const result=moveRCPawn(previous,from.key,to.key,board);
-     if(result)setStatus(result.game.lastAction);
-     return result?.game??previous;
-    });
-    setFlight(null);frameId.current=null;return;
-   }
-   setFlight(current);
-   frameId.current=requestAnimationFrame(tick);
-  };
-  frameId.current=requestAnimationFrame(tick);
- };
- const up=(e:ReactPointerEvent<SVGSVGElement>)=>{
-  const active=gesture.current;
-  if(!active||active.pointerId!==e.pointerId)return;
-  gesture.current=null;setDrag(null);
-  if(svgRef.current?.hasPointerCapture(e.pointerId))
-   svgRef.current.releasePointerCapture(e.pointerId);
-  if(locked||!game)return;
-  const distance=Math.hypot(e.clientX-active.startX,e.clientY-active.startY);
-  if(distance<MIN_GESTURE){
-   if(active.pawn)setSheet({kind:"polytron",seal:active.pawn.seal});
-   else setSheet({kind:"cell",key:active.cell.key});
-   return;
-  }
-  if(!active.pawn)return;
-  const point=viewPoint(e);if(!point)return;
-  const target=rcCellAt(board,point.x,point.y);
-  if(!target||target.key===active.cell.key)return;
-  beginMotion(active.pawn,active.cell,target);
- };
- const keyboard=(e:ReactKeyboardEvent<SVGGElement>,cell:RCCell)=>{
-  if((e.key!=="Enter"&&e.key!==" ")||locked||!game)return;
-  e.preventDefault();
-  const pawn=pawnAt(game,cell.key);
+ const selectedCell=sheet?.kind==="cell"?cells.get(sheet.key):undefined;
+ const select=(cell:RCCell,pawn:RCPawn|null)=>{
   setSheet(pawn?{kind:"polytron",seal:pawn.seal}:{kind:"cell",key:cell.key});
  };
+ const commitMove=(from:string,to:string)=>{
+  setGame(previous=>{
+   if(!previous)return previous;
+   return moveRCPawn(previous,from,to,board)?.game??previous;
+  });
+ };
  const reset=()=>{
-  if(locked)return;
-  setGame(rc01CenterDiagnostic(board));setSheet(null);
-  setStatus("Diagnostica ripristinata: Polytrone #1 nel nucleo (0,0).");
+  setSheet(null);
+  setGame(initialRCGame(board));
  };
  return <main className="rc01-page">
   <header className="rc01-header">
@@ -162,110 +60,46 @@ export default function MindeleevRC01(){
     <span className="rc01-brand-mark">✳</span>
     <div><strong>MINDELEEV</strong><small>RELEASE CANDIDATE 01</small></div>
    </div>
-   <div className="rc01-score" aria-label="Energia: 100">
+   <div className="rc01-score" aria-label={"Energia: "+(game?.score??RC01_START_SCORE)}>
     <span>ENERGIA</span><strong>{game?.score??RC01_START_SCORE}</strong>
    </div>
   </header>
-  <div className="rc01-board-stage" ref={stageRef}>
-   {/* Use the SAME positioned parent for the 2D hexes and their 3D
-       manifestations. No global fixed canvas or browser toolbar offsets. */}
-   <LifePolytron3D row={2} col={4} order="contrast"
-    scope=".rc01-board-stage" canvasClassName="rc01-stage-3d"/>
-   <svg ref={svgRef} className="rc01-board" viewBox={`0 0 ${board.width} ${board.height}`}
-    role="group" aria-label="Scacchiera esagonale di Mindeleev. Tocca per informazioni, trascina per muovere o prendere."
-    onPointerMove={moved} onPointerUp={up} onPointerCancel={clearGesture}>
-    <defs>
-     <radialGradient id="rc01-core-gradient">
-      <stop stopColor="#b9dacf"/><stop offset="100%" stopColor="#e5ece7"/>
-     </radialGradient>
-    </defs>
-    {board.cells.map(cell=>{
-     const current=game?pawnAt(game,cell.key):null;
-     const hover=drag?.hover===cell.key&&drag.from!==cell.key;
-     return <g key={cell.key} role="button" tabIndex={locked?-1:0}
-      className={"rc01-cell"+(cell.nucleus?" rc01-nucleus":"")+
-       (hover?" rc01-target":"")+(hover&&current?" rc01-capture-target":"")}
-      aria-label={`Cella ${cell.key}, anello ${cell.ring}, indice ${cell.idxInRing}. ${current?
-       "Polytrone "+current.number+", "+pawnName(current):"Libera"}`}
-      onPointerDown={e=>down(e,cell)}
-      onKeyDown={e=>keyboard(e,cell)}>
-      <polygon points={rcPolygon(cell.x,cell.y,board.size-1.25)}
-       fill={cell.nucleus?"url(#rc01-core-gradient)":"#f2f3f1"}
-       strokeWidth={cell.nucleus?2.35:1.75}/>
-      {cell.nucleus&&<circle cx={cell.x} cy={cell.y} r={board.size*.82}
-       fill="none" stroke="#54917b" strokeOpacity=".4"
-       strokeWidth="2" strokeDasharray="4 5" pointerEvents="none"/>}
-     </g>;
-    })}
-    {game?.pawns.map(pawn=>{
-     const cell=cellMap.get(pawn.cellKey);if(!cell)return null;
-     const point=flight?.attackerSeal===pawn.seal?
-      flight.attacker:flight?.victimSeal===pawn.seal&&flight.victim?
-       flight.victim:drag?.seal===pawn.seal?drag.point:cell;
-     return <BodyView key={pawn.seal} pawn={pawn} point={point}
-      radius={rc01PawnRadius(board.width)} hidden={sheet!==null}/>;
-    })}
-    {drag?.hover&&(()=>{
-     const cell=cellMap.get(drag.hover);if(!cell)return null;
-     return <circle cx={cell.x} cy={cell.y} r={board.size*.63}
-      fill="none" stroke="#1e8662" strokeWidth="3.3" strokeDasharray="6 5"
-      pointerEvents="none"/>;
-    })()}
-    {flight?.impacted&&flight.kind==="capture"&&
-     <circle cx={flight.target.x} cy={flight.target.y} r={board.size*.65}
-      fill="#ffca9d" opacity=".3" pointerEvents="none"/>}
-   </svg>
-   {/* Diagnostic target is DOM-positioned above the shared WebGL canvas,
-       so the exact geometric hex centre can be measured in a screenshot. */}
-   {board.cells.filter(cell=>cell.nucleus).map(cell=>
-    <span key={cell.key} className="rc01-calibration-cross"
-     style={{left:cell.x,top:cell.y}}
-     title="Centro geometrico esatto del nucleo (0,0)" aria-hidden="true"/>)}
-   <div className="rc01-debug-build" aria-hidden="true">
-    ALIGN 03 · ESAGONO {Math.round(board.size)}px
+  <section className="rc01-board-stage" ref={stageRef}
+   aria-label="Mutatron 3D, scacchiera tattile">
+   <RC01ThreeBoard board={board} game={game}
+    onSelect={select} onCommitMove={commitMove}/>
+   <div className="rc01-scene-count" aria-hidden="true">
+    <span className="rc01-scene-dot"/> {game?.pawns.length??5} / 72 IN SCENA
    </div>
-   <div className="rc01-stage-caption" aria-hidden="true">
-    <span className="rc01-core-dot"/> NUCLEO (0,0)
-    <span>·</span> {game?.pawns.length??1} / 72 IN SCENA
-   </div>
-  </div>
-  <footer className="rc01-footer">
-   <div className="rc01-help"><Move size={16}/>
-    <span>Tocca per esplorare · Trascina per muovere o prendere</span></div>
-   <button type="button" onClick={reset} disabled={locked}
-    aria-label="Ripristina Polytrone al nucleo (0,0)"><RotateCcw size={16}/></button>
-  </footer>
-  <p className="rc01-status" role="status" aria-live="polite">{status}</p>
+   <button type="button" className="rc01-reset" aria-label="Nuova partita casuale"
+    onClick={reset}><RotateCcw size={18}/></button>
+  </section>
+  {/* Announcement for assistive technologies, not a visible status strip. */}
+  <p className="rc01-visually-hidden" role="status" aria-live="polite">
+   {game?.lastAction??"Caricamento scacchiera tridimensionale."}
+  </p>
   {sheet&&<div className="rc01-modal-layer">
    <button type="button" className="rc01-scrim"
     aria-label="Chiudi pannello" onClick={()=>setSheet(null)}/>
    <section role="dialog" aria-modal="true"
     aria-label={sheet.kind==="polytron"?"Dettagli del Polytrone":"Dettagli della casella"}
     className="rc01-sheet">
-    {/* The sheet owns its own 3D viewport; it does not reuse the stage's
-        canvas, which is clipped to the board by design. */}
-    <LifePolytron3D row={2} col={4} order="contrast"
-     scope=".rc01-sheet" canvasClassName="rc01-sheet-3d"/>
     <div className="rc01-sheet-handle"/>
     <button className="rc01-close" type="button" aria-label="Chiudi"
      onClick={()=>setSheet(null)}><X size={20}/></button>
     {selectedPawn&&<div className="rc01-poly-sheet">
-     <div className="rc01-hero-model" data-life-polytron={pawnDNA(selectedPawn)}
-      data-life-palette-row={selectedPawn.row}
-      data-life-palette-col={selectedPawn.col}
-      data-life-kind="card" data-life-scale="1.06" data-life-center="true"/>
+     <RC01ThreeInspector pawn={selectedPawn}/>
      <div className="rc01-sheet-kicker">POLYTRONE · {pawnName(selectedPawn)}</div>
      <h2>#{selectedPawn.number}</h2>
      <dl className="rc01-details">
       <div><dt>Conway DNA</dt><dd>{pawnDNA(selectedPawn)}</dd></div>
-      <div><dt>Palette · Latin / Greek</dt>
-       <dd>{pawnPalette(selectedPawn).name}</dd></div>
+      <div><dt>Palette · Latin / Greek</dt><dd>{pawnPalette(selectedPawn).name}</dd></div>
       <div><dt>Identità permanente</dt>
        <dd>{pawnName(selectedPawn)} · {selectedPawn.seal}/72</dd></div>
      </dl>
     </div>}
     {selectedCell&&<div className="rc01-cell-sheet">
-     <div className="rc01-sheet-kicker"><Info size={15}/> GEOMETRIA DEL MUTATRON</div>
+     <div className="rc01-sheet-kicker">GEOMETRIA DEL MUTATRON</div>
      <h2>{selectedCell.nucleus?"Nucleo":"Casella libera"}</h2>
      <dl className="rc01-details">
       <div><dt>Coordinate assiali (q, r)</dt>
