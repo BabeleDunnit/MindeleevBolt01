@@ -26,7 +26,7 @@ const MAX_SECONDS=5.0; // failure guard only: never commits an unsettled move
 const MIN_MOVE_TIME=.25;
 const MIN_CAPTURE_TIME=.65;
 const REST_WINDOW=.14;
-const ATTRACTOR_OMEGA=7.4;
+const ATTRACTOR_OMEGA=5.8;
 const ATTRACTOR_DAMPING_RATIO=.88;
 const ATTRACTOR_K=ATTRACTOR_OMEGA*ATTRACTOR_OMEGA;
 const ATTRACTOR_D=2*ATTRACTOR_DAMPING_RATIO*ATTRACTOR_OMEGA;
@@ -156,7 +156,8 @@ export class RC01RapierFlight{
   const mass=body.mass();
   // F = m * (omega² * error - 2*zeta*omega * velocity).
   // zeta = .88 means a small, quickly fading overshoot (never endless
-  // oscillation). The time constant is independent of trip distance and mass.
+  // oscillation). Omega=5.8 avoids hitting Rapier's built-in speed ceiling
+  // during ordinary three-cell moves, so acceleration and braking are visible.
   const spring=ATTRACTOR_K,damping=ATTRACTOR_D;
   body.addForce(vec(
    mass*(spring*(this.target.x-p.x)-damping*v.x),
@@ -172,7 +173,7 @@ export class RC01RapierFlight{
   // Drag acts only along the outward component. With no ground, screen wall
   // or target restoring force on this body it cannot bounce at the edge.
   const radialVelocity=v.x*outward.x+v.y*outward.y;
-  const drive=Math.max(0,1500-2.4*radialVelocity);
+  const drive=Math.max(0,800-2.4*radialVelocity);
   body.addForce(vec(
    mass*drive*outward.x,
    mass*drive*outward.y,
