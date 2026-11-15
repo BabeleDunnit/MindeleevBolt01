@@ -149,6 +149,11 @@ try{
    "Engine must accelerate the attacking rigid body");
   assert(topVictim>15,"Victim must receive nonzero physical momentum");
   assert(topRotation>.01,"Rapier must rotate the struck polyhedron");
+  console.log("RC01 CAPTURE DIAGNOSTIC",JSON.stringify({
+   last:finished,collided:contacted,contacts:collisionEvents,
+   topAttacker,topVictim,topRotation,
+   end:flight.snapshot()
+  }));
   assert(finished?.success,"Contact-driven physical capture must complete");
   assert(finished?.victim,"Capture keeps both bodies until the end of the dance");
   assert.equal(flight.from,from.key);
