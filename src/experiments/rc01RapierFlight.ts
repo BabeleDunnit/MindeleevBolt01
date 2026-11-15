@@ -211,9 +211,13 @@ export class RC01RapierFlight{
   const rested=this.restSeconds>=REST_WINDOW;
   if(this.victim){
    const vpos=this.victim.body.translation();
-   const left=Math.hypot(vpos.x-this.target.x,vpos.y-this.target.y)>
-    Math.max(3*this.radius,2.3*this.board.size);
-   if(this.collided&&elapsed>=MIN_CAPTURE_TIME&&left&&rested){
+   // The invisible "home" is beyond the visible camera bounds, not just
+   // three pawn radii away from the collision. Never cut the victim off
+   // while it is still plainly visible on the Mutatron.
+   const beyondX=Math.abs(vpos.x)>this.board.width/2+this.radius*1.2;
+   const beyondY=Math.abs(vpos.y)>this.board.height/2+this.radius*1.2;
+   const offscreen=beyondX||beyondY;
+   if(this.collided&&elapsed>=MIN_CAPTURE_TIME&&offscreen&&rested){
     this.ended=true;this.succeeded=true;
    }
   }else if(elapsed>=MIN_MOVE_TIME&&rested){
