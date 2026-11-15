@@ -10,6 +10,7 @@ import PolytronPeriodicLab from "@/experiments/PolytronPeriodicLab";
 import GradientPaletteLab from "@/experiments/GradientPaletteLab";
 import MindeleevLifeLab from "@/experiments/MindeleevLifeLab";
 import MindeleevSpectralLab from "@/experiments/MindeleevSpectralLab";
+import MindeleevRC01 from "@/experiments/MindeleevRC01";
 import HexWorld, { PALETTE_SETS } from "@/components/HexWorld";
 import { runCodecSelfTests } from "@/polytron/mapping";
 import { runInterestingSelfTests } from "@/polytron/interesting";
@@ -92,6 +93,7 @@ function App() {
   if (new URLSearchParams(window.location.search).get("experiment") === "polytron-periodic") return <PolytronPeriodicLab />;
   if (new URLSearchParams(window.location.search).get("experiment") === "mindeleev-life") return <MindeleevLifeLab />;
   if (new URLSearchParams(window.location.search).get("experiment") === "mindeleev-spectral") return <MindeleevSpectralLab />;
+  if (new URLSearchParams(window.location.search).get("experiment") === "mindeleev-rc01") return <MindeleevRC01 />;
   if (new URLSearchParams(window.location.search).get("experiment") === "gradient-palettes") return <GradientPaletteLab />;
   if (new URLSearchParams(window.location.search).get("experiment") === "phase-shift") return <MutatronPhaseLab />;
   if (new URLSearchParams(window.location.search).get("experiment") === "conway-ring") return <ConwayRingLab />;
