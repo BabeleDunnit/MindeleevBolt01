@@ -173,13 +173,73 @@ try{
  for(const phrase of ["@dimforge/rapier3d-compat","new RAPIER.World",
   "RAPIER.ColliderDesc.convexHull","RAPIER.EventQueue",
   "RAPIER.ActiveEvents.COLLISION_EVENTS","this.world.step(this.queue)",
-  "drainCollisionEvents","applyImpulse","applyTorqueImpulse","addForce",
-  "setRestitution","setMass","setCcdEnabled","setAngularDamping"]){
+  "drainCollisionEvents","applyTorqueImpulse","addForce",
+  "setRestitution","setMass","setCcdEnabled","setAngularDamping",
+  "ATTRACTOR_DAMPING_RATIO","REST_WINDOW","this.restSeconds"]){
   assert(physicalSource.includes(phrase),"Missing real rigid-body physics: "+phrase);
  }
  assert(!physicalSource.includes("startRCFlight")&&
   !physicalSource.includes("advanceRCFlight"),
   "RC01 cannot silently fall back to scripted pseudo-physics");
+ // The physical environment must be free of floor and viewport boundary
+ // collisions: Polytrons hover in 3D and homeward flight is one-way.
+ assert(physicalSource.includes("new RAPIER.World(vec(0,0,0))"));
+ assert(!physicalSource.includes("ColliderDesc.cuboid("),
+  "No hidden floor or screen boundary that can bounce an escaping pawn");
+ assert(!physicalSource.includes("this.succeeded=this.victim?this.collided:true"),
+  "Timeout must not teleport the Polytron into the target cell");
+ assert(physicalSource.includes("this.succeeded=false"),
+  "Expired simulations must abort rather than snap an unsettled body");
+ assert(physicalSource.includes("offscreen&&rested"),
+  "Captured pawn must actually be beyond the viewport before removal");
+ // Sample the Rapier trajectory, not an authored easing curve. Verify a
+ // velocity peak followed by a strong, smooth falloff before completion.
+ const extendedTo=board.cells.find(c=>c.key==="3,0");
+ assert(extendedTo,"The denser portrait board must support a distant empty target");
+ const smooth=await physics.RC01RapierFlight.create({
+  board,from,to:extendedTo,attacker:actor,victim:null
+ });
+ try{
+  const samples=[];
+  for(let i=0;i<600;i++){
+   const sample=smooth.step();
+   samples.push(sample);
+   if(sample.done)break;
+  }
+  const last=samples.at(-1);
+  const speeds=samples.map(x=>x.attacker.speed);
+  const peak=Math.max(...speeds);
+  const peakAt=speeds.indexOf(peak);
+  assert(last?.done&&last.success,
+   "Distant move must truly settle at the physical attractor");
+  assert(peakAt>2&&peakAt<speeds.length*.6,
+   "The body must accelerate before decelerating, rather than moving at constant speed");
+  assert(peak>20&&speeds.at(-1)<2.6,
+   "Speed must physically decay to near zero before the move completes");
+  const goal=worldModule.rcScreenWorld(board,extendedTo,
+   physics.rcRapierPawnRadius(board)+4);
+  const landed=last.attacker.position;
+  assert(Math.hypot(landed.x-goal.x,landed.y-goal.y)<1.2,
+   "Subpixel landing threshold removes visible teleports");
+  assert(last.time<4,
+   "Damped attraction should settle without oscillating for many seconds");
+  console.log("RC01 ATTRACTOR",JSON.stringify({
+   startSpeed:+speeds[0].toFixed(2),
+   peakSpeed:+peak.toFixed(2),
+   finalSpeed:+speeds.at(-1).toFixed(3),
+   duration:+last.time.toFixed(3),distance:Math.hypot(
+    goal.x-worldModule.rcScreenWorld(board,from).x,
+    goal.y-worldModule.rcScreenWorld(board,from).y)
+  }));
+ }finally{smooth.dispose();}
+ const sceneSource=await readFile("src/experiments/rc01ThreeScene.ts","utf8");
+ for(const phrase of ["previous.root.position.copy",
+  "previous.pawn=pawn","if(active.has(seal))continue",
+  "spin.rotation.y+=dt*.28","lastSpinTime"]){
+  assert(sceneSource.includes(phrase),
+   "Never visually recreate or rotate discontinuously at motion completion: "+phrase);
+ }
+
  // SSR includes only WebGL canvas for the board. No hybrid SVG geometry.
  const markup=renderToString(React.createElement(ui.default));
  assert(markup.includes("RELEASE CANDIDATE 01"));
