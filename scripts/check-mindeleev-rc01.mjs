@@ -81,6 +81,17 @@ try{
    "Drag plane raycast must reproduce exact tile centroid");
  }
  assert.equal(world.raycastCell(-50,-50),null);
+ // Drag ghost is a dedicated extruded Three.js hex. It follows the finger,
+ // while the actor is never moved before release.
+ const proxy=world.scene.children.find(x=>x.isGroup&&x.children.some(y=>
+  y.isMesh&&y.material?.opacity===.5));
+ assert(proxy&&proxy.visible===false,"No pawn duplication inside drag ghost");
+ world.dragPreview({x:110,y:180});
+ assert(proxy.visible);
+ assert.equal(proxy.position.x,110-board.width/2);
+ assert.equal(proxy.position.y,board.height/2-180);
+ world.dragPreview(null);
+ assert.equal(proxy.visible,false);
  world.dispose();
  // Permanent cast and five individual Chromatica palettes on initial launch.
  const sceneGame=model.initialRCGame(board,()=>.37);
@@ -132,6 +143,7 @@ try{
  });
  let contacted=false,topAttacker=0,topVictim=0,topRotation=0;
  let collisionEvents=0,initialSpeed=flight.snapshot().attacker.speed;
+ const departureSpeeds=[]; // tracking physical exit speed after impact
  let finished;
  try{
   for(let i=0;i<600;i++){
@@ -140,7 +152,10 @@ try{
    topVictim=Math.max(topVictim,sample.victim?.speed??0);
    topRotation=Math.max(topRotation,sample.victim?.angularSpeed??0);
    collisionEvents=Math.max(collisionEvents,sample.contacts);
-   if(sample.collided)contacted=true;
+   if(sample.collided){
+    contacted=true;
+    if(sample.victim)departureSpeeds.push(sample.victim.speed);
+   }
    if(sample.done){finished=sample;break;}
   }
   assert(contacted,"The actual Rapier collision event MUST fire");
@@ -149,6 +164,10 @@ try{
    "Engine must accelerate the attacking rigid body");
   assert(topVictim>15,"Victim must receive nonzero physical momentum");
   assert(topRotation>.01,"Rapier must rotate the struck polyhedron");
+  assert(departureSpeeds.length>=20,
+   "Collision must lead to a sustained physical exit, not a teleport");
+  assert(departureSpeeds[0]>departureSpeeds.at(-1)*1.15,
+   "Victim must visibly decelerate under drag after the impact, not cruise at constant speed");
   console.log("RC01 CAPTURE",JSON.stringify({
    time:+(finished?.time??0).toFixed(3),contacts:collisionEvents,
    attackerEndSpeed:+(finished?.attacker.speed??0).toFixed(3),
@@ -178,13 +197,18 @@ try{
   assert.equal(emptyMove.to,to.key);
  }finally{emptyMove.dispose();}
  assert.equal(physics.RC_RAPIER_FIXED_STEP,1/120);
+ assert(physics.rcDampingRatio(0)<.5);
+ assert(physics.rcDampingRatio(.55)>.5);
+ assert(physics.rcDampingRatio(1)>.8);
+ assert(physics.rcAttractorOmega(200)<physics.rcAttractorOmega(80));
  const physicalSource=await readFile("src/experiments/rc01RapierFlight.ts","utf8");
  for(const phrase of ["@dimforge/rapier3d-compat","new RAPIER.World",
   "RAPIER.ColliderDesc.convexHull","RAPIER.EventQueue",
   "RAPIER.ActiveEvents.COLLISION_EVENTS","this.world.step(this.queue)",
   "drainCollisionEvents","applyTorqueImpulse","addForce",
   "setRestitution","setMass","setCcdEnabled","setAngularDamping",
-  "ATTRACTOR_DAMPING_RATIO","REST_WINDOW","this.restSeconds",
+  "EARLY_DAMPING_RATIO","LATE_DAMPING_RATIO","rcDampingRatio",
+  "REST_WINDOW","this.restSeconds",
   "this.attacker.body.resetForces(true)",
   "this.victim?.body.resetForces(true)"]){
   assert(physicalSource.includes(phrase),"Missing real rigid-body physics: "+phrase);
@@ -201,6 +225,12 @@ try{
   "Timeout must not teleport the Polytron into the target cell");
  assert(physicalSource.includes("this.succeeded=false"),
   "Expired simulations must abort rather than snap an unsettled body");
+ assert(!physicalSource.includes("applyHomeField"),
+  "No continuous homeward push that yields constant exit velocity");
+ assert(physicalSource.includes("applyCaptureImpulse()"),
+  "A single real collision-triggered impulse replaces homeward acceleration");
+ assert(physicalSource.includes("body.setLinearDamping(RC_HOME_LINEAR_DAMPING)"),
+  "Victim must physically slow down after impact");
  assert(physicalSource.includes("offscreen&&rested"),
   "Captured pawn must actually be beyond the viewport before removal");
  // Sample the Rapier trajectory, not an authored easing curve. Verify a
@@ -221,10 +251,25 @@ try{
   const speeds=samples.map(x=>x.attacker.speed);
   const peak=Math.max(...speeds);
   const peakAt=speeds.indexOf(peak);
+  const start=worldModule.rcScreenWorld(board,from);
+  const destination=worldModule.rcScreenWorld(board,extendedTo);
+  const dx=destination.x-start.x,dy=destination.y-start.y;
+  const progressAtPeak=((samples[peakAt].attacker.position.x-start.x)*dx+
+   (samples[peakAt].attacker.position.y-start.y)*dy)/(dx*dx+dy*dy);
+  const progress=samples.map(frame=>
+   ((frame.attacker.position.x-start.x)*dx+
+    (frame.attacker.position.y-start.y)*dy)/(dx*dx+dy*dy));
+  const crossed=progress.some(p=>p>1.01);
+  const returned=progress.some((p,i)=>i>peakAt&&p>1.01&&
+   progress.slice(i+1).some(q=>q<p-.005));
   assert(last?.done&&last.success,
    "Distant move must truly settle at the physical attractor");
   assert(peakAt>2&&peakAt<speeds.length*.6,
    "The body must accelerate before decelerating, rather than moving at constant speed");
+  assert(progressAtPeak>.36&&progressAtPeak<.65,
+   "Peak speed must occur near halfway along the path, not immediately after launch");
+  assert(crossed&&returned,
+   "Slight forward overshoot and a physical return should be visible before rest");
   assert(peak>20&&speeds.at(-1)<2.6,
    "Speed must physically decay to near zero before the move completes");
   assert(peak<395,
@@ -240,7 +285,10 @@ try{
    startSpeed:+speeds[0].toFixed(2),
    peakSpeed:+peak.toFixed(2),
    finalSpeed:+speeds.at(-1).toFixed(3),
-   duration:+last.time.toFixed(3),distance:Math.hypot(
+   duration:+last.time.toFixed(3),
+   progressAtPeak:+progressAtPeak.toFixed(3),
+   overshoot:+(Math.max(...progress)-1).toFixed(3),
+   distance:Math.hypot(
     goal.x-worldModule.rcScreenWorld(board,from).x,
     goal.y-worldModule.rcScreenWorld(board,from).y)
   }));
@@ -276,6 +324,15 @@ try{
   assert(tsx.includes(phrase),"Missing UI behaviour "+phrase);
  }
  const boardCode=await readFile("src/experiments/RC01ThreeBoard.tsx","utf8");
+ const dragHandler=boardCode.slice(
+  boardCode.indexOf("const onPointerMove="),boardCode.indexOf("const launchPhysicalMove=")
+ );
+ assert(dragHandler.includes("world.dragPreview(worldPoint)"),
+  "Finger must move ONLY the 3D hex ghost");
+ assert(!dragHandler.includes("world.moveActor("),
+  "Polytron cannot follow the finger: physical movement begins ONLY on drop");
+ assert(boardCode.includes("world.dragPreview(null)"),
+  "Drop/cancel must remove the 3D hex proxy");
  for(const phrase of ["createRC3DWorld","raycastCell","raycastBoardPlane",
   "setPointerCapture","onPointerCancel","onPointerUp",
   "RC01RapierFlight.create","flight.step()","world.physicalPose",
@@ -284,7 +341,8 @@ try{
  }
  assert(!boardCode.includes("<svg")&&!boardCode.includes("<polygon"));
  const modelCode=await readFile("src/experiments/rc01ThreeScene.ts","utf8");
- for(const phrase of ["THREE.ExtrudeGeometry","THREE.OrthographicCamera",
+ for(const phrase of ["dragProxy","dragMaterial","opacity:.5",
+  "THREE.ExtrudeGeometry","THREE.OrthographicCamera",
   "THREE.Raycaster","THREE.Plane","THREE.MeshStandardMaterial",
   "makeRC3DPolytron","polytronGeometry","pawnPalette(pawn)",
   "solid.position.copy(centre)","spin.rotation","scene.add(mesh)",
