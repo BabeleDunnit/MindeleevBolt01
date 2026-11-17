@@ -103,6 +103,23 @@ export function createRC3DWorld(board:RCBoard){
  const nucleusEdgeMaterial=new THREE.LineBasicMaterial({color:"#318662",linewidth:2});
  const hoverEdgeMaterial=new THREE.LineBasicMaterial({color:"#3b9e7d"});
  const captureEdgeMaterial=new THREE.LineBasicMaterial({color:"#ba7155"});
+ // Only THIS translucent hex follows the finger. The pawn and the original
+ // tile remain exactly where they were until pointer-up starts Rapier.
+ const dragMaterial=new THREE.MeshStandardMaterial({
+  color:"#66c3a7",transparent:true,opacity:.5,depthWrite:false,
+  side:THREE.DoubleSide,roughness:.55
+ });
+ const dragOutlineMaterial=new THREE.LineBasicMaterial({
+  color:"#208b69",transparent:true,opacity:1,depthTest:false
+ });
+ const dragProxy=new THREE.Group();
+ const dragTile=new THREE.Mesh(shape.tile,dragMaterial);
+ const dragOutline=new THREE.LineLoop(shape.line,dragOutlineMaterial);
+ dragOutline.position.z=3.8;
+ dragProxy.add(dragTile,dragOutline);
+ dragProxy.visible=false;
+ dragProxy.renderOrder=15;
+ scene.add(dragProxy);
  const tiles:THREE.Mesh[]=[];
  const lines=new Map<string,THREE.LineLoop>();
  const cellsByKey=new Map<string,RCCell>(board.cells.map(c=>[c.key,c]));
@@ -225,6 +242,10 @@ export function createRC3DWorld(board:RCBoard){
   );
   actor.spin.quaternion.identity();
  }
+ function dragPreview(point:RCPoint|null){
+  dragProxy.visible=point!==null;
+  if(point)dragProxy.position.copy(rcScreenWorld(board,point,48));
+ }
  function hover(key:string|null,occupied:boolean){
   for(const [cellKey,line] of lines){
    const cell=cellsByKey.get(cellKey)!;
@@ -251,9 +272,11 @@ export function createRC3DWorld(board:RCBoard){
   tileMaterial.dispose();nucleusMaterial.dispose();
   tileEdgeMaterial.dispose();nucleusEdgeMaterial.dispose();
   hoverEdgeMaterial.dispose();captureEdgeMaterial.dispose();
+  dragMaterial.dispose();dragOutlineMaterial.dispose();
   ringGeometry.dispose();ringMaterial.dispose();
   shadowGeometry.dispose();shadowMaterial.dispose();
  }
  return {scene,camera,cellsByKey,raycastCell,raycastBoardPlane,
-  setPawns,moveActor,actorOrientation,physicalPose,hover,rotateModels,dispose};
+  setPawns,moveActor,actorOrientation,physicalPose,dragPreview,
+  hover,rotateModels,dispose};
 }
