@@ -73,24 +73,24 @@ export default function MindeleevRC01(){
     <span className="rc01-brand-mark">✳</span>
     <div><strong>MINDELEEV</strong><small>RELEASE CANDIDATE 01</small></div>
    </div>
-   <div className="rc01-score" aria-label={"Energia: "+(game?.score??RC01_START_SCORE)}>
-    <span>ENERGIA</span><strong>{game?.score??RC01_START_SCORE}</strong>
+   <div className="rc01-score" aria-label={"Energy: "+(game?.score??RC01_START_SCORE)}>
+    <span>ENERGY</span><strong>{game?.score??RC01_START_SCORE}</strong>
    </div>
   </header>
   <section className="rc01-board-stage" ref={stageRef}
-   aria-label="Mutatron 3D, scacchiera tattile">
+   aria-label="3D Mutatron board">
    <RC01ThreeBoard board={board} game={game}
     onSelect={select} onCommitMove={commitMove}
     onBusyChange={onPhysicsBusy}/>
    <div className="rc01-scene-count" aria-hidden="true">
-    <span className="rc01-scene-dot"/> {game?.pawns.length??5} / 72 IN SCENA
+    <span className="rc01-scene-dot"/> {game?.pawns.length??5} / 72 ON BOARD
    </div>
-   <button type="button" className="rc01-reset" aria-label="Nuova partita casuale"
+   <button type="button" className="rc01-reset" aria-label="Start a new random game"
     disabled={physicsBusy} onClick={reset}>↻</button>
   </section>
   {/* Announcement for assistive technologies, not a visible status strip. */}
   <p className="rc01-visually-hidden" role="status" aria-live="polite">
-   {game?.lastAction??"Caricamento scacchiera tridimensionale."}
+   {game?.lastAction??"Loading 3D board."}
   </p>
   {sheet&&<div className="rc01-modal-layer">
    <button type="button" className="rc01-scrim"
