@@ -14,13 +14,14 @@ async function load(path,name,ui=false){
  return import(pathToFileURL(outfile).href);
 }
 try{
- const [num,cat,ui,prior,life,geometry]=await Promise.all([
+ const [num,cat,ui,prior,life,geometry,conway]=await Promise.all([
   load("src/polytron/politronicNumber.ts","number"),
   load("src/polytron/periodicCatalog.ts","catalog"),
   load("src/experiments/PolytronPeriodicLab.tsx","ui",true),
   load("src/polytron/mapping.ts","existing"),
   load("src/polytron/mindeleevLife.ts","life"),
-  load("src/polytron/polytron.ts","geometry")
+  load("src/polytron/polytron.ts","geometry"),
+  load("src/polyhedronisme/polyhedronisme.ts","conway")
  ]);
  assert.deepEqual([...num.PERIODIC_OPERATORS],[...prior.OPERATORS]);
  assert.deepEqual([...num.PERIODIC_SEEDS],["T","C","O","D","I"]);
@@ -102,9 +103,9 @@ try{
  for(const [n,expected] of [[1,2],[5,6],[6,3],[10,7],[11,4],[250,55],[500,105],[10000,2005]]){
   assert.equal(life.intrinsicEnergy(n,0),expected,"Boundary energy #"+n);
  }
- // The reported #168 (duO) must keep a complete manifold topology and
- // ALL its source faces in the triangulated renderer: only the flattened
- // display materials and compressed-axis factor are allowed to change.
+ // duO (#168) exposed the privileged-diagonal defect in the old 3D fan.
+ // The canonical mesher must use centroid triangles for every 3D renderer,
+ // independently of face starting index or winding.
  assert.equal(num.dnaFromPolitronNumber(168),"duO");
  const duO=geometry.dnaToPoly("duO");
  const edgeIncidence=new Map();
@@ -118,19 +119,69 @@ try{
  }
  assert([...edgeIncidence.values()].every(count=>count===2),
   "duO topology must be closed, without missing polygons or dangling edges");
+ const triangleKey=t=>t.map(v=>v.map(c=>Math.round(c*1e5)/1e5).join(","))
+  .sort().join("|");
+ const triangleSignature=triangles=>triangles.map(triangleKey).sort();
+ const centers=conway.faceCenters(duO);
+ let polygonTriangles=0,oldFanTriangles=0;
+ for(let fi=0;fi<duO.faces.length;fi++){
+  const face=duO.faces[fi],center=centers[fi];
+  const triangles=geometry.triangulateConwayFace(duO.vertices,face,center);
+  const expected=face.length===3?1:face.length;
+  assert.equal(triangles.length,expected,
+   "Every polygon boundary edge must get exactly one centroid triangle");
+  const turned=[...face.slice(1),face[0]];
+  const reversed=[...face].reverse();
+  assert.deepEqual(triangleSignature(triangles),
+   triangleSignature(geometry.triangulateConwayFace(duO.vertices,turned,center)),
+   "Cyclic reindexing must not change a face's surface: duO face "+fi);
+  assert.deepEqual(triangleSignature(triangles),
+   triangleSignature(geometry.triangulateConwayFace(duO.vertices,reversed,center)),
+   "Reversing a face must preserve its undirected surface: duO face "+fi);
+  polygonTriangles+=expected;
+  oldFanTriangles+=face.length-2;
+ }
+ assert.equal(polygonTriangles,96,"duO must have 96 symmetric triangles");
+ assert.equal(oldFanTriangles,60,"The old triangulation was a 60-triangle fan");
  const duOGeometry=geometry.polytronGeometry("duO");
  try{
-  const expectedVertices=duO.faces.reduce((sum,face)=>sum+3*(face.length-2),0);
-  assert.equal(duOGeometry.solid.getAttribute("position").count,expectedVertices,
-   "Every face of duO must survive unchanged as triangle-fan geometry");
+  const expectedVertices=polygonTriangles*3;
+  const position=duOGeometry.solid.getAttribute("position");
+  assert.equal(position.count,expectedVertices,
+   "The canonical WebGL solid must contain every symmetric triangle");
   assert.equal(duOGeometry.edges.getAttribute("position").count,
    duO.faces.reduce((sum,face)=>sum+2*face.length,0),
-   "All source face boundaries must be present in the edge geometry");
+   "All original Conway face boundaries must remain unchanged");
+  let offset=0;
+  for(let fi=0;fi<duO.faces.length;fi++){
+   const triangles=geometry.triangulateConwayFace(duO.vertices,
+    duO.faces[fi],centers[fi]);
+   for(const triangle of triangles)for(const vertex of triangle){
+    assert(Math.abs(position.getX(offset)-vertex[0])<1e-6&&
+     Math.abs(position.getY(offset)-vertex[1])<1e-6&&
+     Math.abs(position.getZ(offset)-vertex[2])<1e-6,
+     "The rendered mesh must use the ONE canonical face triangulation");
+    offset++;
+   }
+  }
+  assert.equal(offset,expectedVertices);
   console.log("PERIODIC duO GEOMETRY",JSON.stringify({
    vertices:duO.vertices.length,faces:duO.faces.length,
-   triangles:expectedVertices/3,closedEdges:edgeIncidence.size
+   triangles:polygonTriangles,previousFanTriangles:oldFanTriangles,
+   closedEdges:edgeIncidence.size
   }));
  }finally{duOGeometry.solid.dispose();duOGeometry.edges.dispose();}
+ // Representative Conway seeds and operators must share this surface rule.
+ for(const dna of ["T","C","O","D","I","aC","dO","gD","pC","kT","qO","duO"]){
+  const poly=geometry.dnaToPoly(dna),geo=geometry.polytronGeometry(dna);
+  try{
+   const expected=poly.faces.reduce((sum,f)=>sum+(f.length===3?1:f.length),0);
+   assert.equal(geo.solid.getAttribute("position").count,expected*3,
+    dna+" must use the canonical centroid surface everywhere");
+   for(const n of geo.solid.getAttribute("position").array)
+    assert(Number.isFinite(n),dna+" must not contain invalid vertices");
+  }finally{geo.solid.dispose();geo.edges.dispose();}
+ }
  assert.equal(ui.PERIODIC_FLAT_FACTOR,.05);
  for(const [kind,expected] of [
   ["solid",{x:1,y:1,z:1}],
