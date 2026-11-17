@@ -80,8 +80,10 @@ export default function RC01ThreeBoard({
   const worldPoint=world.raycastBoardPlane(point.x,point.y);
   world.dragPreview(worldPoint);
   const target=world.raycastCell(point.x,point.y);
-  world.hover(target?.key??null,!!(target&&gameRef.current&&
-   pawnAt(gameRef.current,target.key)));
+  const occupied=!!(target&&gameRef.current&&
+   pawnAt(gameRef.current,target.key));
+  world.hover(target?.key??null,occupied,
+   !!target&&target.key!==press.cell.key);
  };
  const launchPhysicalMove=(press:Press,target:RCCell)=>{
   if(!press.pawn||isBusy()||!gameRef.current)return;
@@ -198,9 +200,12 @@ export default function RC01ThreeBoard({
     if(physical.done){
      flightRef.current=null;
      flight.dispose();
-     busyRef.current?.(false);
+     // Commit the destination BEFORE unlocking viewport measurements:
+     // a mobile browser chrome resize must not recreate the scene with the
+     // old source cell after a long physical flight.
      if(physical.success)commitRef.current(flight.from,flight.to);
-     else world.setPawns(gameRef.current?.pawns??[]);
+     else console.error("RC01: physics stopped without a completed move");
+     busyRef.current?.(false);
      accumulator=0;
     }
    }else accumulator=0;
