@@ -143,7 +143,7 @@ export default function PhenotypeGeometryLab(){
       <p style={{color:mint,margin:"8px 0 0"}}>Distanza spettrale normalizzata: {fmt(spectrumDistance(shapeA,shapeB))}</p>
       <p style={{color:muted,margin:"5px 0 0"}}>Confronto incrociato: {meanAngularDistance===null?"—":fmt(meanAngularDistance,4)} di differenza angolare. {meanAngularDistance!==null&&meanAngularDistance<.07&&spectrumDistance(shapeA,shapeB)>.1?"Attenzione: i fasci sembrano simili, ma lo Shape-DNA distingue nettamente le superfici.":"Le due metriche descrivono proprietà diverse."}</p>
      </div>}
-     <p style={{color:muted,fontSize:11,lineHeight:1.6}}>Approssimazione discreta agli elementi finiti con pesi cotangenti e massa concentrata; triangolazione a ventaglio. Autovalori moltiplicati per l'area per rimuovere la scala. Non sono lo spettro continuo esatto e la triangolazione può influire.</p>
+     <p style={{color:muted,fontSize:11,lineHeight:1.6}}>Approssimazione discreta agli elementi finiti con pesi cotangenti e massa concentrata; triangolazione simmetrica attorno al centro di ogni faccia, coerente con il renderer Conway3D. Autovalori moltiplicati per l'area per rimuovere la scala. Non sono lo spettro continuo esatto e la triangolazione può influire.</p>
     </section>
     <section style={card}><label style={{display:"flex",gap:7,fontSize:13,alignItems:"center"}}><input type="checkbox" checked={showSpectrum} onChange={e=>setShowSpectrum(e.target.checked)}/>Spettro del grafo (precedente, confronto)</label>
      {showSpectrum&&[first,second].filter((x):x is Phenotype=>Boolean(x)).map(p=><div key={p.dna} style={{marginTop:10,fontSize:12,color:muted}}><b>{p.dna}</b>
