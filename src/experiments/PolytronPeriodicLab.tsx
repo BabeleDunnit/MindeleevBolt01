@@ -28,7 +28,9 @@ export const PERIODIC_SOLID_CAMERA_ZOOM=1.4;
 // Shift the camera and its aim together so the solid appears a little higher
 // without tilting its viewing angle or altering its rotation.
 export const PERIODIC_SOLID_CAMERA_LIFT=.24;
-export const PERIODIC_FLAT_FACTOR=.01;
+// A little residual thickness avoids almost-coplanar front/back triangles
+// competing for the same depth-buffer values after axial flattening.
+export const PERIODIC_FLAT_FACTOR=.05;
 export type PeriodicViewKind="solid"|"flat-x"|"flat-y"|"flat-z";
 export function periodicViewScale(kind:PeriodicViewKind,scale:number){
  return {
@@ -38,9 +40,9 @@ export function periodicViewScale(kind:PeriodicViewKind,scale:number){
  };
 }
 const flatViews=[
- {kind:"flat-x",label:"X",description:"Appiattito lungo X · scala (0.01, 1, 1)"},
- {kind:"flat-y",label:"Y",description:"Appiattito lungo Y · scala (1, 0.01, 1)"},
- {kind:"flat-z",label:"Z",description:"Appiattito lungo Z · scala (1, 1, 0.01)"}
+ {kind:"flat-x",label:"X",description:"Appiattito lungo X · scala (0.05, 1, 1)"},
+ {kind:"flat-y",label:"Y",description:"Appiattito lungo Y · scala (1, 0.05, 1)"},
+ {kind:"flat-z",label:"Z",description:"Appiattito lungo Z · scala (1, 1, 0.05)"}
 ] as const;
 
 /**
@@ -67,6 +69,18 @@ function SharedPeriodic3D({palette,rotate,gradient}:{palette:number;rotate:boole
   const mat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.53,
    metalness:.08,flatShading:true,side:THREE.DoubleSide});
   const edgeMat=new THREE.LineBasicMaterial({color:0xb7dce7,transparent:true,opacity:.35});
+  // Flattened views are graphic tiles rather than lit sculptures: display
+  // exact face colors, keep front/back fragments depth-tested, and nudge only
+  // the filled polygons back by a pixel-scale depth offset. This resolves
+  // z-fighting against genuine face-border lines without revealing far edges.
+  const flatMat=new THREE.MeshBasicMaterial({
+   vertexColors:true,side:THREE.DoubleSide,depthTest:true,depthWrite:true,
+   polygonOffset:true,polygonOffsetFactor:1,polygonOffsetUnits:1
+  });
+  const flatEdgeMat=new THREE.LineBasicMaterial({
+   color:0xc3e5e8,transparent:true,opacity:.77,
+   depthTest:true,depthWrite:false
+  });
   const mesh=new THREE.Mesh(new THREE.BufferGeometry(),mat);
   const edges=new THREE.LineSegments(new THREE.BufferGeometry(),edgeMat);
   group.add(mesh,edges);
@@ -128,6 +142,10 @@ function SharedPeriodic3D({palette,rotate,gradient}:{palette:number;rotate:boole
     catch{continue;}
     mesh.geometry=geo.solid;edges.geometry=geo.edges;
     const kind=(cell.dataset.viewKind??"solid") as PeriodicViewKind;
+    // The rotating 3D preview deliberately keeps its original lighting and
+    // border style; only the three orthographic tile views change materials.
+    mesh.material=kind==="solid"?mat:flatMat;
+    edges.material=kind==="solid"?edgeMat:flatEdgeMat;
     const scale=periodicViewScale(kind,geo.scale);
     group.scale.set(scale.x,scale.y,scale.z);
     group.rotation.set(0,0,0);
@@ -164,7 +182,8 @@ function SharedPeriodic3D({palette,rotate,gradient}:{palette:number;rotate:boole
    for(const geo of cache.values()){geo.solid.dispose();geo.edges.dispose();}
    mesh.geometry=new THREE.BufferGeometry();edges.geometry=new THREE.BufferGeometry();
    mesh.geometry.dispose();edges.geometry.dispose();
-   mat.dispose();edgeMat.dispose();renderer.dispose();
+   mat.dispose();edgeMat.dispose();flatMat.dispose();flatEdgeMat.dispose();
+   renderer.dispose();
   };
  },[palette,gradient]);
  return <canvas ref={root} aria-hidden="true" style={{
