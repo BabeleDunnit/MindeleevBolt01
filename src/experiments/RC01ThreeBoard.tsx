@@ -50,9 +50,9 @@ export default function RC01ThreeBoard({
   const press=pressRef.current;
   if(press&&canvas&&pointerId!==undefined&&canvas.hasPointerCapture(pointerId))
    canvas.releasePointerCapture(pointerId);
-  if(press?.dragging&&press.pawn){
-   worldRef.current?.moveActor(press.pawn.seal,press.cell);
-  }
+  // Cancel only the translucent selection proxy. The real pawn was never
+  // moved, so there is no teleport-back or visual reset.
+  worldRef.current?.dragPreview(null);
   pressRef.current=null;
   worldRef.current?.hover(null,false);
  };
@@ -78,7 +78,7 @@ export default function RC01ThreeBoard({
   press.dragging=true;
   const point=screenPoint(e);if(!point)return;
   const worldPoint=world.raycastBoardPlane(point.x,point.y);
-  if(worldPoint)world.moveActor(press.pawn.seal,worldPoint,24);
+  world.dragPreview(worldPoint);
   const target=world.raycastCell(point.x,point.y);
   world.hover(target?.key??null,!!(target&&gameRef.current&&
    pawnAt(gameRef.current,target.key)));
@@ -87,6 +87,8 @@ export default function RC01ThreeBoard({
   if(!press.pawn||isBusy()||!gameRef.current)return;
   const world=worldRef.current;if(!world)return;
   const victim=pawnAt(gameRef.current,target.key)??null;
+  // The first frame of *actual* Polytron movement is strictly AFTER drop.
+  world.dragPreview(null);
   const startedEpoch=epochRef.current;
   launchingRef.current=true;
   busyRef.current?.(true);
