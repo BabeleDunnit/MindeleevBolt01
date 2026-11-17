@@ -16,12 +16,13 @@ async function load(entry,name,ui=false){
  return import(pathToFileURL(out).href);
 }
 try{
- const [grid,model,physics,ui,worldModule]=await Promise.all([
+ const [grid,model,physics,ui,worldModule,life]=await Promise.all([
   load("src/polytron/rc01Board.ts","board"),
   load("src/polytron/rc01Game.ts","game"),
   load("src/experiments/rc01RapierFlight.ts","rapier-motion"),
   load("src/experiments/MindeleevRC01.tsx","ui",true),
-  load("src/experiments/rc01ThreeScene.ts","scene")
+  load("src/experiments/rc01ThreeScene.ts","scene"),
+  load("src/polytron/mindeleevLife.ts","energy")
  ]);
  const board=grid.makeRCBoard(390,760);
  const nucleus=board.cells.find(c=>c.nucleus);
@@ -427,7 +428,7 @@ try{
  // SSR includes only WebGL canvas for the board. No hybrid SVG geometry.
  const markup=renderToString(React.createElement(ui.default));
  assert(markup.includes("RELEASE CANDIDATE 01"));
- assert(markup.includes("ENERGIA"));
+ assert(markup.includes("ENERGY"));
  assert(markup.includes("100"));
  assert(markup.includes('class="rc01-three-board"'));
  assert(!markup.includes("<svg"),"RC01 output must not mix SVG with 3D");
@@ -486,6 +487,19 @@ try{
   "actorOrientation","physicalPose","spin.quaternion.identity()"]){
   assert(modelCode.includes(phrase),"Missing 3D architecture: "+phrase);
  }
+ // RC01 inspector must use the very same canonical energy rule as the
+ // periodic table: Polytronic Number 13 (period 3, group 3) has 6 E.
+ assert.equal(life.intrinsicEnergy(13,0),6);
+ for(const phrase of [
+  'POLYTRON · {pawnName(selectedPawn)}',
+  'Polytronic Number: {selectedPawn.number}',
+  '<dt>Intrinsic Energy</dt><dd>{intrinsicEnergy(selectedPawn.number,0)} E</dd>',
+  '<dt>Permanent Identity</dt>',
+  'import {intrinsicEnergy} from "@/polytron/mindeleevLife"'
+ ])assert(tsx.includes(phrase),
+  "English inspector must show canonical Polytronic Number/Energy: "+phrase);
+ assert(!tsx.includes("POLYTRONE ·")&&!tsx.includes("<h2>#{selectedPawn.number}</h2>"),
+  "Old Italian inspector heading and bare number must be removed");
  const inspector=await readFile("src/experiments/RC01ThreeInspector.tsx","utf8");
  assert(inspector.includes("THREE.PerspectiveCamera")&&
   inspector.includes("makeRC3DPolytron")&&!inspector.includes("<svg"),
