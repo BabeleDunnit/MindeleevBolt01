@@ -182,6 +182,20 @@ try{
   assert(topRotation>.01,"Rapier must rotate the struck polyhedron");
   assert(departureSpeeds.length>=20,
    "Collision must lead to a sustained physical exit, not a teleport");
+  // The first 200ms after an impact must not contain a second acceleration.
+  const opening=departureSpeeds.slice(0,Math.min(24,departureSpeeds.length));
+  const earlyPeak=Math.max(...opening),earlyPeakAt=opening.indexOf(earlyPeak);
+  assert(opening[0]>90,
+   "Target must receive an immediate, clearly visible impact impulse");
+  assert(earlyPeak<=opening[0]*1.08,
+   "Target must not accelerate significantly AFTER its first collision");
+  assert(opening.at(-1)<opening[0],
+   "The first departure frames should dissipate impact momentum");
+  console.log("RC01 IMPACT SPEED",JSON.stringify({
+   first:+opening[0].toFixed(2),peak:+earlyPeak.toFixed(2),
+   peakStep:earlyPeakAt,lastOpening:+opening.at(-1).toFixed(2),
+   firstSamples:opening.slice(0,8).map(v=>+v.toFixed(2))
+  }));
   assert(departureSpeeds[0]>departureSpeeds.at(-1)*1.15,
    "Victim must visibly decelerate under drag after the impact, not cruise at constant speed");
   console.log("RC01 CAPTURE",JSON.stringify({
@@ -246,6 +260,12 @@ try{
   "The old timeout must not snap a valid move back to the source");
  assert(physicalSource.includes("RECOVERY_SECONDS"),
   "Long movements must settle by physically increasing damping");
+ assert(physicalSource.includes("RC_EXIT_RECOVERY_DELAY")&&
+  physicalSource.includes("RC_EXIT_STALL_SPEED")&&
+  physicalSource.includes("this.captureAt=this.seconds"),
+  "Any later outward force must require a detected, delayed stall");
+ assert(physicalSource.includes("this.exitRecovery&&!offscreen"),
+  "Normal capture should coast after the initial impact");
  assert(!physicalSource.includes("applyHomeField"),
   "No continuous homeward push that yields constant exit velocity");
  assert(physicalSource.includes("applyCaptureImpulse()"),
