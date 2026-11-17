@@ -106,8 +106,8 @@ try{
    entry:representative,showEquivalent:false,showSpectrum:false,palette:2,
    gradient:selection
   }));
-  assert(cell.includes("Colori usati: <!-- -->"+representative.faceTypeCount)||
-   cell.includes("Colori usati: "+representative.faceTypeCount),
+  assert(cell.includes("Colors used: <!-- -->"+representative.faceTypeCount)||
+   cell.includes("Colors used: "+representative.faceTypeCount),
    "Displayed color count must match actual geometric categories");
   const expectedEnergy=2+representative.row+representative.col;
   assert(cell.includes('data-intrinsic-energy="'+expectedEnergy+'"'),
@@ -118,20 +118,20 @@ try{
   onOrderChange:()=>{},exampleFaceTypes:12
  }));
  assert.equal((pickerMarkup.match(/class="cpm-cell/g)||[]).length,144);
- for(const word of ["Ruber","Chrysos","Χρυσός","Dritta","A salti",
-  "12 colori","senza ripetere indici"]){
+ for(const word of ["Ruber","Chrysos","Χρυσός","Linear","Interleaved",
+  "12 Latin colors","without repeating positions"]){
   assert(pickerMarkup.includes(word),"Missing gradient matrix feature: "+word);
  }
  const pageMarkup=renderToString(React.createElement(ui.default));
- assert(pageMarkup.includes("Chromatica · 144 gradienti"));
- assert(pageMarkup.includes("Palette originali"));
- for(const label of ["Gruppi →","↓ Periodi","Gruppo dei tetraedri",
-  "Gruppo dei cubi","Gruppo degli ottaedri","Gruppo dei dodecaedri",
-  "Gruppo degli icosaedri","Periodi generati:"]){
+ assert(pageMarkup.includes("Chromatica · 144 gradients"));
+ assert(pageMarkup.includes("Original palettes"));
+ for(const label of ["Groups →","↓ Periods","Tetrahedra",
+  "Cubes","Octahedra","Dodecahedra",
+  "Icosahedra","Periods generated:"]){
   assert(pageMarkup.includes(label),"Missing periodic nomenclature "+label);
  }
  assert(pageMarkup.includes("cpm-matrix"),"Chromatica is default selected mode");
- assert(pageMarkup.includes("Energia intrinseca di ogni Polytrone"),
+ assert(pageMarkup.includes("Intrinsic Energy for each Polytron"),
   "Canonical Life energy formula must be explained above the table");
  const source=await readFile("src/experiments/PolytronPeriodicLab.tsx","utf8");
  assert(source.includes('setPaletteMode("legacy")'));
