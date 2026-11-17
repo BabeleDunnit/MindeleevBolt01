@@ -800,6 +800,15 @@ function applyOp(poly: Poly, op: string, arg: number | undefined): Poly {
 
 // ---------- Platonic seeds (from polyhedron.js) ----------
 
+// Exact golden-ratio dodecahedral vertices are oriented so the three
+// mutually orthogonal two-fold symmetry axes coincide with X, Y and Z.
+// The original upstream D seed had its Z axis along a THREE-fold vertex
+// axis (and rounded coordinates), making axial 2D projections uneven.
+// This is a rigid reorientation of the SAME regular solid, with the face
+// indices and winding retained. All Conway operations use this seed.
+const dodecaU=2/(1+Math.sqrt(5)); // 1/phi
+const dodecaV=dodecaU*dodecaU;  // 1/phi²
+
 const seeds: Record<string, () => Poly> = {
   T: () => ({
     name: "T",
@@ -855,14 +864,16 @@ const seeds: Record<string, () => Poly> = {
       [4, 10, 16, 13, 7], [5, 8, 14, 17, 11], [6, 12, 18, 15, 9],
       [10, 11, 17, 19, 16], [12, 13, 16, 19, 18], [14, 15, 18, 19, 17],
     ],
+    // Vertex indices match the legacy D face topology. They are the exact
+    // golden-ratio coordinates rotated into an XYZ two-fold-axis frame.
     vertices: [
-      [0, 0, 1.07047], [0.713644, 0, 0.797878], [-0.356822, 0.618, 0.797878], [-0.356822, -0.618, 0.797878],
-      [0.797878, 0.618034, 0.356822], [0.797878, -0.618, 0.356822], [-0.934172, 0.381966, 0.356822],
-      [0.136294, 1.0, 0.356822], [0.136294, -1.0, 0.356822], [-0.934172, -0.381966, 0.356822],
-      [0.934172, 0.381966, -0.356822], [0.934172, -0.381966, -0.356822], [-0.797878, 0.618, -0.356822],
-      [-0.136294, 1.0, -0.356822], [-0.136294, -1.0, -0.356822], [-0.797878, -0.618034, -0.356822],
-      [0.356822, 0.618, -0.797878], [0.356822, -0.618, -0.797878], [-0.713644, 0, -0.797878],
-      [0, 0, -1.07047],
+      [dodecaU,dodecaU,dodecaU], [1,0,dodecaV], [dodecaV,1,0], [0,dodecaV,1],
+      [1,0,-dodecaV], [dodecaU,-dodecaU,dodecaU], [-dodecaV,1,0],
+      [dodecaU,dodecaU,-dodecaU], [0,-dodecaV,1],
+      [-dodecaU,dodecaU,dodecaU], [dodecaU,-dodecaU,-dodecaU],
+      [dodecaV,-1,0], [-dodecaU,dodecaU,-dodecaU], [0,dodecaV,-1],
+      [-dodecaU,-dodecaU,dodecaU], [-1,0,dodecaV], [0,-dodecaV,-1],
+      [-dodecaV,-1,0], [-1,0,-dodecaV], [-dodecaU,-dodecaU,-dodecaU],
     ],
   }),
 };
