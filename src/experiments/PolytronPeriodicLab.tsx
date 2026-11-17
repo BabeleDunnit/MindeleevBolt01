@@ -22,11 +22,26 @@ const groupNames:Record<string,string>={
 };
 const clampRows=(x:number)=>Math.min(MAX_CATALOG_ROWS,Math.max(1,Math.trunc(x)));
 const fmt=(n:number)=>n.toLocaleString("it-IT");
+export const PERIODIC_FLAT_FACTOR=.01;
+export type PeriodicViewKind="solid"|"flat-x"|"flat-y"|"flat-z";
+export function periodicViewScale(kind:PeriodicViewKind,scale:number){
+ return {
+  x:scale*(kind==="flat-x"?PERIODIC_FLAT_FACTOR:1),
+  y:scale*(kind==="flat-y"?PERIODIC_FLAT_FACTOR:1),
+  z:scale*(kind==="flat-z"?PERIODIC_FLAT_FACTOR:1)
+ };
+}
+const flatViews=[
+ {kind:"flat-x",label:"X",description:"Appiattito lungo X · scala (0.01, 1, 1)"},
+ {kind:"flat-y",label:"Y",description:"Appiattito lungo Y · scala (1, 0.01, 1)"},
+ {kind:"flat-z",label:"Z",description:"Appiattito lungo Z · scala (1, 1, 0.01)"}
+] as const;
 
 /**
  * ONE WebGL canvas for the entire table, not hundreds of independent contexts.
  * Its transparent fixed canvas is scissored to only visible 3D viewport boxes.
- * Each viewport contains REAL generated polyhedron geometry, rotated in 3D.
+ * All four views share the same real Conway geometry. Only the 3D solid
+ * rotates; the three flattened previews use fixed orthographic cameras.
  */
 function SharedPeriodic3D({palette,rotate,gradient}:{palette:number;rotate:boolean;gradient?:GradientSelection}){
  const root=useRef<HTMLCanvasElement>(null);
@@ -54,6 +69,8 @@ function SharedPeriodic3D({palette,rotate,gradient}:{palette:number;rotate:boole
   lamp.position.set(4,6,8);scene.add(lamp);
   const camera=new THREE.PerspectiveCamera(38,1,.05,60);
   camera.position.set(3,2.1,6.5);camera.lookAt(0,0,0);
+  // Flattened tiles never use perspective distortion.
+  const flatCamera=new THREE.OrthographicCamera(-1.6,1.6,1.6,-1.6,.05,60);
   const cache=new Map<string,{solid:THREE.BufferGeometry;edges:THREE.BufferGeometry;scale:number}>();
   const CACHE_MAX=100;
   const getGeo=(dna:string)=>{
@@ -102,12 +119,34 @@ function SharedPeriodic3D({palette,rotate,gradient}:{palette:number;rotate:boole
     try{geo=getGeo(dna);}
     catch{continue;}
     mesh.geometry=geo.solid;edges.geometry=geo.edges;
-    group.scale.setScalar(geo.scale);
-    group.rotation.y=rotateRef.current?time*.00034:.42;
-    group.rotation.x=rotateRef.current ? .23+Math.sin(time*.00024)*.09 : .23;
-    camera.aspect=width/height;camera.updateProjectionMatrix();
+    const kind=(cell.dataset.viewKind??"solid") as PeriodicViewKind;
+    const scale=periodicViewScale(kind,geo.scale);
+    group.scale.set(scale.x,scale.y,scale.z);
+    group.rotation.set(0,0,0);
+    let activeCamera:THREE.Camera=camera;
+    if(kind==="solid"){
+     group.rotation.y=rotateRef.current?time*.00034:.42;
+     group.rotation.x=rotateRef.current ? .23+Math.sin(time*.00024)*.09 : .23;
+     camera.aspect=width/height;camera.updateProjectionMatrix();
+    }else{
+     // Look along the flattened axis. The other two axes preserve their
+     // geometry and color, like an orthogonally projected 2D tile.
+     flatCamera.up.set(0,0,1);
+     if(kind==="flat-x")flatCamera.position.set(7,0,0);
+     else if(kind==="flat-y")flatCamera.position.set(0,7,0);
+     else{
+      flatCamera.position.set(0,0,7);
+      flatCamera.up.set(0,1,0);
+     }
+     flatCamera.lookAt(0,0,0);
+     const half=1.57,aspect=width/height;
+     flatCamera.left=-half*aspect;flatCamera.right=half*aspect;
+     flatCamera.top=half;flatCamera.bottom=-half;
+     flatCamera.updateProjectionMatrix();
+     activeCamera=flatCamera;
+    }
     renderer.setViewport(x,y,width,height);renderer.setScissor(x,y,width,height);
-    renderer.render(scene,camera);
+    renderer.render(scene,activeCamera);
    }
    raf=requestAnimationFrame(frame);
   };
@@ -140,14 +179,14 @@ export function PeriodicCell({entry,showSpectrum,showEquivalent,palette,gradient
  return <article aria-label={"Polytrone "+entry.number+" · "+entry.dna}
   style={{border:"1px solid "+(entry.equivalents.length?"#7aaead":line),
    background:card,borderRadius:10,minWidth:0,overflow:"hidden",
-   display:"grid",gridTemplateRows:"auto 140px auto",boxShadow:"0 3px 12px #0002"}}>
+   display:"grid",gridTemplateRows:"auto 140px auto auto",boxShadow:"0 3px 12px #0002"}}>
   <div style={{padding:"10px 11px 5px",display:"flex",alignItems:"baseline",
    justifyContent:"space-between",gap:5}}>
    <strong style={{fontSize:21,fontVariantNumeric:"tabular-nums",color:ink}}>{fmt(entry.number)}</strong>
    <b style={{color:seedColors[entry.seed],fontSize:12}}>{entry.seed}</b>
   </div>
   {entry.renderable?
-   <div data-polytron-viewport="" data-dna={entry.dna}
+   <div data-polytron-viewport="" data-dna={entry.dna} data-view-kind="solid"
     style={{width:"100%",height:140,position:"relative",
      background:"radial-gradient(ellipse at center, #21495c 0%, #102b3c 70%)"}}
     aria-label={"Poliedro 3D rotante "+entry.dna}/>:
@@ -155,6 +194,24 @@ export function PeriodicCell({entry,showSpectrum,showEquivalent,palette,gradient
     fontSize:12,color:"#f2c3ad",textAlign:"center",padding:8}}>
     {entry.status==="too-complex"?"Geometria troppo complessa":"Operazione non realizzabile"}
    </div>}
+  <div style={{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",
+   gap:5,margin:"6px 8px 9px"}}>
+   {flatViews.map(view=><div key={view.kind} title={view.description}
+    aria-label={view.description+" · "+entry.dna}
+    style={{position:"relative",aspectRatio:"1 / 1",minWidth:0,
+     border:"1px solid #406c7b",borderRadius:6,overflow:"hidden",
+     background:"radial-gradient(circle, #244d5a, #102736)"}}>
+    {entry.renderable?
+     <div data-polytron-viewport="" data-dna={entry.dna}
+      data-view-kind={view.kind}
+      style={{position:"absolute",inset:0}}/>:
+     <span style={{display:"grid",placeItems:"center",height:"100%",
+      color:soft,fontSize:11}}>—</span>}
+    <span aria-hidden="true" style={{position:"absolute",left:3,bottom:2,
+     fontSize:9,fontWeight:800,color:"#c9efe9",pointerEvents:"none",
+     textShadow:"0 1px 3px #061621"}}>{view.label}</span>
+   </div>)}
+  </div>
   <div style={{padding:"5px 11px 10px",display:"grid",gap:4,minHeight:65}}>
    <code style={{fontSize:14,fontWeight:700,color:ink}}>{entry.dna}</code>
    <div data-intrinsic-energy={energy}
