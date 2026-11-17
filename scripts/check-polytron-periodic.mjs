@@ -14,12 +14,13 @@ async function load(path,name,ui=false){
  return import(pathToFileURL(outfile).href);
 }
 try{
- const [num,cat,ui,prior,life]=await Promise.all([
+ const [num,cat,ui,prior,life,geometry]=await Promise.all([
   load("src/polytron/politronicNumber.ts","number"),
   load("src/polytron/periodicCatalog.ts","catalog"),
   load("src/experiments/PolytronPeriodicLab.tsx","ui",true),
   load("src/polytron/mapping.ts","existing"),
-  load("src/polytron/mindeleevLife.ts","life")
+  load("src/polytron/mindeleevLife.ts","life"),
+  load("src/polytron/polytron.ts","geometry")
  ]);
  assert.deepEqual([...num.PERIODIC_OPERATORS],[...prior.OPERATORS]);
  assert.deepEqual([...num.PERIODIC_SEEDS],["T","C","O","D","I"]);
@@ -101,12 +102,41 @@ try{
  for(const [n,expected] of [[1,2],[5,6],[6,3],[10,7],[11,4],[250,55],[500,105],[10000,2005]]){
   assert.equal(life.intrinsicEnergy(n,0),expected,"Boundary energy #"+n);
  }
- assert.equal(ui.PERIODIC_FLAT_FACTOR,.01);
+ // The reported #168 (duO) must keep a complete manifold topology and
+ // ALL its source faces in the triangulated renderer: only the flattened
+ // display materials and compressed-axis factor are allowed to change.
+ assert.equal(num.dnaFromPolitronNumber(168),"duO");
+ const duO=geometry.dnaToPoly("duO");
+ const edgeIncidence=new Map();
+ for(const face of duO.faces){
+  assert(face.length>=3,"Every duO face must be a polygon");
+  for(let i=0;i<face.length;i++){
+   const a=face[i],b=face[(i+1)%face.length];
+   const key=Math.min(a,b)+"/"+Math.max(a,b);
+   edgeIncidence.set(key,(edgeIncidence.get(key)??0)+1);
+  }
+ }
+ assert([...edgeIncidence.values()].every(count=>count===2),
+  "duO topology must be closed, without missing polygons or dangling edges");
+ const duOGeometry=geometry.polytronGeometry("duO");
+ try{
+  const expectedVertices=duO.faces.reduce((sum,face)=>sum+3*(face.length-2),0);
+  assert.equal(duOGeometry.solid.getAttribute("position").count,expectedVertices,
+   "Every face of duO must survive unchanged as triangle-fan geometry");
+  assert.equal(duOGeometry.edges.getAttribute("position").count,
+   duO.faces.reduce((sum,face)=>sum+2*face.length,0),
+   "All source face boundaries must be present in the edge geometry");
+  console.log("PERIODIC duO GEOMETRY",JSON.stringify({
+   vertices:duO.vertices.length,faces:duO.faces.length,
+   triangles:expectedVertices/3,closedEdges:edgeIncidence.size
+  }));
+ }finally{duOGeometry.solid.dispose();duOGeometry.edges.dispose();}
+ assert.equal(ui.PERIODIC_FLAT_FACTOR,.05);
  for(const [kind,expected] of [
   ["solid",{x:1,y:1,z:1}],
-  ["flat-x",{x:.01,y:1,z:1}],
-  ["flat-y",{x:1,y:.01,z:1}],
-  ["flat-z",{x:1,y:1,z:.01}]
+  ["flat-x",{x:.05,y:1,z:1}],
+  ["flat-y",{x:1,y:.05,z:1}],
+  ["flat-z",{x:1,y:1,z:.05}]
  ])assert.deepEqual(ui.periodicViewScale(kind,1),expected,
   kind+" must compress exactly one local Polytron axis");
  assert.equal(ui.PERIODIC_SOLID_CAMERA_ZOOM,1.4,
@@ -136,6 +166,11 @@ try{
   "camera.position.y-=PERIODIC_SOLID_CAMERA_LIFT",
   "camera.lookAt(0,-PERIODIC_SOLID_CAMERA_LIFT,0)",
   'kind==="flat-x"','kind==="flat-y"','kind==="solid"',
+  "new THREE.MeshBasicMaterial","polygonOffset:true",
+  "polygonOffsetFactor:1","polygonOffsetUnits:1",
+  "depthTest:true,depthWrite:false",
+  'mesh.material=kind==="solid"?mat:flatMat',
+  'edges.material=kind==="solid"?edgeMat:flatEdgeMat',
   "group.rotation.set(0,0,0)","flatCamera.lookAt(0,0,0)",
   'hidden={!palettesOpen}',"localStorage.setItem"
  ])assert(src.includes(phrase),
