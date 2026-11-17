@@ -33,7 +33,7 @@ export function initialRCGame(board:RCBoard,rng:()=>number=Math.random):RCGame{
   row:randomInteger(12,rng),col:randomInteger(12,rng),cellKey:cell.key
  }));
  return {pawns,score:RC01_START_SCORE,moves:0,
-  lastAction:"Cinque Polytroni sono stati richiamati sul Mutatron."};
+  lastAction:"Five Polytrons have been summoned to the Mutatron."};
 }
 /**
  * Temporary screenshot fixture: one unambiguous Polytron fixed at the
@@ -46,7 +46,7 @@ export function rc01CenterDiagnostic(board:RCBoard):RCGame{
  return {
   pawns:[{seal:1,number:1,row:2,col:4,cellKey:"0,0"}],
   score:RC01_START_SCORE,moves:0,
-  lastAction:"Diagnostica centratura: un solo Polytrone #1 nel nucleo (0,0)."
+  lastAction:"Centering diagnostic: a single Polytron #1 at the nucleus (0,0)."
  };
 }
 export type RCMoveResult={game:RCGame;captured:RCPawn|null;attacker:RCPawn};
@@ -59,9 +59,9 @@ export function moveRCPawn(game:RCGame,source:string,target:string,board:RCBoard
   .map(p=>p.seal===attacker.seal?{...p,cellKey:target}:p);
  const updated={...game,pawns,moves:game.moves+1,
   lastAction:captured?
-   pawnName(attacker)+" prende "+pawnName(captured)+
-   ". "+pawnName(captured)+" torna a casa.":
-   pawnName(attacker)+" si sposta alla cella "+target+"."};
+   pawnName(attacker)+" captures "+pawnName(captured)+
+   ". "+pawnName(captured)+" returns home.":
+   pawnName(attacker)+" moves to cell "+target+"."};
  if(!validateRCGame(updated,board))throw Error("Movement violates the 72 identities or grid exclusivity");
  return {game:updated,captured,attacker};
 }
