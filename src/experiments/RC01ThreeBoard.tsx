@@ -92,8 +92,18 @@ export default function RC01ThreeBoard({
   const startedEpoch=epochRef.current;
   launchingRef.current=true;
   busyRef.current?.(true);
+  // Bring ALL other pawns into this same Rapier world. A fleeing victim
+  // can now strike neighbors, which can strike further neighbors in turn.
+  // They remain in the game and are physically attracted back to their tiles.
+  const others=gameRef.current.pawns
+   .filter(pawn=>pawn.seal!==press.pawn!.seal&&pawn.seal!==victim?.seal)
+   .map(pawn=>({
+    pawn,cell:world.cellsByKey.get(pawn.cellKey)!,
+    rotation:world.actorOrientation(pawn.seal)
+   }))
+   .filter(other=>other.cell!==undefined);
   const args={
-   board,from:press.cell,to:target,attacker:press.pawn,victim,
+   board,from:press.cell,to:target,attacker:press.pawn,victim,others,
    attackerRotation:world.actorOrientation(press.pawn.seal),
    victimRotation:victim?world.actorOrientation(victim.seal):undefined
   };
@@ -183,6 +193,8 @@ export default function RC01ThreeBoard({
     world.physicalPose(physical.attacker.seal,physical.attacker);
     if(physical.victim)
      world.physicalPose(physical.victim.seal,physical.victim);
+    for(const other of physical.bystanders)
+     world.physicalPose(other.seal,other);
     if(physical.done){
      flightRef.current=null;
      flight.dispose();
@@ -197,6 +209,7 @@ export default function RC01ThreeBoard({
    if(running){
     active.add(running.attackerSeal);
     if(running.victimSeal!==null)active.add(running.victimSeal);
+    for(const seal of running.otherSeals)active.add(seal);
    }
    world.rotateModels(now,active);
    renderer.render(world.scene,world.camera);
