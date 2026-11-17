@@ -83,7 +83,7 @@ export class PeriodicCatalog{
    };
    if(maybeExpensive(item.ops,item.seed)){
     base.renderable=false;
-    return incomplete("Stima di complessità eccessiva: verifica geometrica non eseguita",
+    return incomplete("Estimated complexity too high: geometric verification skipped",
      "too-complex");
    }
    try{
@@ -96,8 +96,8 @@ export class PeriodicCatalog{
     base.renderable=poly.faces.length<=MAX_DRAW_FACES;
     if(!base.renderable)base.status="too-complex";
     if(poly.vertices.length>MAX_VERIFY_VERTICES||poly.faces.length>MAX_VERIFY_FACES){
-     return incomplete("Mesh oltre il budget di verifica geometrica ("+
-      MAX_VERIFY_VERTICES+" vertici / "+MAX_VERIFY_FACES+" facce)",base.status);
+     return incomplete("Mesh exceeds geometric verification budget ("+
+      MAX_VERIFY_VERTICES+" vertices / "+MAX_VERIFY_FACES+" faces)",base.status);
     }
     const finger=geometryFingerprint(poly);
     const previous=this.shapes.get(finger.topology)??[];
@@ -123,7 +123,7 @@ export class PeriodicCatalog{
     }
    }catch(err){
     base.renderable=false;
-    return incomplete("Errore di generazione o verifica: "+String(err),"invalid");
+    return incomplete("Generation or verification error: "+String(err),"invalid");
    }
    return base;
   });
