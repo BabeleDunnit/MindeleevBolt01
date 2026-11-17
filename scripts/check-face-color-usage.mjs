@@ -71,11 +71,11 @@ try{
   const markup=renderToString(React.createElement(ui.PeriodicCell,{
    entry,palette,showSpectrum:false,showEquivalent:false
   }));
-  assert(markup.includes("Colori usati:"));
-  assert(markup.includes("Colori usati: <!-- -->"+expected.colorsUsed)||
-   markup.includes("Colori usati: "+expected.colorsUsed),
+  assert(markup.includes("Colors used:"));
+  assert(markup.includes("Colors used: <!-- -->"+expected.colorsUsed)||
+   markup.includes("Colors used: "+expected.colorsUsed),
    "Displayed count must match actual RGB usage "+entry.dna);
-  assert(markup.includes("Tipi facce:"));
+  assert(markup.includes("Face types:"));
   for(const hex of expected.colors.map(c=>c.toString(16).padStart(6,"0")))
    assert(markup.includes("#"+hex),"Missing actual used color swatch "+entry.dna+" #"+hex);
  }
@@ -94,10 +94,10 @@ try{
    "Count must agree with real triangulated WebGL vertex colors");
  }finally{geom.solid.dispose();geom.edges.dispose();}
  const app=renderToString(React.createElement(ui.default));
- assert(app.includes("Colori usati (max)"));
- assert(app.includes("Tipi di facce (max)"));
- assert(app.includes("Mono-colore"));
- assert(app.includes("Multi-colore"));
+ assert(app.includes("Colors used (max)"));
+ assert(app.includes("Face types (max)"));
+ assert(app.includes("Single-color"));
+ assert(app.includes("Multi-color"));
  const src=await readFile("src/experiments/PolytronPeriodicLab.tsx","utf8");
  assert(src.includes("[visible,palette,gradient]"),
   "Both changing the historical palette and choosing a gradient must update the summary");
