@@ -17,22 +17,33 @@ export default function MindeleevRC01(){
  const [game,setGame]=useState<RCGame|null>(null);
  const [sheet,setSheet]=useState<Sheet>(null);
  const [physicsBusy,setPhysicsBusy]=useState(false);
+ const physicsBusyRef=useRef(false);
+ const measureRef=useRef<(()=>void)|null>(null);
+ const onPhysicsBusy=(busy:boolean)=>{
+  physicsBusyRef.current=busy;
+  setPhysicsBusy(busy);
+  // Mobile browser viewport changes must never replace the physics scene
+  // mid-flight. Reconcile the final size after the committed game update.
+  if(!busy)requestAnimationFrame(()=>measureRef.current?.());
+ };
  useEffect(()=>{
   const node=stageRef.current;if(!node)return;
   const measure=()=>{
+   if(physicsBusyRef.current)return;
    const bounds=node.getBoundingClientRect();
    const width=Math.round(bounds.width),height=Math.round(bounds.height);
    if(width>=280&&height>=350)setViewport(previous=>
     previous.width===width&&previous.height===height&&previous.ready?
      previous:{width,height,ready:true});
   };
+  measureRef.current=measure;
   measure();
   if(typeof ResizeObserver!=="undefined"){
    const observer=new ResizeObserver(measure);observer.observe(node);
-   return ()=>observer.disconnect();
+   return ()=>{measureRef.current=null;observer.disconnect();};
   }
   window.addEventListener("resize",measure);
-  return ()=>window.removeEventListener("resize",measure);
+  return ()=>{measureRef.current=null;window.removeEventListener("resize",measure);};
  },[]);
  useEffect(()=>{
   if(viewport.ready&&game===null)setGame(initialRCGame(board));
@@ -69,7 +80,7 @@ export default function MindeleevRC01(){
    aria-label="Mutatron 3D, scacchiera tattile">
    <RC01ThreeBoard board={board} game={game}
     onSelect={select} onCommitMove={commitMove}
-    onBusyChange={setPhysicsBusy}/>
+    onBusyChange={onPhysicsBusy}/>
    <div className="rc01-scene-count" aria-hidden="true">
     <span className="rc01-scene-dot"/> {game?.pawns.length??5} / 72 IN SCENA
    </div>
