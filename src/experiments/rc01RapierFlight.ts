@@ -14,8 +14,9 @@
  * Polytrons hover in a zero-gravity 3D environment without ground/boundary
  * collisions. The attacker follows an underdamped spring; bystanders struck
  * by anyone are real dynamic bodies and spring back to their original tiles.
- * A captured target receives one additional directed impulse at first contact,
- * then coasts with Rapier damping instead of any constant-velocity animation.
+ * After contact, a captured target follows a damped off-board attractor.
+ * Impact, inertia and secondary impacts still come from Rapier; the attractor
+ * ensures a Polytron cannot get permanently stuck inside a crowded board.
  */
 import * as RAPIER from "@dimforge/rapier3d-compat";
 import {polytronGeometry} from "@/polytron/polytron";
@@ -102,6 +103,7 @@ export class RC01RapierFlight{
  private bystanders:BystanderBody[];
  private impacted=new Set<number>();
  private target:{x:number;y:number;z:number};
+ private exitTarget:{x:number;y:number;z:number};
  private origin:{x:number;y:number;z:number};
  private away:{x:number;y:number};
  private travel:number;
@@ -130,6 +132,17 @@ export class RC01RapierFlight{
   this.travel=d;
   this.omega=rcAttractorOmega(d);
   this.away={x:dx/d,y:dy/d};
+  const distances:number[]=[];
+  if(Math.abs(this.away.x)>1e-5)
+   distances.push(((this.away.x>0?this.board.width/2:-this.board.width/2)-
+    this.target.x)/this.away.x);
+  if(Math.abs(this.away.y)>1e-5)
+   distances.push(((this.away.y>0?this.board.height/2:-this.board.height/2)-
+    this.target.y)/this.away.y);
+  const edge=Math.max(radius,Math.min(...distances.filter(x=>x>0)));
+  const exitDistance=edge+radius*2.8;
+  this.exitTarget=vec(this.target.x+this.away.x*exitDistance,
+   this.target.y+this.away.y*exitDistance,this.target.z);
  }
  static async create(args:RCPhysicsStart):Promise<RC01RapierFlight>{
   await RAPIER.init();
@@ -224,10 +237,9 @@ export class RC01RapierFlight{
   });
  }
  /**
-  * Directed recall is a SINGLE impulse accompanying the real collider impact.
-  * From then on the victim moves freely under Rapier's linear/angular drag:
-  * fast just after the impact, continuously slower as it leaves the board.
-  * No constant outward thrust, boundary collision or home-target spring.
+  * The first contact provides a modest directed recall impulse. The ensuing
+  * off-board mass-spring attraction changes continuously with position and
+  * velocity; there is no scripted constant exit velocity or screen collider.
   */
  private applyCaptureImpulse(){
   if(!this.victim)return;
@@ -246,7 +258,7 @@ export class RC01RapierFlight{
   }
   const toEdge=Math.max(this.radius,
    Math.min(...distanceToEdges.filter(d=>d>0)));
-  const desiredSpeed=Math.min(375,175+.55*(toEdge+this.radius*2));
+  const desiredSpeed=Math.min(155,95+.22*(toEdge+this.radius*2));
   const outwardSpeed=v.x*dir.x+v.y*dir.y;
   // The extra momentum belongs to the fictional recall, but is applied
   // through Rapier as a physical impulse and subsequently dissipated.
@@ -254,12 +266,26 @@ export class RC01RapierFlight{
   body.applyImpulse(vec(
    dir.x*extraSpeed*body.mass(),
    dir.y*extraSpeed*body.mass(),
-   body.mass()*32
+   body.mass()*4
   ),true);
   body.setLinearDamping(RC_HOME_LINEAR_DAMPING);
   body.setAngularDamping(1.15);
-  // Impact-induced angular motion is also a genuine angular impulse.
+  // The recall is an in-world impulse, not a render-only rotation tween.
   body.applyTorqueImpulse(vec(12,-7,11),true);
+ }
+ private applyCaptureAttractor(){
+  if(!this.collided||!this.victim)return;
+  const body=this.victim.body,p=body.translation(),v=body.linvel(),m=body.mass();
+  const omega=2.15,zeta=.86,rate=omega*omega,drag=2*zeta*omega;
+  // Recover from secondary impacts while slowing as the off-board target
+  // approaches. A stronger vertical spring keeps the exit in the board plane
+  // even when tilted convex hulls exchange upward momentum.
+  const verticalOmega=3.8,verticalDrag=2*.92*verticalOmega;
+  body.addForce(vec(
+   m*(rate*(this.exitTarget.x-p.x)-drag*v.x),
+   m*(rate*(this.exitTarget.y-p.y)-drag*v.y),
+   m*(verticalOmega*verticalOmega*(this.exitTarget.z-p.z)-verticalDrag*v.z)
+  ),true);
  }
  step():RCPhysicsFrame{
   if(this.ended)return this.snapshot();
@@ -271,6 +297,7 @@ export class RC01RapierFlight{
   for(const other of this.bystanders)other.actor.body.resetForces(true);
   this.applyAttackerField();
   this.applyBystanderReturns();
+  this.applyCaptureAttractor();
   this.world.step(this.queue);
   this.seconds+=RC_RAPIER_FIXED_STEP;
   this.queue.drainCollisionEvents((a,b,started)=>{
