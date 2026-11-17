@@ -103,9 +103,9 @@ export default function MindeleevRC01(){
      onClick={()=>setSheet(null)}>×</button>
     {selectedPawn&&<div className="rc01-poly-sheet">
      <RC01ThreeInspector pawn={selectedPawn}/>
-     <div className="rc01-sheet-kicker">POLYTRON · {pawnName(selectedPawn)}</div>
-     <h2>Polytronic Number: {selectedPawn.number}</h2>
+     <h2>Polytron - {pawnName(selectedPawn)}</h2>
      <dl className="rc01-details">
+      <div><dt>Polytronic Number</dt><dd>{selectedPawn.number}</dd></div>
       <div><dt>Conway DNA</dt><dd>{pawnDNA(selectedPawn)}</dd></div>
        <div><dt>Intrinsic Energy</dt><dd>{intrinsicEnergy(selectedPawn.number,0)} E</dd></div>
       <div><dt>Palette · Latin / Greek</dt><dd>{pawnPalette(selectedPawn).name}</dd></div>
