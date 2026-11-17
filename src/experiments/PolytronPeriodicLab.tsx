@@ -17,11 +17,11 @@ const ink="#e9f8ff",soft="#a6c4d3",mint="#80e3d2",line="#456a7b",bg="#071623",ca
 const control:CSSProperties={background:"#153d51",color:ink,border:"1px solid #548195",padding:"9px 11px",borderRadius:9,fontSize:13};
 const seedColors:Record<string,string>={T:"#e1acd6",C:"#8acfe7",O:"#edc18d",D:"#b8dc89",I:"#bab3f7"};
 const groupNames:Record<string,string>={
- T:"Gruppo dei tetraedri",C:"Gruppo dei cubi",O:"Gruppo degli ottaedri",
- D:"Gruppo dei dodecaedri",I:"Gruppo degli icosaedri"
+ T:"Tetrahedra",C:"Cubes",O:"Octahedra",
+ D:"Dodecahedra",I:"Icosahedra"
 };
 const clampRows=(x:number)=>Math.min(MAX_CATALOG_ROWS,Math.max(1,Math.trunc(x)));
-const fmt=(n:number)=>n.toLocaleString("it-IT");
+const fmt=(n:number)=>n.toLocaleString("en-US");
 // Only the perspective camera changes: the geometry and flat views remain unchanged.
 // 1.4 vs the former 1.2 moves the solid ~17% closer in apparent size.
 export const PERIODIC_SOLID_CAMERA_ZOOM=1.4;
@@ -40,9 +40,9 @@ export function periodicViewScale(kind:PeriodicViewKind,scale:number){
  };
 }
 const flatViews=[
- {kind:"flat-x",label:"X",description:"Appiattito lungo X · scala (0.05, 1, 1)"},
- {kind:"flat-y",label:"Y",description:"Appiattito lungo Y · scala (1, 0.05, 1)"},
- {kind:"flat-z",label:"Z",description:"Appiattito lungo Z · scala (1, 1, 0.05)"}
+ {kind:"flat-x",label:"X",description:"Flattened along X · scale (0.05, 1, 1)"},
+ {kind:"flat-y",label:"Y",description:"Flattened along Y · scale (1, 0.05, 1)"},
+ {kind:"flat-z",label:"Z",description:"Flattened along Z · scale (1, 1, 0.05)"}
 ] as const;
 
 /**
@@ -205,7 +205,7 @@ export function PeriodicCell({entry,showSpectrum,showEquivalent,palette,gradient
   gradientFaceUsage(entry.faceClassIds,gradient).colors:
   faceColorUsage(entry.faceClassIds,palette).colors.map(color=>
    "#"+color.toString(16).padStart(6,"0"))):[];
- return <article aria-label={"Polytrone "+entry.number+" · "+entry.dna}
+ return <article aria-label={"Polytron "+entry.number+" · "+entry.dna}
   style={{border:"1px solid "+(entry.equivalents.length?"#7aaead":line),
    background:card,borderRadius:10,minWidth:0,overflow:"hidden",
    display:"grid",gridTemplateRows:"auto 140px auto auto",boxShadow:"0 3px 12px #0002"}}>
@@ -218,10 +218,10 @@ export function PeriodicCell({entry,showSpectrum,showEquivalent,palette,gradient
    <div data-polytron-viewport="" data-dna={entry.dna} data-view-kind="solid"
     style={{width:"100%",height:140,position:"relative",
      background:"radial-gradient(ellipse at center, #21495c 0%, #102b3c 70%)"}}
-    aria-label={"Poliedro 3D rotante "+entry.dna}/>:
+    aria-label={"Rotating 3D polyhedron "+entry.dna}/>:
    <div style={{height:140,display:"flex",alignItems:"center",justifyContent:"center",
     fontSize:12,color:"#f2c3ad",textAlign:"center",padding:8}}>
-    {entry.status==="too-complex"?"Geometria troppo complessa":"Operazione non realizzabile"}
+    {entry.status==="too-complex"?"Geometry too complex":"Operation unavailable"}
    </div>}
   <div style={{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",
    gap:5,margin:"6px 8px 9px"}}>
@@ -244,28 +244,28 @@ export function PeriodicCell({entry,showSpectrum,showEquivalent,palette,gradient
   <div style={{padding:"5px 11px 10px",display:"grid",gap:4,minHeight:65}}>
    <code style={{fontSize:14,fontWeight:700,color:ink}}>{entry.dna}</code>
    <div data-intrinsic-energy={energy}
-    aria-label={"Energia intrinseca: "+fmt(energy)+" unità"}
-    title={"E = 2 + (periodo "+(entry.row+1)+" − 1) + (gruppo "+(entry.col+1)+" − 1). Chromatica: +0."}
+    aria-label={"Intrinsic Energy: "+fmt(energy)+" units"}
+    title={"E = 2 + (period "+(entry.row+1)+" − 1) + (group "+(entry.col+1)+" − 1). Chromatica: +0."}
     style={{display:"flex",alignItems:"center",justifyContent:"space-between",
      gap:8,padding:"7px 9px",borderRadius:7,
      background:"#1a423d",border:"1px solid #417f6c"}}>
     <span style={{fontSize:11,fontWeight:700,color:"#b8e5d1"}}>
-     Energia intrinseca
+     Intrinsic Energy
     </span>
     <strong style={{fontSize:17,color:"#d7f9c7",whiteSpace:"nowrap",
      fontVariantNumeric:"tabular-nums"}}>{fmt(energy)} E</strong>
    </div>
    <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}
-    title="Classi di facce distinte (lati e angoli) e colori RGB effettivi della palette">
+    title="Distinct face types (edge lengths and angles) and actual RGB colors from the palette">
     <strong style={{fontSize:12,color:usage&&usage.colorsUsed>1?mint:ink}}>
-     Colori usati: {usage?usage.colorsUsed:"—"}
+     Colors used: {usage?usage.colorsUsed:"—"}
     </strong>
     <span style={{fontSize:10,color:soft}}>
-     · Tipi facce: {entry.faceTypeCount??"—"}
+     · Face types: {entry.faceTypeCount??"—"}
     </span>
    </div>
    {usage&&<div style={{display:"flex",gap:3,alignItems:"center"}}
-    aria-label={"Colori effettivamente utilizzati: "+usage.colorsUsed}>
+    aria-label={"Colors actually used: "+usage.colorsUsed}>
     {swatches.slice(0,24).map((color,i)=><span key={i} title={color}
      style={{width:13,height:9,borderRadius:2,display:"inline-block",
       border:"1px solid #ffffff30",background:color}}/>)}
@@ -274,18 +274,18 @@ export function PeriodicCell({entry,showSpectrum,showEquivalent,palette,gradient
    {showEquivalent&&<div style={{fontSize:11,color:entry.equivalents.length?mint:soft,
     wordBreak:"break-word"}}>
     {entry.equivalents.length?
-     <>≡ predecessori: {entry.equivalents.map((id,i)=><span key={id}>
+     <>≡ earlier equivalents: {entry.equivalents.map((id,i)=><span key={id}>
       {i?", ":""}<a style={{color:mint,textDecoration:"underline"}}
        href={"#polytron-"+id}>{id}</a></span>)}</>:
-     entry.verification==="incomplete"?"Verifica geometrica non completata":
-     "Equivalenti: —"}
+     entry.verification==="incomplete"?"Geometric verification incomplete":
+     "Equivalents: —"}
     {entry.unresolvedPrevious>0&&<div style={{color:"#e7bd93"}}>
-     Verifica parziale: {entry.unresolvedPrevious} predecessori non elaborati
+     Partial verification: {entry.unresolvedPrevious} earlier entries not processed
     </div>}
    </div>}
    {showSpectrum&&<div style={{fontSize:10,color:soft,wordBreak:"break-word",
     maxHeight:46,overflow:"auto"}}>
-    ShapeDNA v2: {entry.shapeDNA?.slice(1,6).map(x=>x.toFixed(2)).join(" · ")??"spettro non calcolato"}
+    ShapeDNA v2: {entry.shapeDNA?.slice(1,6).map(x=>x.toFixed(2)).join(" · ")??"spectrum not computed"}
    </div>}
    {entry.error&&<span title={entry.error} style={{fontSize:10,color:"#dfab96"}}>
     {entry.error.length>70?entry.error.slice(0,70)+"…":entry.error}
