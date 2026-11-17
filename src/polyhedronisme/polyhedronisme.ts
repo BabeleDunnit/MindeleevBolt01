@@ -808,6 +808,10 @@ function applyOp(poly: Poly, op: string, arg: number | undefined): Poly {
 // indices and winding retained. All Conway operations use this seed.
 const dodecaU=2/(1+Math.sqrt(5)); // 1/phi
 const dodecaV=dodecaU*dodecaU;  // 1/phi²
+// I uses precisely the same XYZ frame as the dual D seed. Its coordinates
+// are exact golden-ratio values: (0, ±phi, ±1), (±phi, ±1, 0),
+// (±1, 0, ±phi). Only the orientation of I changes, never its topology.
+const icosaPhi=1/dodecaU;
 
 const seeds: Record<string, () => Poly> = {
   T: () => ({
@@ -849,10 +853,16 @@ const seeds: Record<string, () => Poly> = {
       [3, 8, 9], [3, 9, 4], [4, 9, 10], [4, 10, 5], [5, 10, 7],
       [6, 7, 11], [6, 11, 8], [7, 10, 11], [8, 11, 9], [9, 11, 10],
     ],
+    // A regular icosahedron in the exact D-dual XYZ symmetry frame.
+    // Keep legacy vertex indices / outward face winding; all three axial
+    // projections have bilateral mirror symmetry. The old seed was rounded
+    // and placed a five-fold vertex axis along Z instead of the shared
+    // orthogonal two-fold axes.
     vertices: [
-      [0, 0, 1.176], [1.051, 0, 0.526], [0.324, 1.0, 0.525], [-0.851, 0.618, 0.526],
-      [-0.851, -0.618, 0.526], [0.325, -1.0, 0.526], [0.851, 0.618, -0.526], [0.851, -0.618, -0.526],
-      [-0.325, 1.0, -0.526], [-1.051, 0, -0.526], [-0.325, -1.0, -0.526], [0, 0, -1.176],
+      [-1,0,icosaPhi], [1,0,icosaPhi], [0,icosaPhi,1],
+      [-icosaPhi,1,0], [-icosaPhi,-1,0], [0,-icosaPhi,1],
+      [icosaPhi,1,0], [icosaPhi,-1,0], [0,icosaPhi,-1],
+      [-1,0,-icosaPhi], [0,-icosaPhi,-1], [1,0,-icosaPhi],
     ],
   }),
   D: () => ({
