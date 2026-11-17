@@ -81,7 +81,9 @@ function SharedPeriodic3D({palette,rotate,gradient}:{palette:number;rotate:boole
    color:0xc3e5e8,transparent:true,opacity:.77,
    depthTest:true,depthWrite:false
   });
-  const mesh=new THREE.Mesh(new THREE.BufferGeometry(),mat);
+  // The shared mesh switches between lit 3D and unlit flattened materials.
+  const mesh=new THREE.Mesh<THREE.BufferGeometry,THREE.Material>(
+   new THREE.BufferGeometry(),mat);
   const edges=new THREE.LineSegments(new THREE.BufferGeometry(),edgeMat);
   group.add(mesh,edges);
   scene.add(new THREE.HemisphereLight(0xd7f0ff,0x28485b,2.4));
