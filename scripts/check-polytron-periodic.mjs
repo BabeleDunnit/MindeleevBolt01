@@ -109,8 +109,10 @@ try{
   ["flat-z",{x:1,y:1,z:.01}]
  ])assert.deepEqual(ui.periodicViewScale(kind,1),expected,
   kind+" must compress exactly one local Polytron axis");
- assert.equal(ui.PERIODIC_SOLID_CAMERA_ZOOM,1.2,
-  "3D preview should appear 20% larger by moving the camera closer");
+ assert.equal(ui.PERIODIC_SOLID_CAMERA_ZOOM,1.4,
+  "3D preview should be another ~17% larger via perspective camera distance");
+ assert.equal(ui.PERIODIC_SOLID_CAMERA_LIFT,.24,
+  "The 3D camera should be lowered slightly so its object appears higher");
  const markup=renderToString(React.createElement(ui.default));
  for(const required of ["Tavola periodica dei Polytroni",
   "Periodi da enumerare","Chromatica · 144 gradienti","Palette originali","Rotazione 3D","Equivalenti",
@@ -131,6 +133,8 @@ try{
  for(const phrase of [
   "new THREE.OrthographicCamera","periodicViewScale(kind,geo.scale)",
   "camera.position.set(3,2.1,6.5).divideScalar(PERIODIC_SOLID_CAMERA_ZOOM)",
+  "camera.position.y-=PERIODIC_SOLID_CAMERA_LIFT",
+  "camera.lookAt(0,-PERIODIC_SOLID_CAMERA_LIFT,0)",
   'kind==="flat-x"','kind==="flat-y"','kind==="solid"',
   "group.rotation.set(0,0,0)","flatCamera.lookAt(0,0,0)",
   'hidden={!palettesOpen}',"localStorage.setItem"
