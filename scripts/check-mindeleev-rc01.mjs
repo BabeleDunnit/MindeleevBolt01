@@ -491,15 +491,16 @@ try{
  // periodic table: Polytronic Number 13 (period 3, group 3) has 6 E.
  assert.equal(life.intrinsicEnergy(13,0),6);
  for(const phrase of [
-  'POLYTRON · {pawnName(selectedPawn)}',
-  'Polytronic Number: {selectedPawn.number}',
+  '<h2>Polytron - {pawnName(selectedPawn)}</h2>',
+  '<dt>Polytronic Number</dt><dd>{selectedPawn.number}</dd>',
   '<dt>Intrinsic Energy</dt><dd>{intrinsicEnergy(selectedPawn.number,0)} E</dd>',
   '<dt>Permanent Identity</dt>',
   'import {intrinsicEnergy} from "@/polytron/mindeleevLife"'
  ])assert(tsx.includes(phrase),
-  "English inspector must show canonical Polytronic Number/Energy: "+phrase);
- assert(!tsx.includes("POLYTRONE ·")&&!tsx.includes("<h2>#{selectedPawn.number}</h2>"),
-  "Old Italian inspector heading and bare number must be removed");
+  "Inspector name heading and canonical data rows required: "+phrase);
+ assert(!tsx.includes("POLYTRONE ·")&&!tsx.includes("<h2>#{selectedPawn.number}</h2>")&&
+  !tsx.includes("<h2>Polytronic Number:"),
+  "The inspector should never emphasize the number in the heading");
  const inspector=await readFile("src/experiments/RC01ThreeInspector.tsx","utf8");
  assert(inspector.includes("THREE.PerspectiveCamera")&&
   inspector.includes("makeRC3DPolytron")&&!inspector.includes("<svg"),
