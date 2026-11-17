@@ -344,9 +344,9 @@ export default function PolytronPeriodicLab(){
      });
     }else if(event.data.kind==="error")setWorkerError(event.data.error??"Worker error");
    };
-   instance.onerror=()=>setWorkerError("Il Worker di enumerazione non è disponibile");
+   instance.onerror=()=>setWorkerError("The enumeration worker is unavailable");
    instance.postMessage({kind:"target",rows});
-  }catch(err){setWorkerError("Impossibile avviare il Worker: "+String(err));}
+  }catch(err){setWorkerError("Could not start the enumeration worker: "+String(err));}
   return ()=>{
    active=false;worker.current?.terminate();worker.current=null;
   };
@@ -393,10 +393,10 @@ export default function PolytronPeriodicLab(){
    if(/^\d+$/.test(lookup.trim())){
     number=BigInt(lookup.trim());
     const dna=dnaFromPolitronNumber(number);
-    setLookupMessage("Numero "+number.toString()+" → ConwayDNA "+dna);
+    setLookupMessage("Polytronic Number "+number.toString()+" → ConwayDNA "+dna);
    }else{
     number=politronNumberFromDNA(lookup.trim());
-    setLookupMessage("ConwayDNA "+lookup.trim()+" → numero "+number.toString());
+    setLookupMessage("ConwayDNA "+lookup.trim()+" → Polytronic Number "+number.toString());
    }
    if(number<=BigInt(rowTarget)){
     const n=Number(number);
@@ -406,8 +406,8 @@ export default function PolytronPeriodicLab(){
     const targetRows=Number((number+4n)/5n);
     if(targetRows<=MAX_CATALOG_ROWS){
      setRows(targetRows);setRowInput(String(targetRows));setCurrentFocus(Number(number));
-     setLookupMessage(old=>old+" · estensione a "+targetRows+" periodi");
-    }else setLookupMessage(old=>old+" · oltre il limite di visualizzazione ("+MAX_CATALOG_ROWS+" periodi)");
+     setLookupMessage(old=>old+" · extending to "+targetRows+" periods");
+    }else setLookupMessage(old=>old+" · exceeds the display limit ("+MAX_CATALOG_ROWS+" periods)");
    }
   }catch(e){setLookupMessage(String(e));}
  };
@@ -417,52 +417,50 @@ export default function PolytronPeriodicLab(){
   <header style={{maxWidth:1050,marginBottom:18}}>
    <div style={{color:mint,letterSpacing:2,fontSize:11}}>MINDELEEV · SPRINT 35 · CONWAY × SHAPEDNA</div>
    <h1 style={{fontSize:"clamp(26px,4vw,42px)",margin:"6px 0 9px"}}>
-    Tavola periodica dei Polytroni
+    Periodic Table of Polytrons
    </h1>
    <p style={{maxWidth:880,color:soft,fontSize:14,lineHeight:1.6,marginTop:0}}>
-    Cinque poliedri fondamentali e sequenze Conway ordinate per lunghezza crescente.
-    Ogni numero politronico identifica una ricetta geometrica, mai una palette.
-    Le equivalenze vengono verificate geometricamente, anche se lo spettro
-    ShapeDNA v2 non è disponibile. Il calcolo procede nel Worker in ordine
-    politronico, senza bloccare la scena 3D.
+    Five fundamental polyhedra and Conway operator sequences ordered by increasing length.
+    Every Polytronic Number identifies a geometric recipe, never a color palette.
+    Geometric equivalences are verified even when ShapeDNA v2 spectra are unavailable.
+    Enumeration runs in a worker in Polytronic Number order without blocking the 3D scene.
    </p>
    <p style={{maxWidth:880,color:"#b8e5d1",fontSize:12,lineHeight:1.5,marginTop:0}}>
-    Energia intrinseca di ogni Polytrone: E = 2 + (periodo − 1) + (gruppo − 1).
-    Il contributo di Chromatica è fisso a 0. Gli stessi valori sono utilizzati
-    da Mindeleev Life.
+    Intrinsic Energy for each Polytron: E = 2 + (period − 1) + (group − 1).
+    The Chromatica contribution is fixed at 0. Mindeleev Life uses the same values.
    </p>
    <div style={{display:"flex",gap:15,fontSize:12,flexWrap:"wrap"}}>
-    <a style={{color:mint}} href={import.meta.env.BASE_URL+"?experiment=mindeleev-life"}>Mindeleev Life · Automa</a>
-    <a style={{color:mint}} href={import.meta.env.BASE_URL+"?experiment=mindeleev-spectral"}>Spectral Futures · Fusioni e fissioni</a>
+    <a style={{color:mint}} href={import.meta.env.BASE_URL+"?experiment=mindeleev-life"}>Mindeleev Life · Cellular Automaton</a>
+    <a style={{color:mint}} href={import.meta.env.BASE_URL+"?experiment=mindeleev-spectral"}>Spectral Futures · Fusion and Fission</a>
      <a style={{color:mint}} href={import.meta.env.BASE_URL+"?experiment=orbital-mut"}>Orbital Mutatron</a>
-    <a style={{color:mint}} href={import.meta.env.BASE_URL}>Catalogo esagonale originale</a>
-    <a style={{color:mint}} href={import.meta.env.BASE_URL+"?experiment=phenotype"}>Laboratorio ShapeDNA</a>
+    <a style={{color:mint}} href={import.meta.env.BASE_URL}>Original Hexagonal Catalog</a>
+    <a style={{color:mint}} href={import.meta.env.BASE_URL+"?experiment=phenotype"}>ShapeDNA Lab</a>
    </div>
   </header>
   <section style={{padding:14,background:card,border:"1px solid "+line,
    borderRadius:13,display:"grid",gap:13,marginBottom:14}}>
    <div style={{display:"flex",gap:15,flexWrap:"wrap",alignItems:"end"}}>
     <label style={{display:"grid",gap:5,color:soft,fontSize:12}}>
-     Periodi da enumerare (1–{fmt(MAX_CATALOG_ROWS)})
+     Periods to enumerate (1–{fmt(MAX_CATALOG_ROWS)})
      <input type="number" min={1} max={MAX_CATALOG_ROWS} step={1} value={rowInput}
       onChange={e=>changeRows(e.target.value)}
       onBlur={()=>setRowInput(String(rows))}
       style={{...control,width:106,fontVariantNumeric:"tabular-nums"}}/>
     </label>
     {paletteMode==="legacy"&&palettesOpen&&<label style={{display:"grid",gap:5,color:soft,fontSize:12}}>
-     Famiglia di palette · catalogo originale
-     <select style={control} aria-label="Famiglia palette" value={paletteGroup}
+     Palette family · original catalog
+     <select style={control} aria-label="Palette family" value={paletteGroup}
       onChange={e=>setPaletteGroup(Number(e.target.value))}>
       {PALETTE_SETS.map((set,i)=><option key={set.id} value={i}>{set.label}</option>)}
      </select>
     </label>}
     <label style={{display:"flex",gap:7,color:soft,fontSize:12,alignItems:"center",paddingBottom:8}}>
      <input type="checkbox" checked={rotate} onChange={e=>setRotate(e.target.checked)}/>
-     Rotazione 3D
+     3D rotation
     </label>
     <label style={{display:"flex",gap:7,color:soft,fontSize:12,alignItems:"center",paddingBottom:8}}>
      <input type="checkbox" checked={showEquivalent}
-      onChange={e=>setShowEquivalent(e.target.checked)}/> Equivalenti
+      onChange={e=>setShowEquivalent(e.target.checked)}/> Equivalents
     </label>
     <label style={{display:"flex",gap:7,color:soft,fontSize:12,alignItems:"center",paddingBottom:8}}>
      <input type="checkbox" checked={showSpectrum}
@@ -475,12 +473,12 @@ export default function PolytronPeriodicLab(){
      aria-controls="periodic-palette-panel"
      onClick={()=>setPalettesOpen(open=>!open)}
      style={{...control,cursor:"pointer",background:"#235469",fontWeight:700}}>
-     {palettesOpen?"▾ Nascondi palette":"▸ Mostra palette"}
+     {palettesOpen?"▾ Hide palettes":"▸ Show palettes"}
     </button>
     <span style={{fontSize:12,color:soft}}>
      {paletteMode==="chromatica"?
       "Chromatica · "+gradientPair(gradientRow,gradientCol).name:
-      "Palette originale · "+palette}
+      "Original palette · "+palette}
     </span>
    </div>
    <div id="periodic-palette-panel" hidden={!palettesOpen}
@@ -504,10 +502,10 @@ export default function PolytronPeriodicLab(){
     <strong style={{fontSize:12,color:soft}}>Palette</strong>
     <button type="button" onClick={()=>setPaletteMode("chromatica")}
      aria-pressed={paletteMode==="chromatica"}
-     style={{...control,cursor:"pointer",background:paletteMode==="chromatica"?"#257464":"#153d51"}}>Chromatica · 144 gradienti</button>
+     style={{...control,cursor:"pointer",background:paletteMode==="chromatica"?"#257464":"#153d51"}}>Chromatica · 144 gradients</button>
     <button type="button" onClick={()=>setPaletteMode("legacy")}
      aria-pressed={paletteMode==="legacy"}
-     style={{...control,cursor:"pointer",background:paletteMode==="legacy"?"#257464":"#153d51"}}>Palette originali</button>
+     style={{...control,cursor:"pointer",background:paletteMode==="legacy"?"#257464":"#153d51"}}>Original palettes</button>
    </div>
    {paletteMode==="chromatica"&&<PeriodicGradientPicker row={gradientRow}
     column={gradientCol} order={gradientOrder}
@@ -515,43 +513,43 @@ export default function PolytronPeriodicLab(){
     onOrderChange={setGradientOrder} exampleFaceTypes={Math.max(2,stats.maxFaceTypes||5)}/>}
    </div>
    <div style={{display:"flex",gap:9,alignItems:"center",flexWrap:"wrap"}}>
-    <label style={{fontSize:12,color:soft}} htmlFor="periodic-search">Trova numero o ConwayDNA</label>
+    <label style={{fontSize:12,color:soft}} htmlFor="periodic-search">Find Polytronic Number or ConwayDNA</label>
     <input id="periodic-search" value={lookup} onChange={e=>setLookup(e.target.value)}
      onKeyDown={e=>{if(e.key==="Enter")applyLookup();}}
-     placeholder="es. 137 oppure akT" style={{...control,width:205}}/>
+     placeholder="e.g. 137 or akT" style={{...control,width:205}}/>
     <button style={{...control,cursor:"pointer",background:"#257464"}}
-     onClick={applyLookup}>Trova</button>
+     onClick={applyLookup}>Find</button>
     {lookupMessage&&<span style={{fontSize:12,color:mint}} role="status">{lookupMessage}</span>}
    </div>
    <div style={{fontSize:12,color:soft,display:"flex",gap:13,flexWrap:"wrap"}}>
-    <span>Periodi generati: <b style={{color:ink}}>{Math.min(rows,Math.floor(entries.length/5))}/{rows}</b></span>
-    <span>Celle: <b style={{color:ink}}>{fmt(visible.length)}/{fmt(rowTarget)}</b></span>
-    <span>Geometrie verificate: <b style={{color:ink}}>{fmt(stats.verified)}</b></span>
-    <span>Equivalenze: <b style={{color:mint}}>{fmt(stats.duplicates)}</b></span>
-    <span>Spettri ShapeDNA v2: <b>{fmt(stats.measured)}</b></span>
-    <span>Spettro non calcolato: <b>{fmt(stats.unknown)}</b></span>
-    <span>Verifiche incomplete: <b>{fmt(stats.incomplete)}</b></span>
-    <span>Con predecessori non verificati: <b>{fmt(stats.undiscovered)}</b></span>
-    <span>3D non renderizzati: <b>{fmt(stats.unrenderable)}</b></span>
+    <span>Periods generated: <b style={{color:ink}}>{Math.min(rows,Math.floor(entries.length/5))}/{rows}</b></span>
+    <span>Cells: <b style={{color:ink}}>{fmt(visible.length)}/{fmt(rowTarget)}</b></span>
+    <span>Geometries verified: <b style={{color:ink}}>{fmt(stats.verified)}</b></span>
+    <span>Equivalences: <b style={{color:mint}}>{fmt(stats.duplicates)}</b></span>
+    <span>ShapeDNA v2 spectra: <b>{fmt(stats.measured)}</b></span>
+    <span>Spectra not computed: <b>{fmt(stats.unknown)}</b></span>
+    <span>Incomplete verifications: <b>{fmt(stats.incomplete)}</b></span>
+    <span>With unverified predecessors: <b>{fmt(stats.undiscovered)}</b></span>
+    <span>3D models not rendered: <b>{fmt(stats.unrenderable)}</b></span>
    </div>
    <div style={{display:"flex",gap:13,flexWrap:"wrap",fontSize:12,color:soft,
     borderTop:"1px solid "+line,paddingTop:11}}>
-    <span>Colori usati (max): <b style={{color:mint}}>{stats.maxColors||"—"}</b></span>
-    <span>Tipi di facce (max): <b style={{color:ink}}>{stats.maxFaceTypes||"—"}</b></span>
-    <span>{gradient?"Chromatica":"Palette originale"}: <b style={{color:ink}}>
-      {gradient?"un colore per classe, senza wrapping":(PALETTES[palette]?.length??0)+" colori ciclici"}</b></span>
-    <span>Mono-colore: <b style={{color:ink}}>{fmt(stats.distribution[1])}</b></span>
-    <span>Multi-colore: <b style={{color:ink}}>
+    <span>Colors used (max): <b style={{color:mint}}>{stats.maxColors||"—"}</b></span>
+    <span>Face types (max): <b style={{color:ink}}>{stats.maxFaceTypes||"—"}</b></span>
+    <span>{gradient?"Chromatica":"Original palette"}: <b style={{color:ink}}>
+      {gradient?"one color per face class, no wrapping":(PALETTES[palette]?.length??0)+" cyclic colors"}</b></span>
+    <span>Single-color: <b style={{color:ink}}>{fmt(stats.distribution[1])}</b></span>
+    <span>Multi-color: <b style={{color:ink}}>
      {fmt(stats.classified-stats.distribution[1])}
     </b></span>
    </div>
    <div style={{display:"flex",gap:12,flexWrap:"wrap",fontSize:11,color:soft}}>
     {([1,2,3,4,5] as const).map(count=><span key={count}>
-     {count===5?"5+":count} colori: <b style={{color:ink}}>
+     {count===5?"5+":count} colors: <b style={{color:ink}}>
       {fmt(stats.distribution[count])}</b>
     </span>)}
-    <span style={{opacity:.85}}>I tipi di facce non dipendono dalla palette;
-     i colori usati seguono la modalità selezionata. Chromatica non ricicla i colori.</span>
+    <span style={{opacity:.85}}>Face types do not depend on the palette. The colors used depend on the selected mode.
+     Chromatica never reuses colors.</span>
    </div>
    {workerError&&<p style={{fontSize:12,color:"#efb7a2"}} role="alert">{workerError}</p>}
   </section>
@@ -559,13 +557,13 @@ export default function PolytronPeriodicLab(){
    <div style={{minWidth:850}}>
     <div style={{display:"grid",gridTemplateColumns:"76px repeat(5,minmax(0,1fr))",gap:7,
      marginBottom:8,position:"sticky",top:0,zIndex:110,background:bg,padding:"7px 0"}}>
-     <div aria-label="Gruppi sulle colonne, Periodi sulle righe"
+     <div aria-label="Groups in columns, periods in rows"
       style={{padding:"7px 5px",fontSize:10,fontWeight:700,
        color:soft,background:"#193b4c",borderRadius:8,
        display:"flex",flexDirection:"column",justifyContent:"space-between",
        minHeight:69,gap:8}}>
-      <span style={{textAlign:"right",color:mint}}>Gruppi →</span>
-      <span style={{textAlign:"left"}}>↓ Periodi</span>
+      <span style={{textAlign:"right",color:mint}}>Groups →</span>
+      <span style={{textAlign:"left"}}>↓ Periods</span>
      </div>
      {SEEDS.map(seed=><div key={seed}
       style={{textAlign:"center",borderTop:"3px solid "+seedColors[seed],
@@ -577,7 +575,7 @@ export default function PolytronPeriodicLab(){
     <div style={{display:"grid",gridTemplateColumns:"76px repeat(5,minmax(0,1fr))",
      gap:7,alignItems:"stretch"}}>
      {visible.map(entry=><Fragment key={entry.number}>
-      {entry.col===0&&<div aria-label={"Periodo "+(entry.row+1)}
+      {entry.col===0&&<div aria-label={"Period "+(entry.row+1)}
        style={{background:"#153544",border:"1px solid "+line,
         borderRadius:8,padding:"10px 5px",textAlign:"center",
         display:"flex",flexDirection:"column",alignItems:"center",
