@@ -64,9 +64,9 @@ try{
  const before=table.entries.map(e=>({number:e.number,dna:e.dna}));
  table.appendRows(1);
  assert.deepEqual(table.entries.slice(0,15).map(e=>({number:e.number,dna:e.dna})),before);
- // Validate every cell in the default 50 periods, including entries whose
+ // Validate every cell in the default 100 periods, including entries whose
  // geometries cannot be rendered. Numeric energy is shared with Life logic.
- for(let n=1;n<=250;n++){
+ for(let n=1;n<=500;n++){
   const group=((n-1)%5)+1,period=Math.floor((n-1)/5)+1;
   const expected=2+(period-1)+(group-1);
   assert.equal(life.intrinsicEnergy(n,0),expected,
@@ -98,7 +98,7 @@ try{
    assert(cell.includes("Appiattito lungo "+axis),
     "Each card must identify the three static 2D projections");
  }
- for(const [n,expected] of [[1,2],[5,6],[6,3],[10,7],[11,4],[250,55],[10000,2005]]){
+ for(const [n,expected] of [[1,2],[5,6],[6,3],[10,7],[11,4],[250,55],[500,105],[10000,2005]]){
   assert.equal(life.intrinsicEnergy(n,0),expected,"Boundary energy #"+n);
  }
  assert.equal(ui.PERIODIC_FLAT_FACTOR,.01);
@@ -109,6 +109,8 @@ try{
   ["flat-z",{x:1,y:1,z:.01}]
  ])assert.deepEqual(ui.periodicViewScale(kind,1),expected,
   kind+" must compress exactly one local Polytron axis");
+ assert.equal(ui.PERIODIC_SOLID_CAMERA_ZOOM,1.2,
+  "3D preview should appear 20% larger by moving the camera closer");
  const markup=renderToString(React.createElement(ui.default));
  for(const required of ["Tavola periodica dei Polytroni",
   "Periodi da enumerare","Chromatica · 144 gradienti","Palette originali","Rotazione 3D","Equivalenti",
@@ -128,6 +130,7 @@ try{
  const src=await readFile("src/experiments/PolytronPeriodicLab.tsx","utf8");
  for(const phrase of [
   "new THREE.OrthographicCamera","periodicViewScale(kind,geo.scale)",
+  "camera.position.set(3,2.1,6.5).divideScalar(PERIODIC_SOLID_CAMERA_ZOOM)",
   'kind==="flat-x"','kind==="flat-y"','kind==="solid"',
   "group.rotation.set(0,0,0)","flatCamera.lookAt(0,0,0)",
   'hidden={!palettesOpen}',"localStorage.setItem"
@@ -140,5 +143,5 @@ try{
  const app=await readFile("src/App.tsx","utf8");
  assert(app.includes('experiment") === "polytron-periodic"'));
  console.log("DUAL EQUIVALENCES",JSON.stringify({dC:dC.equivalents,dO:dO.equivalents}));
- console.log("PASS periodic: all 250 default Polytron cards display canonical intrinsic energy (including nonrenderable), matching Mindeleev Life; numbering and shared 3D unchanged");
+ console.log("PASS periodic: all 500 default Polytron cards display canonical intrinsic energy (including nonrenderable), matching Mindeleev Life; numbering and shared 3D unchanged");
 }finally{await rm(root,{recursive:true,force:true});}
