@@ -82,9 +82,9 @@ try{
   }));
   assert(cell.includes('data-intrinsic-energy="'+expected+'"'),
    "Card #"+n+" must display energy "+expected);
-  assert(cell.includes('Energia intrinseca'),
+  assert(cell.includes('Intrinsic Energy'),
    "Card #"+n+" must explicitly label intrinsic energy");
-  assert(cell.includes('aria-label="Energia intrinseca: '+expected+' unità"'),
+  assert(cell.includes('aria-label="Intrinsic Energy: '+expected+' units"'),
    "Card #"+n+" must announce the correct energy accessibly");
   if(entry.renderable){
    assert.equal((cell.match(/data-polytron-viewport=/g)||[]).length,4,
@@ -97,7 +97,7 @@ try{
     "Unrenderable cells must not schedule invalid WebGL draws");
   }
   for(const axis of ["X","Y","Z"])
-   assert(cell.includes("Appiattito lungo "+axis),
+   assert(cell.includes("Flattened along "+axis),
     "Each card must identify the three static 2D projections");
  }
  for(const [n,expected] of [[1,2],[5,6],[6,3],[10,7],[11,4],[250,55],[500,105],[10000,2005]]){
@@ -195,20 +195,20 @@ try{
  assert.equal(ui.PERIODIC_SOLID_CAMERA_LIFT,.24,
   "The 3D camera should be lowered slightly so its object appears higher");
  const markup=renderToString(React.createElement(ui.default));
- for(const required of ["Tavola periodica dei Polytroni",
-  "Periodi da enumerare","Chromatica · 144 gradienti","Palette originali","Rotazione 3D","Equivalenti",
-  "ShapeDNA","Trova numero o ConwayDNA","Ruber","Chrysos"]){
+ for(const required of ["Periodic Table of Polytrons",
+  "Periods to enumerate","Chromatica · 144 gradients","Original palettes","3D rotation","Equivalents",
+  "ShapeDNA","Find Polytronic Number or ConwayDNA","Ruber","Chrysos"]){
   assert(markup.includes(required),"Missing UI "+required);
  }
- for(const required of ["Gruppi →","↓ Periodi","Gruppo dei tetraedri",
-  "Gruppo dei cubi","Gruppo degli ottaedri","Gruppo dei dodecaedri",
-  "Gruppo degli icosaedri","Periodi generati:",
-  "Energia intrinseca di ogni Polytrone","Il contributo di Chromatica è fisso a 0"]){
+ for(const required of ["Groups →","↓ Periods","Tetrahedra",
+  "Cubes","Octahedra","Dodecahedra",
+  "Icosahedra","Periods generated:",
+  "Intrinsic Energy for each Polytron","The Chromatica contribution is fixed at 0"]){
   assert(markup.includes(required),"Missing periodic table terminology "+required);
  }
  assert(markup.includes('aria-expanded="true"')&&
   markup.includes('aria-controls="periodic-palette-panel"')&&
-  markup.includes("Nascondi palette"),
+  markup.includes("Hide palettes"),
   "The Chromatica header needs an accessible palette collapse toggle");
  const src=await readFile("src/experiments/PolytronPeriodicLab.tsx","utf8");
  for(const phrase of [
