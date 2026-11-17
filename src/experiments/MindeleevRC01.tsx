@@ -4,6 +4,7 @@ import {initialRCGame,moveRCPawn,pawnDNA,pawnName,pawnPalette,
  RC01_START_SCORE,type RCGame,type RCPawn} from "@/polytron/rc01Game";
 import RC01ThreeBoard from "@/experiments/RC01ThreeBoard";
 import RC01ThreeInspector from "@/experiments/RC01ThreeInspector";
+import {intrinsicEnergy} from "@/polytron/mindeleevLife";
 import "./MindeleevRC01.css";
 
 type Sheet={kind:"polytron";seal:number}|{kind:"cell";key:string}|null;
@@ -93,29 +94,30 @@ export default function MindeleevRC01(){
   </p>
   {sheet&&<div className="rc01-modal-layer">
    <button type="button" className="rc01-scrim"
-    aria-label="Chiudi pannello" onClick={()=>setSheet(null)}/>
+    aria-label="Close panel" onClick={()=>setSheet(null)}/>
    <section role="dialog" aria-modal="true"
-    aria-label={sheet.kind==="polytron"?"Dettagli del Polytrone":"Dettagli della casella"}
+    aria-label={sheet.kind==="polytron"?"Polytron details":"Cell details"}
     className="rc01-sheet">
     <div className="rc01-sheet-handle"/>
-    <button className="rc01-close" type="button" aria-label="Chiudi"
+    <button className="rc01-close" type="button" aria-label="Close"
      onClick={()=>setSheet(null)}>×</button>
     {selectedPawn&&<div className="rc01-poly-sheet">
      <RC01ThreeInspector pawn={selectedPawn}/>
-     <div className="rc01-sheet-kicker">POLYTRONE · {pawnName(selectedPawn)}</div>
-     <h2>#{selectedPawn.number}</h2>
+     <div className="rc01-sheet-kicker">POLYTRON · {pawnName(selectedPawn)}</div>
+     <h2>Polytronic Number: {selectedPawn.number}</h2>
      <dl className="rc01-details">
       <div><dt>Conway DNA</dt><dd>{pawnDNA(selectedPawn)}</dd></div>
+       <div><dt>Intrinsic Energy</dt><dd>{intrinsicEnergy(selectedPawn.number,0)} E</dd></div>
       <div><dt>Palette · Latin / Greek</dt><dd>{pawnPalette(selectedPawn).name}</dd></div>
-      <div><dt>Identità permanente</dt>
+      <div><dt>Permanent Identity</dt>
        <dd>{pawnName(selectedPawn)} · {selectedPawn.seal}/72</dd></div>
      </dl>
     </div>}
     {selectedCell&&<div className="rc01-cell-sheet">
-     <div className="rc01-sheet-kicker">GEOMETRIA DEL MUTATRON</div>
-     <h2>{selectedCell.nucleus?"Nucleo":"Casella libera"}</h2>
+     <div className="rc01-sheet-kicker">MUTATRON GEOMETRY</div>
+     <h2>{selectedCell.nucleus?"Nucleus":"Empty cell"}</h2>
      <dl className="rc01-details">
-      <div><dt>Coordinate assiali (q, r)</dt>
+      <div><dt>Axial coordinates (q, r)</dt>
        <dd>({selectedCell.q}, {selectedCell.r})</dd></div>
       <div><dt>Ring</dt><dd>{selectedCell.ring}</dd></div>
       <div><dt>idxInRing</dt><dd>{selectedCell.idxInRing}</dd></div>
