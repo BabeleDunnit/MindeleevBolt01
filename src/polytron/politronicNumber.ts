@@ -17,20 +17,20 @@ const WIDTH=BigInt(SEEDS.length);
 export type BaseSeed=(typeof SEEDS)[number];
 
 export function opsToRowIndex(ops:string):bigint{
- if(!/^[a-z]*$/.test(ops))throw new Error("ConwayDNA: operatori non validi");
+ if(!/^[a-z]*$/.test(ops))throw new Error("ConwayDNA: invalid operators");
  let offset=0n;
  for(let depth=0;depth<ops.length;depth++)offset+=RADIX**BigInt(depth);
  let rank=0n;
  for(const op of ops){
   const digit=OPERATORS.indexOf(op as (typeof OPERATORS)[number]);
-  if(digit<0)throw new Error("Operatore Conway non supportato: "+op);
+  if(digit<0)throw new Error("Unsupported Conway operator: "+op);
   rank=rank*RADIX+BigInt(digit);
  }
  return offset+rank;
 }
 export function rowIndexToOps(index:bigint|number):string{
  let rest=typeof index==="bigint"?index:BigInt(index);
- if(rest<0n)throw new Error("Indice di riga negativo");
+ if(rest<0n)throw new Error("Negative row index");
  let depth=0,block=1n;
  while(rest>=block){
   rest-=block;
@@ -47,14 +47,14 @@ export function rowIndexToOps(index:bigint|number):string{
 export function politronNumberFromDNA(dna:string):bigint{
  const match=dna.match(/^([a-z]*)([TCODI])$/);
  // Accept exactly the bare Conway alphabet + one Platonic seed.
- if(!match||dna.includes(" "))throw new Error("Richiesto ConwayDNA senza palette: "+dna);
+ if(!match||dna.includes(" "))throw new Error("ConwayDNA without palette required: "+dna);
  const index=SEEDS.indexOf(match[2] as BaseSeed);
- if(index<0)throw new Error("Poliedro base non valido: "+dna);
+ if(index<0)throw new Error("Invalid base polyhedron: "+dna);
  return opsToRowIndex(match[1])*WIDTH+BigInt(index)+1n;
 }
 export function dnaFromPolitronNumber(number:bigint|number):string{
  const n=typeof number==="bigint"?number:BigInt(number);
- if(n<1n)throw new Error("Numero politronico deve essere positivo");
+ if(n<1n)throw new Error("Polytronic Number must be positive");
  const zero=n-1n;
  const row=zero/WIDTH,seed=SEEDS[Number(zero%WIDTH)];
  return rowIndexToOps(row)+seed;
