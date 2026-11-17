@@ -11,8 +11,9 @@
  * physical body actually settles: no completion based on a hard-coded flight
  * duration, no visible reset of position or orientation.
  *
- * Polytrons hover in a zero-gravity 3D environment without ground/boundary
- * collisions. The attacker follows an underdamped spring; bystanders struck
+ * Polytrons hover in a zero-gravity 3D environment with a real Rapier
+ * supporting floor, but no lateral screen boundaries. The attacker follows
+ * an underdamped spring; bystanders struck
  * by anyone are real dynamic bodies and spring back to their original tiles.
  * After contact, a captured target follows a damped off-board attractor.
  * Impact, inertia and secondary impacts still come from Rapier; the attractor
@@ -22,10 +23,13 @@ import * as RAPIER from "@dimforge/rapier3d-compat";
 import {polytronGeometry} from "@/polytron/polytron";
 import {pawnDNA,pawnPalette,type RCPawn} from "@/polytron/rc01Game";
 import type {RCBoard,RCCell} from "@/polytron/rc01Board";
-import {rcScreenWorld} from "@/experiments/rc01ThreeScene";
+import {rcScreenWorld,rcVisualPawnRadius,rcVisualPawnHeight,RC_TILE_SURFACE_Z}
+ from "@/experiments/rc01ThreeScene";
 
 export const RC_RAPIER_FIXED_STEP=1/120;
-const MAX_SECONDS=9.0; // failure guard only: never commits an unsettled move
+// Long or cascading contacts enter a stronger physical settling phase.
+ // No timer is allowed to fail a valid drop and teleport a Polytron home.
+const RECOVERY_SECONDS=6.0;
 const MIN_MOVE_TIME=.25;
 const MIN_CAPTURE_TIME=.65;
 const REST_WINDOW=.14;
@@ -59,8 +63,7 @@ type ActorBody={body:RAPIER.RigidBody;collider:RAPIER.Collider;seal:number};
 type BystanderBody={actor:ActorBody;home:{x:number;y:number;z:number};engaged:boolean};
 const vec=(x:number,y:number,z:number)=>({x,y,z});
 const mag=(v:{x:number;y:number;z:number})=>Math.hypot(v.x,v.y,v.z);
-export const rcRapierPawnRadius=(board:RCBoard)=>
- Math.max(23,Math.min(31,board.width/14.4))*.88;
+export const rcRapierPawnRadius=rcVisualPawnRadius;
 
 /** Hull using render geometry's exact radius and centroid. */
 export function makeRCPhysicalCollider(pawn:RCPawn,radius:number):RAPIER.ColliderDesc{
@@ -100,6 +103,7 @@ export class RC01RapierFlight{
  readonly radius:number;
  private attacker:ActorBody;
  private victim:ActorBody|null;
+ private floorCollider:RAPIER.Collider;
  private bystanders:BystanderBody[];
  private impacted=new Set<number>();
  private target:{x:number;y:number;z:number};
@@ -116,15 +120,16 @@ export class RC01RapierFlight{
  private succeeded=false;
  private restSeconds=0;
  private constructor(args:RCPhysicsStart,world:RAPIER.World,queue:RAPIER.EventQueue,
-   attacker:ActorBody,victim:ActorBody|null,bystanders:BystanderBody[],radius:number){
+   attacker:ActorBody,victim:ActorBody|null,bystanders:BystanderBody[],
+   floorCollider:RAPIER.Collider,radius:number){
   this.board=args.board;this.world=world;this.queue=queue;
   this.attacker=attacker;this.victim=victim;this.bystanders=bystanders;
-  this.radius=radius;
+  this.floorCollider=floorCollider;this.radius=radius;
   this.attackerSeal=args.attacker.seal;this.victimSeal=args.victim?.seal??null;
   this.from=args.from.key;this.to=args.to.key;
   const xy=rcScreenWorld(args.board,args.to);
   const origin=rcScreenWorld(args.board,args.from);
-  const z=9;
+  const z=rcVisualPawnHeight(args.board);
   this.target=vec(xy.x,xy.y,z);
   this.origin=vec(origin.x,origin.y,z);
   const dx=xy.x-origin.x,dy=xy.y-origin.y;
@@ -146,15 +151,22 @@ export class RC01RapierFlight{
  }
  static async create(args:RCPhysicsStart):Promise<RC01RapierFlight>{
   await RAPIER.init();
-  // Zero gravity: floating Polytrons should not continuously strike a floor.
-  // Their height is maintained by the same damped attractor as x and y.
+  // Zero gravity keeps the familiar hovering motion. An invisible static
+  // supporting plane prevents actual convex-hull geometry from sinking below
+  // the tile surface, including when a Polytron tumbles after an impact.
   const world=new RAPIER.World(vec(0,0,0));
   world.timestep=RC_RAPIER_FIXED_STEP;
   const queue=new RAPIER.EventQueue(true);
-  // NO floor and NO lateral world boundaries: expelled bodies depart cleanly.
-  // Both bodies are still real Rapier dynamic rigid bodies with 3D hulls.
+  // The floor extends far beyond the screen: its distant lateral edges can
+  // NEVER behave like walls or bounce an expelled Polytron back into view.
+  const floorDepth=5;
+  const floorCollider=world.createCollider(
+   RAPIER.ColliderDesc.cuboid(args.board.width*3,args.board.height*3,floorDepth)
+    .setTranslation(0,0,RC_TILE_SURFACE_Z-floorDepth)
+    .setRestitution(0).setFriction(.34)
+  );
   const radius=rcRapierPawnRadius(args.board);
-  const height=9;
+  const height=rcVisualPawnHeight(args.board);
   const add=(pawn:RCPawn,where:RCCell,rotation?:RCPhysicsStart["attackerRotation"]):ActorBody=>{
    const xy=rcScreenWorld(args.board,where,height);
    const desc=RAPIER.RigidBodyDesc.dynamic()
@@ -180,7 +192,7 @@ export class RC01RapierFlight{
     return {actor,home:{...actor.body.translation()},engaged:false};
    });
   const flight=new RC01RapierFlight(args,world,queue,attacker,victim,
-   bystanders,radius);
+   bystanders,floorCollider,radius);
   // Start at rest: the body ACCELERATES under the target attraction instead
   // of receiving an instantaneous launch impulse.
   return flight;
@@ -205,9 +217,11 @@ export class RC01RapierFlight{
   const travelled=(p.x-this.origin.x)*this.away.x+
    (p.y-this.origin.y)*this.away.y;
   const progress=travelled/this.travel;
-  const zeta=this.collided?.91:rcDampingRatio(progress);
-  const spring=this.omega*this.omega;
-  const damping=2*zeta*this.omega;
+  const recovering=this.seconds>=RECOVERY_SECONDS;
+  const omega=recovering?Math.max(5.4,this.omega):this.omega;
+  const zeta=recovering?1.02:(this.collided?.91:rcDampingRatio(progress));
+  const spring=omega*omega;
+  const damping=2*zeta*omega;
   body.addForce(vec(
    mass*(spring*(this.target.x-p.x)-damping*v.x),
    mass*(spring*(this.target.y-p.y)-damping*v.y),
@@ -215,8 +229,9 @@ export class RC01RapierFlight{
   ),true);
  }
  private applyBystanderReturns(){
-  const stiffness=RETURN_OMEGA*RETURN_OMEGA;
-  const damping=2*RETURN_DAMPING_RATIO*RETURN_OMEGA;
+  const omega=this.seconds>=RECOVERY_SECONDS?7.2:RETURN_OMEGA;
+  const stiffness=omega*omega;
+  const damping=2*RETURN_DAMPING_RATIO*omega;
   for(const other of this.bystanders){
    if(!other.engaged)continue;
    const body=other.actor.body,p=body.translation(),v=body.linvel();
@@ -273,10 +288,24 @@ export class RC01RapierFlight{
   // The recall is an in-world impulse, not a render-only rotation tween.
   body.applyTorqueImpulse(vec(12,-7,11),true);
  }
+ private applyUncapturedVictimField(){
+  if(this.collided||!this.victim)return;
+  // A secondary impact may displace the target before the attacker touches
+  // it. Restore its original tile through Rapier, so the intended physical
+  // contact can still happen instead of a nine-second timeout rollback.
+  const body=this.victim.body,p=body.translation(),v=body.linvel(),m=body.mass();
+  const omega=3.5,drag=2*.77*omega;
+  body.addForce(vec(
+   m*(omega*omega*(this.target.x-p.x)-drag*v.x),
+   m*(omega*omega*(this.target.y-p.y)-drag*v.y),
+   m*(omega*omega*(this.target.z-p.z)-drag*v.z)
+  ),true);
+ }
  private applyCaptureAttractor(){
   if(!this.collided||!this.victim)return;
   const body=this.victim.body,p=body.translation(),v=body.linvel(),m=body.mass();
-  const omega=2.15,zeta=.86,rate=omega*omega,drag=2*zeta*omega;
+  const omega=this.seconds>=RECOVERY_SECONDS?3.2:2.15;
+  const zeta=.86,rate=omega*omega,drag=2*zeta*omega;
   // Recover from secondary impacts while slowing as the off-board target
   // approaches. A stronger vertical spring keeps the exit in the board plane
   // even when tilted convex hulls exchange upward momentum.
@@ -297,11 +326,13 @@ export class RC01RapierFlight{
   for(const other of this.bystanders)other.actor.body.resetForces(true);
   this.applyAttackerField();
   this.applyBystanderReturns();
+  this.applyUncapturedVictimField();
   this.applyCaptureAttractor();
   this.world.step(this.queue);
   this.seconds+=RC_RAPIER_FIXED_STEP;
   this.queue.drainCollisionEvents((a,b,started)=>{
-   if(!started)return;
+   if(!started||a===this.floorCollider.handle||b===this.floorCollider.handle)
+    return;
    this.hits++;
    // Every collision pair is resolved by Rapier, including victim-to-neighbor
    // and neighbor-to-neighbor impacts. Never reposition these actors by hand.
@@ -347,11 +378,9 @@ export class RC01RapierFlight{
   }else if(elapsed>=MIN_MOVE_TIME&&rested&&this.bystandersRested()){
    this.ended=true;this.succeeded=true;
   }
-  if(elapsed>=MAX_SECONDS&&!this.ended){
-   this.ended=true;
-   // Timeout is an abort, NOT success: never teleport an unsettled body.
-   this.succeeded=false;
-  }
+  // An unusually long collision chain is resolved by stiffer Rapier
+  // springs above, never by a timer ending the flight and restoring the
+  // source cell. Completion still requires real near-rest motion.
   return this.snapshot();
  }
  snapshot():RCPhysicsFrame{
