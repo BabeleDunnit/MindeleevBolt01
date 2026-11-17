@@ -119,6 +119,8 @@
  font-size:32px;line-height:1.1;letter-spacing:-.035em;
  font-weight:770;color:#234a39;margin:7px 0 18px
 }
+/* The full “Polytronic Number: 13” heading must fit a narrow mobile sheet. */
+.rc01-poly-sheet h2{font-size:clamp(23px,5.4vw,30px);letter-spacing:-.025em}
 .rc01-details{display:grid;gap:0;margin:0}
 .rc01-details>div{
  border-top:1px solid #e4ebe4;padding:11px 0 12px;
