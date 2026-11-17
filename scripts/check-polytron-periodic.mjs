@@ -147,6 +147,66 @@ try{
    vertices:dodeca.vertices.length,faces:dodeca.faces.length,
    edges:dodecaEdges.length,projectedSymmetry:["X","Y","Z"]
   }));
+ // The icosahedron now uses exact golden-ratio coordinates in the same
+ // two-fold-axis frame as D. Its original face indices/winding stay intact.
+ const icosa=geometry.dnaToPoly("I");
+ assert.equal(icosa.vertices.length,12);
+ assert.equal(icosa.faces.length,20);
+ const icosaEdges=conway.edgesOf(icosa);
+ assert.equal(icosaEdges.length,30);
+ const icosaLengths=icosaEdges.map(([a,b])=>
+  Math.hypot(...icosa.vertices[a].map((v,j)=>v-icosa.vertices[b][j])));
+ assert(Math.max(...icosaLengths)-Math.min(...icosaLengths)<1e-8,
+  "I must have exact equal-length edges, not rounded pentagonal rings");
+ const projectionCounts=[];
+ for(let axis=0;axis<3;axis++){
+  const [a,b]=[0,1,2].filter(i=>i!==axis);
+  const outline=new Set(icosa.vertices.map(p=>coordKey([p[a],p[b]])));
+  projectionCounts.push(outline.size);
+  assert.equal(outline.size,8,"Unexpected icosahedron axial projection");
+  for(const p of icosa.vertices)
+   assert(outline.has(coordKey([-p[a],p[b]]))&&
+    outline.has(coordKey([p[a],-p[b]])),
+    "I projection must be mirror-symmetric on both axes, view "+axis);
+ }
+ for(const f of icosa.faces){
+  assert.equal(f.length,3);
+  const [p,q,r]=f.map(index=>icosa.vertices[index]);
+  const u=p.map((v,i)=>q[i]-v),v=p.map((x,i)=>r[i]-x);
+  const normal=[u[1]*v[2]-u[2]*v[1],
+   u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];
+  const centre=p.map((x,i)=>(x+q[i]+r[i])/3);
+  assert(normal.reduce((sum,n,i)=>sum+n*centre[i],0)>0,
+   "I must retain outward face winding after seed reorientation");
+ }
+ // Normalized dual-face centroids match the OTHER Platonic seed exactly.
+ // This is stronger than mere symmetry: I and D share one canonical frame.
+ const unit=p=>p.map(x=>x/Math.hypot(...p));
+ const matches=(actual,reference,label)=>{
+  assert.equal(actual.length,reference.length,label+" cardinality");
+  const unmatched=[...reference];
+  for(const p of actual){
+   const i=unmatched.findIndex(q=>
+    Math.hypot(...p.map((x,k)=>x-q[k]))<1e-8);
+   assert(i>=0,label+": missing corresponding vertex");
+   unmatched.splice(i,1);
+  }
+  assert.equal(unmatched.length,0,label+": unexpected vertices");
+ };
+ matches(conway.faceCenters(dodeca).map(unit),icosa.vertices.map(unit),
+  "D face centres -> I vertices");
+ matches(conway.faceCenters(icosa).map(unit),dodeca.vertices.map(unit),
+  "I face centres -> D vertices");
+ for(const [dual,base] of [["dD",icosa],["dI",dodeca]]){
+  const result=geometry.dnaToPoly(dual);
+  matches(result.vertices.map(unit),base.vertices.map(unit),
+   "Conway dual "+dual+" must share the exact canonical frame");
+ }
+ console.log("PERIODIC I/D DUAL AXES",JSON.stringify({
+  icosaVertices:icosa.vertices.length,icosaFaces:icosa.faces.length,
+  icosaEdges:icosaEdges.length,axialProjections:projectionCounts,
+  duality:"both directions",dodeca:"unchanged"
+ }));
  // duO (#168) exposed the privileged-diagonal defect in the old 3D fan.
  // The canonical mesher must use centroid triangles for every 3D renderer,
  // independently of face starting index or winding.
