@@ -597,27 +597,27 @@ export default function PolytronPeriodicLab(){
   </div>
   <footer style={{maxWidth:1000,fontSize:12,color:soft,lineHeight:1.65,
    borderTop:"1px solid "+line,paddingTop:15}}>
-   <p>Chromatica: 144 gradienti selezionabili tramite la matrice latina e greca.
-    Ogni geometria riceve un campione RGB per classe di facce, senza riciclo
-    modulo, mantenendo invariato il suo DNA. La modalità originale mantiene
-    invece le palette cromatiche tradizionali con ripetizione ciclica.</p>
-   <p>Ordine Conway: <code>{OPERATORS.join(" ")}</code>. Prima la stringa vuota,
-    poi tutte quelle di lunghezza 1, 2, 3 e così via, in base {OPERATORS.length}.
-    Le operazioni sono composte nell'ordine convenzionale di Polyhedronisme
-    (applicazione da destra a sinistra). Il numero politronico è un intero
-    reversibile anche per DNA molto lunghi.</p>
-   <p>Colorazione delle facce: Polyhedronisme le classifica usando lunghezze
-    dei lati e angoli. Il renderer assegna i colori alle classi ciclicamente.
-    «Tipi facce» misura le classi geometriche distinte; «Colori usati»
-    conta soltanto gli RGB distinti effettivamente applicati dalla palette
-    selezionata. Il numero cambia con la palette, non con lo ShapeDNA.</p>
-   <p>Equivalenza geometrica: si confrontano topologia, distribuzioni locali
-    di spigoli e facce, e firme complete delle distanze normalizzate.
-    Lo spettro ShapeDNA v2 è una misura opzionale, non un filtro per i duplicati.
-    Le mesh oltre 80 vertici possono comunque avere equivalenze verificate.
-    Le ricette oltre il budget di sicurezza restano numerate e sono marcate
-    esplicitamente come verifiche incomplete; i successori segnalano
-    l'esistenza di eventuali predecessori ancora non verificati.</p>
+   <p>Chromatica: 144 gradients selected from a Latin × Greek matrix.
+    Each geometry receives one RGB sample per face class, without modulo
+    color reuse or changes to its DNA. The original mode instead uses
+    traditional cyclic color palettes.</p>
+   <p>Conway ordering: <code>{OPERATORS.join(" ")}</code>. The empty operator sequence
+    comes first, followed by all sequences of length 1, 2, 3, and so on,
+    in base {OPERATORS.length}. Operations are composed in conventional
+    Polyhedronisme order (applied right to left). A Polytronic Number is
+    a reversible integer, even for very long DNA sequences.</p>
+   <p>Face coloring: Polyhedronisme classifies faces by edge lengths and
+    angles. The renderer assigns palette colors to these classes.
+    “Face types” counts distinct geometric classes; “Colors used” counts
+    the distinct RGB colors actually assigned by the selected palette.
+    The latter depends on the palette, not on ShapeDNA.</p>
+   <p>Geometric equivalence: comparisons use topology, local edge and face
+    distributions, and full signatures of normalized distances.
+    The ShapeDNA v2 spectrum is an optional measurement, not a duplicate
+    detection filter. Meshes with more than 80 vertices can still have
+    verified equivalences. Recipes exceeding the safety budget remain
+    numbered and are explicitly marked as incomplete; later entries
+    report any earlier candidates that have not yet been verified.</p>
   </footer>
  </main>;
 }
