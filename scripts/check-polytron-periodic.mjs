@@ -103,6 +103,50 @@ try{
  for(const [n,expected] of [[1,2],[5,6],[6,3],[10,7],[11,4],[250,55],[500,105],[10000,2005]]){
   assert.equal(life.intrinsicEnergy(n,0),expected,"Boundary energy #"+n);
  }
+  // The D seed must be the SAME regular solid, but aligned to the three
+  // orthogonal XYZ two-fold symmetry axes. Projection along each compressed
+  // axis must be exactly symmetric about both remaining screen axes.
+  const dodeca=geometry.dnaToPoly("D");
+  assert.equal(dodeca.vertices.length,20);
+  assert.equal(dodeca.faces.length,12);
+  const dodecaEdges=conway.edgesOf(dodeca);
+  assert.equal(dodecaEdges.length,30);
+  const lengths=dodecaEdges.map(([a,b])=>
+   Math.hypot(...dodeca.vertices[a].map((v,j)=>v-dodeca.vertices[b][j])));
+  assert(Math.max(...lengths)-Math.min(...lengths)<1e-8,
+   "The exact golden-ratio seed must retain equal-length dodecahedron edges");
+  const coordKey=values=>values.map(value=>Math.round(value*1e8)).join(",");
+  for(let axis=0;axis<3;axis++){
+   const [a,b]=[0,1,2].filter(i=>i!==axis);
+   const outline=new Set(dodeca.vertices.map(p=>coordKey([p[a],p[b]])));
+   assert.equal(outline.size,12,"Unexpected dodecahedron axial projection");
+   for(const p of dodeca.vertices){
+    assert(outline.has(coordKey([-p[a],p[b]]))&&
+     outline.has(coordKey([p[a],-p[b]])),
+     "D projection must be mirror-symmetric on BOTH screen axes, axis "+axis);
+   }
+  }
+  // Every retained pentagon must remain planar, with its original winding.
+  for(const f of dodeca.faces){
+   assert.equal(f.length,5);
+   const p=dodeca.vertices[f[0]],q=dodeca.vertices[f[1]],
+    r=dodeca.vertices[f[2]];
+   const u=p.map((v,i)=>q[i]-v),v=p.map((v,i)=>r[i]-v);
+   const normal=[u[1]*v[2]-u[2]*v[1],
+    u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];
+   const centre=f.reduce((acc,i)=>acc.map((n,k)=>n+dodeca.vertices[i][k]/5),
+    [0,0,0]);
+   assert(normal.reduce((sum,n,i)=>sum+n*centre[i],0)>0,
+    "D face winding must remain outward");
+   for(const index of f){
+    const distance=normal.reduce((sum,n,j)=>sum+n*(dodeca.vertices[index][j]-p[j]),0);
+    assert(Math.abs(distance)<1e-8,"The dodecahedron faces must stay planar");
+   }
+  }
+  console.log("PERIODIC D AXES",JSON.stringify({
+   vertices:dodeca.vertices.length,faces:dodeca.faces.length,
+   edges:dodecaEdges.length,projectedSymmetry:["X","Y","Z"]
+  }));
  // duO (#168) exposed the privileged-diagonal defect in the old 3D fan.
  // The canonical mesher must use centroid triangles for every 3D renderer,
  // independently of face starting index or winding.
