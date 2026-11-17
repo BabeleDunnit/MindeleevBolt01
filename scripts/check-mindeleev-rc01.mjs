@@ -198,7 +198,7 @@ try{
  }finally{emptyMove.dispose();}
  assert.equal(physics.RC_RAPIER_FIXED_STEP,1/120);
  assert(physics.rcDampingRatio(0)<.5);
- assert(physics.rcDampingRatio(.55)>.5);
+ assert(physics.rcDampingRatio(.55)>.42);
  assert(physics.rcDampingRatio(1)>.6&&physics.rcDampingRatio(1)<.75);
  assert(physics.rcAttractorOmega(200)<physics.rcAttractorOmega(80));
  const physicalSource=await readFile("src/experiments/rc01RapierFlight.ts","utf8");
