@@ -329,6 +329,14 @@ try{
   for(const [seal,excursion] of moved){
    assert(excursion>2,"Bystander "+seal+" must physically move on impact");
   }
+  console.log("RC01 CASCADE DIAGNOSTIC",JSON.stringify({
+   elapsed:result?.time,done:result?.done,success:result?.success,
+   collided:result?.collided,contacts:result?.contacts,
+   impacted:result?.impactedSeals,excursions:[...moved],
+   attacker:result?.attacker&&{position:result.attacker.position,speed:result.attacker.speed},
+   victim:result?.victim&&{position:result.victim.position,speed:result.victim.speed},
+   others:result?.bystanders.map(p=>({seal:p.seal,position:p.position,speed:p.speed}))
+  }));
   assert(result?.success,"Multibody chain must finish without teleporting actors");
   assert(result.victim&&
     (Math.abs(result.victim.position.x)>board.width/2+physics.rcRapierPawnRadius(board)||
