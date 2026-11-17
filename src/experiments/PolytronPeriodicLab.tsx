@@ -22,6 +22,8 @@ const groupNames:Record<string,string>={
 };
 const clampRows=(x:number)=>Math.min(MAX_CATALOG_ROWS,Math.max(1,Math.trunc(x)));
 const fmt=(n:number)=>n.toLocaleString("it-IT");
+// Zoom the perspective-only preview by approaching the object, not scaling it.
+export const PERIODIC_SOLID_CAMERA_ZOOM=1.2;
 export const PERIODIC_FLAT_FACTOR=.01;
 export type PeriodicViewKind="solid"|"flat-x"|"flat-y"|"flat-z";
 export function periodicViewScale(kind:PeriodicViewKind,scale:number){
@@ -68,7 +70,8 @@ function SharedPeriodic3D({palette,rotate,gradient}:{palette:number;rotate:boole
   const lamp=new THREE.DirectionalLight(0xffffff,2.6);
   lamp.position.set(4,6,8);scene.add(lamp);
   const camera=new THREE.PerspectiveCamera(38,1,.05,60);
-  camera.position.set(3,2.1,6.5);camera.lookAt(0,0,0);
+  camera.position.set(3,2.1,6.5).divideScalar(PERIODIC_SOLID_CAMERA_ZOOM);
+  camera.lookAt(0,0,0);
   // Flattened tiles never use perspective distortion.
   const flatCamera=new THREE.OrthographicCamera(-1.6,1.6,1.6,-1.6,.05,60);
   const cache=new Map<string,{solid:THREE.BufferGeometry;edges:THREE.BufferGeometry;scale:number}>();
@@ -267,8 +270,8 @@ export function PeriodicCell({entry,showSpectrum,showEquivalent,palette,gradient
 export default function PolytronPeriodicLab(){
  const worker=useRef<Worker|null>(null);
  const [workerError,setWorkerError]=useState("");
- const [rows,setRows]=useState(50);
- const [rowInput,setRowInput]=useState("50");
+ const [rows,setRows]=useState(100);
+ const [rowInput,setRowInput]=useState("100");
  const [entries,setEntries]=useState<PeriodicEntry[]>([]);
  const [paletteGroup,setPaletteGroup]=useState(0);
  const [paletteSlot,setPaletteSlot]=useState(2);
