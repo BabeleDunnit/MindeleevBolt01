@@ -199,7 +199,7 @@ try{
  assert.equal(physics.RC_RAPIER_FIXED_STEP,1/120);
  assert(physics.rcDampingRatio(0)<.5);
  assert(physics.rcDampingRatio(.55)>.5);
- assert(physics.rcDampingRatio(1)>.8);
+ assert(physics.rcDampingRatio(1)>.6&&physics.rcDampingRatio(1)<.75);
  assert(physics.rcAttractorOmega(200)<physics.rcAttractorOmega(80));
  const physicalSource=await readFile("src/experiments/rc01RapierFlight.ts","utf8");
  for(const phrase of ["@dimforge/rapier3d-compat","new RAPIER.World",
@@ -208,7 +208,8 @@ try{
   "drainCollisionEvents","applyTorqueImpulse","addForce",
   "setRestitution","setMass","setCcdEnabled","setAngularDamping",
   "EARLY_DAMPING_RATIO","LATE_DAMPING_RATIO","rcDampingRatio",
-  "REST_WINDOW","this.restSeconds",
+  "REST_WINDOW","this.restSeconds","applyBystanderReturns",
+  "bystandersRested","this.impacted.add",
   "this.attacker.body.resetForces(true)",
   "this.victim?.body.resetForces(true)"]){
   assert(physicalSource.includes(phrase),"Missing real rigid-body physics: "+phrase);
@@ -274,8 +275,7 @@ try{
    "Speed must physically decay to near zero before the move completes");
   assert(peak<395,
    "Ordinary moves must not hit Rapier's ~400m/s velocity cap; use a gentler attractor");
-  const goal=worldModule.rcScreenWorld(board,extendedTo,
-   physics.rcRapierPawnRadius(board)+4);
+  const goal=worldModule.rcScreenWorld(board,extendedTo,9);
   const landed=last.attacker.position;
   assert(Math.hypot(landed.x-goal.x,landed.y-goal.y)<1.2,
    "Subpixel landing threshold removes visible teleports");
@@ -293,6 +293,60 @@ try{
     goal.y-worldModule.rcScreenWorld(board,from).y)
   }));
  }finally{smooth.dispose();}
+ // Every occupied tile must become a dynamic collider. The capture target
+ // alone leaves the board; two other Polytrons in the exit corridor must
+ // react to real collision events and physically settle at their old homes.
+ const firstNeighbor=board.cells.find(c=>c.key==="2,0");
+ const secondNeighbor=board.cells.find(c=>c.key==="3,0");
+ assert(firstNeighbor&&secondNeighbor);
+ const others=[
+  {pawn:{...sceneGame.pawns[2],cellKey:firstNeighbor.key,number:3},cell:firstNeighbor},
+  {pawn:{...sceneGame.pawns[3],cellKey:secondNeighbor.key,number:4},cell:secondNeighbor}
+ ];
+ const chain=await physics.RC01RapierFlight.create({
+  board,from,to,attacker:actor,victim:opponent,others
+ });
+ try{
+  const moved=new Map(others.map(item=>[item.pawn.seal,0]));
+  let result;
+  for(let i=0;i<1080;i++){
+   const frame=chain.step();
+   for(const pose of frame.bystanders){
+    const home=others.find(item=>item.pawn.seal===pose.seal);
+    assert(home);
+    const location=worldModule.rcScreenWorld(board,home.cell,9);
+    const deviation=Math.hypot(
+     pose.position.x-location.x,pose.position.y-location.y,pose.position.z-location.z);
+    moved.set(pose.seal,Math.max(moved.get(pose.seal)??0,deviation));
+   }
+   if(frame.done){result=frame;break;}
+  }
+  assert.equal(result?.bystanders.length,2,"Both neighbors must remain simulated");
+  assert(result?.impactedSeals.includes(others[0].pawn.seal),
+   "The departing target must strike the first bystander");
+  assert(result?.impactedSeals.includes(others[1].pawn.seal),
+   "Impacts must cascade to another bystander");
+  for(const [seal,excursion] of moved){
+   assert(excursion>2,"Bystander "+seal+" must physically move on impact");
+  }
+  assert(result?.success,"Multibody chain must finish without teleporting actors");
+  assert(result.victim&&
+    (Math.abs(result.victim.position.x)>board.width/2+physics.rcRapierPawnRadius(board)||
+     Math.abs(result.victim.position.y)>board.height/2+physics.rcRapierPawnRadius(board)),
+   "Only captured target must exit");
+  for(const pose of result.bystanders){
+   const home=others.find(item=>item.pawn.seal===pose.seal);
+   assert(home);
+   const at=worldModule.rcScreenWorld(board,home.cell,9);
+   assert(Math.hypot(pose.position.x-at.x,pose.position.y-at.y,pose.position.z-at.z)<1.4,
+    "Impacted bystanders must return to their tiles before committing gameplay");
+   assert(pose.speed<3.1,"Returning Polytron must settle before reset");
+  }
+  console.log("RC01 CASCADE",JSON.stringify({
+   contacts:result.contacts,impacted:result.impactedSeals,
+   excursions:[...moved],time:+result.time.toFixed(3),success:result.success
+  }));
+ }finally{chain.dispose();}
  const sceneSource=await readFile("src/experiments/rc01ThreeScene.ts","utf8");
  for(const phrase of ["previous.root.position.copy",
   "previous.pawn=pawn","if(active.has(seal))continue",
@@ -334,6 +388,7 @@ try{
  assert(boardCode.includes("world.dragPreview(null)"),
   "Drop/cancel must remove the 3D hex proxy");
  for(const phrase of ["createRC3DWorld","raycastCell","raycastBoardPlane",
+  "physical.bystanders","running.otherSeals",
   "setPointerCapture","onPointerCancel","onPointerUp",
   "RC01RapierFlight.create","flight.step()","world.physicalPose",
   "RC_RAPIER_FIXED_STEP","rotateModels","onKeyDown"]){
