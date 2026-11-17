@@ -84,10 +84,31 @@ try{
    "Card #"+n+" must explicitly label intrinsic energy");
   assert(cell.includes('aria-label="Energia intrinseca: '+expected+' unità"'),
    "Card #"+n+" must announce the correct energy accessibly");
+  if(entry.renderable){
+   assert.equal((cell.match(/data-polytron-viewport=/g)||[]).length,4,
+    "Each renderable cell needs the same 3D polyhedron and three flattened views");
+   for(const kind of ["solid","flat-x","flat-y","flat-z"])
+    assert(cell.includes('data-view-kind="'+kind+'"'),
+     "Card #"+n+" missing "+kind+" projection");
+  }else{
+   assert(!cell.includes("data-polytron-viewport="),
+    "Unrenderable cells must not schedule invalid WebGL draws");
+  }
+  for(const axis of ["X","Y","Z"])
+   assert(cell.includes("Appiattito lungo "+axis),
+    "Each card must identify the three static 2D projections");
  }
  for(const [n,expected] of [[1,2],[5,6],[6,3],[10,7],[11,4],[250,55],[10000,2005]]){
   assert.equal(life.intrinsicEnergy(n,0),expected,"Boundary energy #"+n);
  }
+ assert.equal(ui.PERIODIC_FLAT_FACTOR,.01);
+ for(const [kind,expected] of [
+  ["solid",{x:1,y:1,z:1}],
+  ["flat-x",{x:.01,y:1,z:1}],
+  ["flat-y",{x:1,y:.01,z:1}],
+  ["flat-z",{x:1,y:1,z:.01}]
+ ])assert.deepEqual(ui.periodicViewScale(kind,1),expected,
+  kind+" must compress exactly one local Polytron axis");
  const markup=renderToString(React.createElement(ui.default));
  for(const required of ["Tavola periodica dei Polytroni",
   "Periodi da enumerare","Chromatica · 144 gradienti","Palette originali","Rotazione 3D","Equivalenti",
@@ -100,7 +121,18 @@ try{
   "Energia intrinseca di ogni Polytrone","Il contributo di Chromatica è fisso a 0"]){
   assert(markup.includes(required),"Missing periodic table terminology "+required);
  }
+ assert(markup.includes('aria-expanded="true"')&&
+  markup.includes('aria-controls="periodic-palette-panel"')&&
+  markup.includes("Nascondi palette"),
+  "The Chromatica header needs an accessible palette collapse toggle");
  const src=await readFile("src/experiments/PolytronPeriodicLab.tsx","utf8");
+ for(const phrase of [
+  "new THREE.OrthographicCamera","periodicViewScale(kind,geo.scale)",
+  'kind==="flat-x"','kind==="flat-y"','kind==="solid"',
+  "group.rotation.set(0,0,0)","flatCamera.lookAt(0,0,0)",
+  'hidden={!palettesOpen}',"localStorage.setItem"
+ ])assert(src.includes(phrase),
+  "Missing orthographic tile projection or stored palette collapse: "+phrase);
  for(const required of ["THREE.WebGLRenderer","data-polytron-viewport","setScissor",
   "requestAnimationFrame","PALETTE_SETS","polytronGeometry","periodicCatalog.worker.ts"]){
   assert(src.includes(required),"Missing shared 3D implementation "+required);
