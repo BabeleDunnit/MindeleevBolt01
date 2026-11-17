@@ -68,8 +68,8 @@ try{
  assert(geo.sameFullGeometry(geo.fullGeometrySignature(largePoly),
   geo.fullGeometrySignature(reordered)),"Large equivalent mesh must pass full check");
  const html=renderToString(React.createElement(ui.default));
- for(const text of ["Gruppi →","↓ Periodi","Geometrie verificate","Spettro non calcolato",
-  "Verifiche incomplete","Tavola periodica dei Polytroni"]){
+ for(const text of ["Groups →","↓ Periods","Geometries verified","Spectra not computed",
+  "Incomplete verifications","Periodic Table of Polytrons"]){
   assert(html.includes(text),"Missing new UI copy: "+text);
  }
  const src=await readFile("src/experiments/PolytronPeriodicLab.tsx","utf8");
