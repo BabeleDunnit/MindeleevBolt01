@@ -54,5 +54,5 @@ export default function RC01ThreeInspector({pawn}:{pawn:RCPawn}){
   };
  },[pawn.seal,pawn.number,pawn.row,pawn.col]);
  return <canvas className="rc01-three-inspector" ref={canvasRef}
-  role="img" aria-label={"Modello tridimensionale rotante del Polytrone numero "+pawn.number}/>;
+  role="img" aria-label={"Rotating 3D model of Polytron number "+pawn.number}/>;
 }
