@@ -92,6 +92,22 @@ try{
  assert.equal(proxy.position.y,board.height/2-180);
  world.dragPreview(null);
  assert.equal(proxy.visible,false);
+ const marker=world.scene.children.find(x=>x.isGroup&&x.children.some(y=>
+  y.isMesh&&y.material?.opacity===.34&&y.material?.depthTest===false));
+ assert(marker&&!marker.visible,"Target marker starts hidden");
+ const candidates=board.cells.filter(c=>!c.nucleus).slice(0,2);
+ assert.equal(candidates.length,2);
+ world.hover(candidates[0].key,false,true);
+ assert(marker.visible,"Valid drag targets must display a filled hexagon");
+ const p0=marker.position.clone();
+ const color0=marker.children.find(x=>x.isMesh).material.color.getHex();
+ world.hover(candidates[1].key,true,true);
+ assert(marker.visible&&marker.position.distanceTo(p0)>1,
+  "The drag highlight must move to the new cell immediately");
+ const color1=marker.children.find(x=>x.isMesh).material.color.getHex();
+ assert.notEqual(color0,color1,"Occupied cells must use a capture highlight");
+ world.hover(null,false);
+ assert(!marker.visible,"Cancel and drop must hide the target marker");
  world.dispose();
  // Permanent cast and five individual Chromatica palettes on initial launch.
  const sceneGame=model.initialRCGame(board,()=>.37);
@@ -217,15 +233,19 @@ try{
  assert(!physicalSource.includes("startRCFlight")&&
   !physicalSource.includes("advanceRCFlight"),
   "RC01 cannot silently fall back to scripted pseudo-physics");
- // The physical environment must be free of floor and viewport boundary
- // collisions: Polytrons hover in 3D and homeward flight is one-way.
+ // The Rapier floor is wide and has no viewport walls. It stops sinking
+ // without reflecting an expelled Polytron at the screen boundary.
  assert(physicalSource.includes("new RAPIER.World(vec(0,0,0))"));
- assert(!physicalSource.includes("ColliderDesc.cuboid("),
-  "No hidden floor or screen boundary that can bounce an escaping pawn");
+ assert(physicalSource.includes("RAPIER.ColliderDesc.cuboid(args.board.width*3,args.board.height*3,floorDepth)"),
+  "A real wide Rapier floor must support the board without lateral walls");
+ assert(physicalSource.includes("a===this.floorCollider.handle"),
+  "Floor contacts must not count as Polytron collisions");
  assert(!physicalSource.includes("this.succeeded=this.victim?this.collided:true"),
   "Timeout must not teleport the Polytron into the target cell");
- assert(physicalSource.includes("this.succeeded=false"),
-  "Expired simulations must abort rather than snap an unsettled body");
+ assert(!physicalSource.includes("MAX_SECONDS"),
+  "The old timeout must not snap a valid move back to the source");
+ assert(physicalSource.includes("RECOVERY_SECONDS"),
+  "Long movements must settle by physically increasing damping");
  assert(!physicalSource.includes("applyHomeField"),
   "No continuous homeward push that yields constant exit velocity");
  assert(physicalSource.includes("applyCaptureImpulse()"),
@@ -275,7 +295,8 @@ try{
    "Speed must physically decay to near zero before the move completes");
   assert(peak<395,
    "Ordinary moves must not hit Rapier's ~400m/s velocity cap; use a gentler attractor");
-  const goal=worldModule.rcScreenWorld(board,extendedTo,9);
+  const goal=worldModule.rcScreenWorld(board,extendedTo,
+  worldModule.rcVisualPawnHeight(board));
   const landed=last.attacker.position;
   assert(Math.hypot(landed.x-goal.x,landed.y-goal.y)<1.2,
    "Subpixel landing threshold removes visible teleports");
@@ -314,7 +335,8 @@ try{
    for(const pose of frame.bystanders){
     const home=others.find(item=>item.pawn.seal===pose.seal);
     assert(home);
-    const location=worldModule.rcScreenWorld(board,home.cell,9);
+    const location=worldModule.rcScreenWorld(board,home.cell,
+      worldModule.rcVisualPawnHeight(board));
     const deviation=Math.hypot(
      pose.position.x-location.x,pose.position.y-location.y,pose.position.z-location.z);
     moved.set(pose.seal,Math.max(moved.get(pose.seal)??0,deviation));
@@ -345,7 +367,8 @@ try{
   for(const pose of result.bystanders){
    const home=others.find(item=>item.pawn.seal===pose.seal);
    assert(home);
-   const at=worldModule.rcScreenWorld(board,home.cell,9);
+   const at=worldModule.rcScreenWorld(board,home.cell,
+     worldModule.rcVisualPawnHeight(board));
    assert(Math.hypot(pose.position.x-at.x,pose.position.y-at.y,pose.position.z-at.z)<1.4,
     "Impacted bystanders must return to their tiles before committing gameplay");
    assert(pose.speed<3.1,"Returning Polytron must settle before reset");
@@ -355,6 +378,24 @@ try{
    excursions:[...moved],time:+result.time.toFixed(3),success:result.success
   }));
  }finally{chain.dispose();}
+ // The floor must resist a downward Rapier impulse, not just clamp meshes.
+ const grounding=await physics.RC01RapierFlight.create({
+  board,from,to:extendedTo,attacker:actor,victim:null
+ });
+ try{
+  let body=null;
+  grounding.world.bodies.forEach(b=>{if(b.isDynamic()&&!body)body=b;});
+  assert(body);
+  body.applyImpulse({x:0,y:0,z:-body.mass()*125},true);
+  let minimumZ=Infinity;
+  for(let i=0;i<360;i++)minimumZ=Math.min(minimumZ,
+   grounding.step().attacker.position.z);
+  assert(minimumZ>worldModule.RC_TILE_SURFACE_Z+
+   physics.rcRapierPawnRadius(board)*.4,
+   "A Polytron must not sink below the supporting Rapier floor");
+  console.log("RC01 FLOOR",JSON.stringify({minCenterZ:+minimumZ.toFixed(2),
+   tileSurfaceZ:worldModule.RC_TILE_SURFACE_Z}));
+ }finally{grounding.dispose();}
  const sceneSource=await readFile("src/experiments/rc01ThreeScene.ts","utf8");
  for(const phrase of ["previous.root.position.copy",
   "previous.pawn=pawn","if(active.has(seal))continue",
@@ -395,6 +436,17 @@ try{
   "Polytron cannot follow the finger: physical movement begins ONLY on drop");
  assert(boardCode.includes("world.dragPreview(null)"),
   "Drop/cancel must remove the 3D hex proxy");
+ assert(dragHandler.includes("target.key!==press.cell.key"),
+  "Drag must highlight a real destination, not the source cell");
+ const finishHandler=boardCode.slice(boardCode.indexOf("if(physical.done){"),
+  boardCode.indexOf("accumulator=0;",boardCode.indexOf("if(physical.done){")));
+ assert(!finishHandler.includes("world.setPawns("),
+  "Finishing a flight may not snap the Polytron back to its source");
+ const parentCode=await readFile("src/experiments/MindeleevRC01.tsx","utf8");
+ assert(parentCode.includes("if(physicsBusyRef.current)return"),
+  "Resizing browser chrome must not re-create the scene mid-flight");
+ assert(parentCode.includes("if(!busy)requestAnimationFrame("),
+  "Resize should be reconciled after committing the move");
  for(const phrase of ["createRC3DWorld","raycastCell","raycastBoardPlane",
   "physical.bystanders","running.otherSeals",
   "setPointerCapture","onPointerCancel","onPointerUp",
@@ -405,6 +457,8 @@ try{
  assert(!boardCode.includes("<svg")&&!boardCode.includes("<polygon"));
  const modelCode=await readFile("src/experiments/rc01ThreeScene.ts","utf8");
  for(const phrase of ["dragProxy","dragMaterial","opacity:.5",
+   "targetMarker","targetFill","targetCaptureMaterial",
+   "rcVisualPawnHeight","scene.add(shadow)",
   "THREE.ExtrudeGeometry","THREE.OrthographicCamera",
   "THREE.Raycaster","THREE.Plane","THREE.MeshStandardMaterial",
   "makeRC3DPolytron","polytronGeometry","pawnPalette(pawn)",
