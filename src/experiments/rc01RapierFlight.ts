@@ -10,10 +10,11 @@
  * physical body actually settles: no completion based on a hard-coded flight
  * duration, no visible reset of position or orientation.
  *
- * Polytrons hover in a zero-gravity 3D environment. There is deliberately NO
- * Rapier ground or boundary to bounce against; the target attractor supplies
- * vertical restoring forces. After a real collision, a one-way homeward field
- * carries the victim out of view without a floor/viewport bounce.
+ * Polytrons hover in a zero-gravity 3D environment without ground/boundary
+ * collisions. The spring's damping ratio rises smoothly AFTER the midpoint:
+ * acceleration occupies approximately the first half, braking the second,
+ * with a small final overshoot. Captured opponents receive one collision
+ * impulse and then coast with Rapier damping, NOT a continuous constant push.
  */
 import * as RAPIER from "@dimforge/rapier3d-compat";
 import {polytronGeometry} from "@/polytron/polytron";
@@ -22,14 +23,22 @@ import type {RCBoard,RCCell} from "@/polytron/rc01Board";
 import {rcScreenWorld} from "@/experiments/rc01ThreeScene";
 
 export const RC_RAPIER_FIXED_STEP=1/120;
-const MAX_SECONDS=5.0; // failure guard only: never commits an unsettled move
+const MAX_SECONDS=9.0; // failure guard only: never commits an unsettled move
 const MIN_MOVE_TIME=.25;
 const MIN_CAPTURE_TIME=.65;
 const REST_WINDOW=.14;
-const ATTRACTOR_OMEGA=5.8;
-const ATTRACTOR_DAMPING_RATIO=.88;
-const ATTRACTOR_K=ATTRACTOR_OMEGA*ATTRACTOR_OMEGA;
-const ATTRACTOR_D=2*ATTRACTOR_DAMPING_RATIO*ATTRACTOR_OMEGA;
+const EARLY_DAMPING_RATIO=.38;
+const LATE_DAMPING_RATIO=.85;
+const RC_HOME_LINEAR_DAMPING=.52;
+// Peak velocity must not saturate Rapier's default rigid-body speed cap.
+export const rcAttractorOmega=(distance:number)=>
+ Math.min(4.6,570/Math.max(1,distance));
+export function rcDampingRatio(progress:number):number{
+ const u=Math.max(0,Math.min(1,(progress-.35)/.45));
+ const eased=u*u*(3-2*u);
+ return EARLY_DAMPING_RATIO+
+  (LATE_DAMPING_RATIO-EARLY_DAMPING_RATIO)*eased;
+}
 export type RCPhysicsPose={
  seal:number;
  position:{x:number;y:number;z:number};
@@ -86,6 +95,8 @@ export class RC01RapierFlight{
  private target:{x:number;y:number;z:number};
  private origin:{x:number;y:number;z:number};
  private away:{x:number;y:number};
+ private travel:number;
+ private omega:number;
  private board:RCBoard;
  private seconds=0;
  private hits=0;
@@ -106,6 +117,8 @@ export class RC01RapierFlight{
   this.origin=vec(origin.x,origin.y,z);
   const dx=xy.x-origin.x,dy=xy.y-origin.y;
   const d=Math.max(1,Math.hypot(dx,dy));
+  this.travel=d;
+  this.omega=rcAttractorOmega(d);
   this.away={x:dx/d,y:dy/d};
  }
  static async create(args:RCPhysicsStart):Promise<RC01RapierFlight>{
@@ -154,31 +167,58 @@ export class RC01RapierFlight{
   const body=this.attacker.body;
   const p=body.translation(),v=body.linvel();
   const mass=body.mass();
-  // F = m * (omega² * error - 2*zeta*omega * velocity).
-  // zeta = .88 means a small, quickly fading overshoot (never endless
-  // oscillation). Omega=5.8 avoids hitting Rapier's built-in speed ceiling
-  // during ordinary three-cell moves, so acceleration and braking are visible.
-  const spring=ATTRACTOR_K,damping=ATTRACTOR_D;
+  // Genuine mass-spring-damper. Early: low damping, allowing acceleration
+  // through roughly half the journey. Late: stronger braking, but still
+  // underdamped so the Polytron softly crosses and returns near the target.
+  const travelled=(p.x-this.origin.x)*this.away.x+
+   (p.y-this.origin.y)*this.away.y;
+  const progress=travelled/this.travel;
+  const zeta=this.collided?.91:rcDampingRatio(progress);
+  const spring=this.omega*this.omega;
+  const damping=2*zeta*this.omega;
   body.addForce(vec(
    mass*(spring*(this.target.x-p.x)-damping*v.x),
    mass*(spring*(this.target.y-p.y)-damping*v.y),
    mass*(spring*(this.target.z-p.z)-damping*v.z)
   ),true);
  }
- private applyHomeField(){
-  if(!this.collided||!this.victim)return;
-  const body=this.victim.body;
-  const mass=body.mass(),v=body.linvel(),outward=this.away;
-  // A one-way attraction to an invisible home (outside the viewport).
-  // Drag acts only along the outward component. With no ground, screen wall
-  // or target restoring force on this body it cannot bounce at the edge.
-  const radialVelocity=v.x*outward.x+v.y*outward.y;
-  const drive=Math.max(0,800-2.4*radialVelocity);
-  body.addForce(vec(
-   mass*drive*outward.x,
-   mass*drive*outward.y,
-   mass*(170-3*v.z)
+ /**
+  * Directed recall is a SINGLE impulse accompanying the real collider impact.
+  * From then on the victim moves freely under Rapier's linear/angular drag:
+  * fast just after the impact, continuously slower as it leaves the board.
+  * No constant outward thrust, boundary collision or home-target spring.
+  */
+ private applyCaptureImpulse(){
+  if(!this.victim)return;
+  const body=this.victim.body,p=body.translation(),v=body.linvel();
+  const dir=this.away;
+  const distanceToEdges:number[]=[];
+  if(Math.abs(dir.x)>1e-5){
+   const edge=(dir.x>0?this.board.width/2:-this.board.width/2)-
+    this.target.x;
+   distanceToEdges.push(edge/dir.x);
+  }
+  if(Math.abs(dir.y)>1e-5){
+   const edge=(dir.y>0?this.board.height/2:-this.board.height/2)-
+    this.target.y;
+   distanceToEdges.push(edge/dir.y);
+  }
+  const toEdge=Math.max(this.radius,
+   Math.min(...distanceToEdges.filter(d=>d>0)));
+  const desiredSpeed=Math.min(345,155+.45*(toEdge+this.radius*2));
+  const outwardSpeed=v.x*dir.x+v.y*dir.y;
+  // The extra momentum belongs to the fictional recall, but is applied
+  // through Rapier as a physical impulse and subsequently dissipated.
+  const extraSpeed=Math.max(0,desiredSpeed-outwardSpeed);
+  body.applyImpulse(vec(
+   dir.x*extraSpeed*body.mass(),
+   dir.y*extraSpeed*body.mass(),
+   body.mass()*32
   ),true);
+  body.setLinearDamping(RC_HOME_LINEAR_DAMPING);
+  body.setAngularDamping(1.15);
+  // Impact-induced angular motion is also a genuine angular impulse.
+  body.applyTorqueImpulse(vec(12,-7,11),true);
  }
  step():RCPhysicsFrame{
   if(this.ended)return this.snapshot();
@@ -188,7 +228,6 @@ export class RC01RapierFlight{
   this.attacker.body.resetForces(true);
   this.victim?.body.resetForces(true);
   this.applyAttackerField();
-  this.applyHomeField();
   this.world.step(this.queue);
   this.seconds+=RC_RAPIER_FIXED_STEP;
   this.queue.drainCollisionEvents((a,b,started)=>{
@@ -197,9 +236,9 @@ export class RC01RapierFlight{
    if((a===ah&&b===vh)||(a===vh&&b===ah)){
     this.hits++;
     this.collided=true;
-    // A small off-axis physical torque applied at impact makes the response
-    // legible in a top-down camera. Momentum transfer itself is RAPiER's.
-    this.victim.body.applyTorqueImpulse(vec(12,-7,11),true);
+    // A single return-home impulse at *actual Rapier contact*; after this
+    // the departing Polytron slows naturally with rigid-body drag.
+    this.applyCaptureImpulse();
    }
   });
   const p=this.attacker.body.translation(),v=this.attacker.body.linvel();
