@@ -3,6 +3,15 @@ import {polytronGeometry} from "@/polytron/polytron";
 import {pawnDNA,pawnPalette,type RCPawn} from "@/polytron/rc01Game";
 import type {RCBoard,RCCell,RCPoint} from "@/polytron/rc01Board";
 
+// The same resting height is used by the Three.js display and Rapier bodies.
+// A bounding-sphere radius guarantees that even rotated convex Polytrons sit
+// entirely above the 3D hex tiles (including the bevel).
+export const RC_TILE_SURFACE_Z=3.25;
+export const rcVisualPawnRadius=(board:RCBoard)=>
+ Math.max(23,Math.min(31,board.width/14.4))*.88;
+export const rcVisualPawnHeight=(board:RCBoard)=>
+ rcVisualPawnRadius(board)+RC_TILE_SURFACE_Z+1.5;
+
 /** One real Three.js mesh, with its geometry recentered before rotation.
  * Both the chessboard and the inspector use this same model constructor.
  */
@@ -103,6 +112,31 @@ export function createRC3DWorld(board:RCBoard){
  const nucleusEdgeMaterial=new THREE.LineBasicMaterial({color:"#318662",linewidth:2});
  const hoverEdgeMaterial=new THREE.LineBasicMaterial({color:"#3b9e7d"});
  const captureEdgeMaterial=new THREE.LineBasicMaterial({color:"#ba7155"});
+ // An independently positioned hex marker is rendered over the pawn, too:
+ // changing a thin WebGL line (often forced to 1px) was not readable.
+ const targetFreeMaterial=new THREE.MeshBasicMaterial({
+  color:0x25b587,transparent:true,opacity:.34,depthTest:false,
+  depthWrite:false,side:THREE.DoubleSide
+ });
+ const targetCaptureMaterial=new THREE.MeshBasicMaterial({
+  color:0xe28b53,transparent:true,opacity:.39,depthTest:false,
+  depthWrite:false,side:THREE.DoubleSide
+ });
+ const targetFreeBorder=new THREE.LineBasicMaterial({
+  color:0x0a875f,depthTest:false,depthWrite:false
+ });
+ const targetCaptureBorder=new THREE.LineBasicMaterial({
+  color:0xbb4b2a,depthTest:false,depthWrite:false
+ });
+ const targetMarker=new THREE.Group();
+ const targetFill=new THREE.Mesh(shape.tile,targetFreeMaterial);
+ targetFill.renderOrder=80;
+ const targetOutline=new THREE.LineLoop(shape.line,targetFreeBorder);
+ targetOutline.position.z=3.85;
+ targetOutline.renderOrder=81;
+ targetMarker.add(targetFill,targetOutline);
+ targetMarker.visible=false;
+ scene.add(targetMarker);
  // Only THIS translucent hex follows the finger. The pawn and the original
  // tile remain exactly where they were until pointer-up starts Rapier.
  const dragMaterial=new THREE.MeshStandardMaterial({
@@ -174,7 +208,7 @@ export function createRC3DWorld(board:RCBoard){
   return {x:hit.x+board.width/2,y:board.height/2-hit.y};
  }
  function disposeActor(actor:RCWorldModel){
-  scene.remove(actor.root);
+  scene.remove(actor.root,actor.shadow);
   actor.dispose();
   (actor.label.material as THREE.SpriteMaterial).map?.dispose();
   actor.label.material.dispose();
@@ -185,6 +219,7 @@ export function createRC3DWorld(board:RCBoard){
  }
  function setPawns(pawns:readonly RCPawn[]){
   const updated=new Map<number,RCWorldModel>();
+  const idleZ=rcVisualPawnHeight(board);
   for(const pawn of pawns){
    const cell=cellsByKey.get(pawn.cellKey);
    if(!cell)continue;
@@ -195,21 +230,24 @@ export function createRC3DWorld(board:RCBoard){
     previous.pawn.row===pawn.row&&previous.pawn.col===pawn.col;
    if(reusable){
     previous.pawn=pawn;
-    previous.root.position.copy(rcScreenWorld(board,cell,9));
+    previous.root.position.copy(rcScreenWorld(board,cell,idleZ));
+    previous.shadow.position.copy(rcScreenWorld(board,cell,RC_TILE_SURFACE_Z+.05));
     updated.set(pawn.seal,previous);
     continue;
    }
    if(previous)disposeActor(previous);
    let actor:ReturnType<typeof makeRC3DPolytron>;
-   try{actor=makeRC3DPolytron(pawn,Math.max(23,Math.min(31,board.width/14.4))*.88);}
+   try{actor=makeRC3DPolytron(pawn,rcVisualPawnRadius(board));}
    catch{continue;}
    const shadow=new THREE.Mesh(shadowGeometry,shadowMaterial);
-   shadow.position.z=-5;
-   actor.root.add(shadow);
+   // A separate, planar shadow stays on the tile even as the rigid body
+   // lifts or tumbles during real 3D impacts.
+   shadow.position.copy(rcScreenWorld(board,cell,RC_TILE_SURFACE_Z+.05));
+   scene.add(shadow);
    const label=makeTextSprite("#"+pawn.number);
    label.position.set(0,-board.size*.76,4.5);
    actor.root.add(label);
-   actor.root.position.copy(rcScreenWorld(board,cell,9));
+   actor.root.position.copy(rcScreenWorld(board,cell,idleZ));
    scene.add(actor.root);
    updated.set(pawn.seal,{...actor,pawn,shadow,label});
   }
@@ -219,9 +257,10 @@ export function createRC3DWorld(board:RCBoard){
   }
   actors=updated;
  }
- function moveActor(seal:number,point:RCPoint,z=9){
+ function moveActor(seal:number,point:RCPoint,z=rcVisualPawnHeight(board)){
   const actor=actors.get(seal);if(!actor)return;
   actor.root.position.copy(rcScreenWorld(board,point,z));
+  actor.shadow.position.copy(rcScreenWorld(board,point,RC_TILE_SURFACE_Z+.05));
  }
  function actorOrientation(seal:number){
   const actor=actors.get(seal);
@@ -241,17 +280,35 @@ export function createRC3DWorld(board:RCBoard){
    pose.rotation.x,pose.rotation.y,pose.rotation.z,pose.rotation.w
   );
   actor.spin.quaternion.identity();
+  actor.shadow.position.set(pose.position.x,pose.position.y,RC_TILE_SURFACE_Z+.05);
  }
  function dragPreview(point:RCPoint|null){
   dragProxy.visible=point!==null;
   if(point)dragProxy.position.copy(rcScreenWorld(board,point,48));
  }
- function hover(key:string|null,occupied:boolean){
-  for(const [cellKey,line] of lines){
-   const cell=cellsByKey.get(cellKey)!;
-   line.material=cellKey!==key?
-    (cell.nucleus?nucleusEdgeMaterial:tileEdgeMaterial):
-    (occupied?captureEdgeMaterial:hoverEdgeMaterial);
+ let lastHoverKey:string|null=null,lastHoverOccupied=false;
+ function hover(key:string|null,occupied:boolean,dragTarget=false){
+  if(lastHoverKey!==key||lastHoverOccupied!==occupied){
+   if(lastHoverKey!==null){
+    const cell=cellsByKey.get(lastHoverKey);
+    const outline=lines.get(lastHoverKey);
+    if(cell&&outline)
+     outline.material=cell.nucleus?nucleusEdgeMaterial:tileEdgeMaterial;
+   }
+   if(key!==null){
+    const outline=lines.get(key);
+    if(outline)outline.material=occupied?captureEdgeMaterial:hoverEdgeMaterial;
+   }
+   lastHoverKey=key;
+   lastHoverOccupied=occupied;
+  }
+  const target=dragTarget&&key!==null?cellsByKey.get(key):null;
+  targetMarker.visible=!!target;
+  if(target){
+   const p=rcScreenWorld(board,target,RC_TILE_SURFACE_Z+.7);
+   targetMarker.position.copy(p);
+   targetFill.material=occupied?targetCaptureMaterial:targetFreeMaterial;
+   targetOutline.material=occupied?targetCaptureBorder:targetFreeBorder;
   }
  }
  let lastSpinTime:number|null=null;
@@ -272,6 +329,8 @@ export function createRC3DWorld(board:RCBoard){
   tileMaterial.dispose();nucleusMaterial.dispose();
   tileEdgeMaterial.dispose();nucleusEdgeMaterial.dispose();
   hoverEdgeMaterial.dispose();captureEdgeMaterial.dispose();
+  targetFreeMaterial.dispose();targetCaptureMaterial.dispose();
+  targetFreeBorder.dispose();targetCaptureBorder.dispose();
   dragMaterial.dispose();dragOutlineMaterial.dispose();
   ringGeometry.dispose();ringMaterial.dispose();
   shadowGeometry.dispose();shadowMaterial.dispose();
