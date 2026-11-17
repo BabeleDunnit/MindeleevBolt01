@@ -273,6 +273,11 @@ export default function PolytronPeriodicLab(){
  const [paletteGroup,setPaletteGroup]=useState(0);
  const [paletteSlot,setPaletteSlot]=useState(2);
  const [paletteMode,setPaletteMode]=useState<"chromatica"|"legacy">("chromatica");
+ const [palettesOpen,setPalettesOpen]=useState(()=>{
+  try{return typeof window==="undefined"||
+   window.localStorage.getItem("mindeleev-periodic-palettes")!=="closed";}
+  catch{return true;}
+ });
  const [gradientRow,setGradientRow]=useState(2);
  const [gradientCol,setGradientCol]=useState(4);
  const [gradientOrder,setGradientOrder]=useState<GradientOrder>("contrast");
@@ -282,6 +287,10 @@ export default function PolytronPeriodicLab(){
  const [lookup,setLookup]=useState("");
  const [lookupMessage,setLookupMessage]=useState("");
  const [currentFocus,setCurrentFocus]=useState<number|null>(null);
+ useEffect(()=>{
+  try{window.localStorage.setItem("mindeleev-periodic-palettes",
+   palettesOpen?"open":"closed");}catch{/* Storage is optional. */}
+ },[palettesOpen]);
  const palette=PALETTE_SETS[paletteGroup].offset+paletteSlot;
  const gradient=useMemo<GradientSelection|undefined>(()=>
   paletteMode==="chromatica"?
@@ -411,7 +420,7 @@ export default function PolytronPeriodicLab(){
       onBlur={()=>setRowInput(String(rows))}
       style={{...control,width:106,fontVariantNumeric:"tabular-nums"}}/>
     </label>
-    {paletteMode==="legacy"&&<label style={{display:"grid",gap:5,color:soft,fontSize:12}}>
+    {paletteMode==="legacy"&&palettesOpen&&<label style={{display:"grid",gap:5,color:soft,fontSize:12}}>
      Famiglia di palette · catalogo originale
      <select style={control} aria-label="Famiglia palette" value={paletteGroup}
       onChange={e=>setPaletteGroup(Number(e.target.value))}>
@@ -431,6 +440,22 @@ export default function PolytronPeriodicLab(){
       onChange={e=>setShowSpectrum(e.target.checked)}/> ShapeDNA
     </label>
    </div>
+   <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",
+    borderTop:"1px solid "+line,paddingTop:10}}>
+    <button type="button" aria-expanded={palettesOpen}
+     aria-controls="periodic-palette-panel"
+     onClick={()=>setPalettesOpen(open=>!open)}
+     style={{...control,cursor:"pointer",background:"#235469",fontWeight:700}}>
+     {palettesOpen?"▾ Nascondi palette":"▸ Mostra palette"}
+    </button>
+    <span style={{fontSize:12,color:soft}}>
+     {paletteMode==="chromatica"?
+      "Chromatica · "+gradientPair(gradientRow,gradientCol).name:
+      "Palette originale · "+palette}
+    </span>
+   </div>
+   <div id="periodic-palette-panel" hidden={!palettesOpen}
+    style={{display:palettesOpen?"grid":"none",gap:12}}>
    {paletteMode==="legacy"&&<div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
     {Array.from({length:10},(_,i)=>{
      const colors=PALETTES[PALETTE_SETS[paletteGroup].offset+i]??[];
@@ -459,6 +484,7 @@ export default function PolytronPeriodicLab(){
     column={gradientCol} order={gradientOrder}
     onPairChange={(r,c)=>{setGradientRow(r);setGradientCol(c);}}
     onOrderChange={setGradientOrder} exampleFaceTypes={Math.max(2,stats.maxFaceTypes||5)}/>}
+   </div>
    <div style={{display:"flex",gap:9,alignItems:"center",flexWrap:"wrap"}}>
     <label style={{fontSize:12,color:soft}} htmlFor="periodic-search">Trova numero o ConwayDNA</label>
     <input id="periodic-search" value={lookup} onChange={e=>setLookup(e.target.value)}
