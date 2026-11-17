@@ -22,8 +22,12 @@ const groupNames:Record<string,string>={
 };
 const clampRows=(x:number)=>Math.min(MAX_CATALOG_ROWS,Math.max(1,Math.trunc(x)));
 const fmt=(n:number)=>n.toLocaleString("it-IT");
-// Zoom the perspective-only preview by approaching the object, not scaling it.
-export const PERIODIC_SOLID_CAMERA_ZOOM=1.2;
+// Only the perspective camera changes: the geometry and flat views remain unchanged.
+// 1.4 vs the former 1.2 moves the solid ~17% closer in apparent size.
+export const PERIODIC_SOLID_CAMERA_ZOOM=1.4;
+// Shift the camera and its aim together so the solid appears a little higher
+// without tilting its viewing angle or altering its rotation.
+export const PERIODIC_SOLID_CAMERA_LIFT=.24;
 export const PERIODIC_FLAT_FACTOR=.01;
 export type PeriodicViewKind="solid"|"flat-x"|"flat-y"|"flat-z";
 export function periodicViewScale(kind:PeriodicViewKind,scale:number){
@@ -71,7 +75,8 @@ function SharedPeriodic3D({palette,rotate,gradient}:{palette:number;rotate:boole
   lamp.position.set(4,6,8);scene.add(lamp);
   const camera=new THREE.PerspectiveCamera(38,1,.05,60);
   camera.position.set(3,2.1,6.5).divideScalar(PERIODIC_SOLID_CAMERA_ZOOM);
-  camera.lookAt(0,0,0);
+  camera.position.y-=PERIODIC_SOLID_CAMERA_LIFT;
+  camera.lookAt(0,-PERIODIC_SOLID_CAMERA_LIFT,0);
   // Flattened tiles never use perspective distortion.
   const flatCamera=new THREE.OrthographicCamera(-1.6,1.6,1.6,-1.6,.05,60);
   const cache=new Map<string,{solid:THREE.BufferGeometry;edges:THREE.BufferGeometry;scale:number}>();
