@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { generatePoly, type Poly } from "@/polyhedronisme/polyhedronisme";
+import { generatePoly, faceCenters, type Poly, type Vec3 } from "@/polyhedronisme/polyhedronisme";
 import { paletteColor } from "@/polytron/palettes";
 import {gradientFaceMappingForPoly,type GradientSelection} from "@/polytron/gradientFacePalette";
 
@@ -19,9 +19,35 @@ export function dnaPalette(dna: PolytronDNA): number {
   return match ? Number(match[1]) : 0;
 }
 
-// Triangulate faces as fans into a flat-shaded, vertex-colored solid plus edge lines.
-// paletteRemap lets a caller swap the palette set (e.g. mineral <-> neon)
-// without rebuilding the underlying shape.
+/**
+ * The ONE canonical tessellation of Conway faces for every WebGL renderer.
+ *
+ * A triangle is already unique. For any other face, connect EACH boundary
+ * edge to its arithmetic face centroid (from polyhedronisme.faceCenters).
+ * Unlike a fan from face[0], this triangulation is invariant under cyclic
+ * reindexing and has no privileged diagonal, even for non-planar polygons.
+ *
+ * Source Conway vertices, face winding, perimeter edges and face classes
+ * remain untouched. ShapeDNA v2 independently uses the same centroid-fan
+ * surface criterion for its FEM analysis.
+ */
+export type ConwayTriangle=readonly [Vec3,Vec3,Vec3];
+export function triangulateConwayFace(
+ vertices:readonly Vec3[],face:readonly number[],centroid:Vec3
+):ConwayTriangle[]{
+ const n=face.length;
+ if(n<3)return [];
+ if(n===3)return [[vertices[face[0]],vertices[face[1]],vertices[face[2]]]];
+ const triangles:ConwayTriangle[]=[];
+ for(let i=0;i<n;i++)
+  triangles.push([centroid,vertices[face[i]],vertices[face[(i+1)%n]]]);
+ return triangles;
+}
+
+// The shared 3D/physics mesh is built solely through polytronGeometry:
+// the periodic solid, flattened projections, RC01 and other 3D experiments
+// never implement their own Conway surface triangulation.
+// paletteRemap changes face colors without changing the underlying geometry.
 export function polytronGeometry(
   dna: PolytronDNA,
   paletteRemap?: (p: number) => number,
@@ -30,6 +56,7 @@ export function polytronGeometry(
   const poly = dnaToPoly(dna);
   const palette = paletteRemap ? paletteRemap(dnaPalette(dna)) : dnaPalette(dna);
   const classColors=gradient?gradientFaceMappingForPoly(poly,gradient):null;
+  const centers=faceCenters(poly);
   const positions: number[] = [];
   const colors: number[] = [];
   const edgePositions: number[] = [];
@@ -43,12 +70,10 @@ export function polytronGeometry(
       if(!rgb)throw Error("Chromatica colour missing for face class "+faceClass);
       color.setRGB(rgb[0],rgb[1],rgb[2],THREE.SRGBColorSpace);
     }else color.setHex(paletteColor(palette,faceClass));
-    const [v0, ...rest] = face;
-    for (let i = 0; i + 1 < rest.length; i++) {
-      for (const idx of [v0, rest[i], rest[i + 1]]) {
-        const [x, y, z] = poly.vertices[idx];
-        positions.push(x, y, z);
-        colors.push(color.r, color.g, color.b);
+    for(const triangle of triangulateConwayFace(poly.vertices,face,centers[fi])){
+      for(const [x,y,z] of triangle){
+        positions.push(x,y,z);
+        colors.push(color.r,color.g,color.b);
       }
     }
     for (let i = 0; i < face.length; i++) {
