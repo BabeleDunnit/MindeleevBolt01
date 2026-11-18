@@ -361,6 +361,33 @@ try{
   assert.equal(flight.from,from.key);
   assert.equal(flight.to,to.key);
  }finally{flight.dispose();}
+ // Live hand-off happens at FIRST collision, while the target is on board.
+ const handoff=await physics.RC01RapierFlight.create({
+  board,from,to,attacker:actor,victim:opponent
+ });
+ try{
+  let atImpact=null,completed=null;
+  for(let i=0;i<600;i++){
+   const frame=handoff.step();
+   if(frame.collided&&!atImpact){
+    assert(frame.victim);
+    atImpact={...frame.victim.position};
+    assert(handoff.detachVictimToHome());
+    assert(!handoff.detachVictimToHome(),"Handoff must be idempotent");
+   }
+   if(frame.done){completed=frame;break;}
+  }
+  assert(atImpact&&completed?.success,
+   "Board simulation must settle after captured body is handed to Home");
+  assert(Math.abs(atImpact.x)<board.width/2&&
+   Math.abs(atImpact.y)<board.height/2,
+   "Capture transfers immediately, while the victim is still on-screen");
+  assert(completed.time<4,
+   "Home activity must not extend the board input lock");
+  console.log("RC01 INSTANT TRANSFER",JSON.stringify({
+   captureOnScreen:true,boardUnlock:+completed.time.toFixed(3)
+  }));
+ }finally{handoff.dispose();}
  const emptyMove=await physics.RC01RapierFlight.create({
   board,from,to,attacker:actor,victim:null
  });
