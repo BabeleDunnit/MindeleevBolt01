@@ -1,13 +1,13 @@
 import {useEffect,useMemo,useRef,useState} from "react";
 import {makeRCBoard,type RCCell} from "@/polytron/rc01Board";
 import {initialRCGame,moveRCPawn,pawnDNA,pawnName,pawnPalette,
- RC01_START_SCORE,type RCGame,type RCPawn} from "@/polytron/rc01Game";
+ type RCGame,type RCPawn} from "@/polytron/rc01Game";
 import RC01ThreeBoard from "@/experiments/RC01ThreeBoard";
 import RC01ThreeInspector from "@/experiments/RC01ThreeInspector";
 import {intrinsicEnergy} from "@/polytron/mindeleevLife";
 import "./MindeleevRC01.css";
 
-type Sheet={kind:"polytron";seal:number}|{kind:"cell";key:string}|null;
+type Sheet={kind:"polytron";seal:number}|{kind:"cell";key:string}|{kind:"home"}|null;
 const INITIAL_VIEWPORT={width:390,height:700,ready:false};
 
 export default function MindeleevRC01(){
@@ -51,7 +51,9 @@ export default function MindeleevRC01(){
  },[viewport.ready,board,game]);
  const cells=useMemo(()=>new Map(board.cells.map(c=>[c.key,c])),[board]);
  const selectedPawn=sheet?.kind==="polytron"?
-  game?.pawns.find(p=>p.seal===sheet.seal):undefined;
+  [...(game?.pawns??[]),...(game?.home??[])].find(p=>p.seal===sheet.seal):undefined;
+ const isSelectedHome=selectedPawn!==undefined&&
+  (game?.home.some(p=>p.seal===selectedPawn.seal)??false);
  const selectedCell=sheet?.kind==="cell"?cells.get(sheet.key):undefined;
  const select=(cell:RCCell,pawn:RCPawn|null)=>{
   setSheet(pawn?{kind:"polytron",seal:pawn.seal}:{kind:"cell",key:cell.key});
@@ -73,8 +75,8 @@ export default function MindeleevRC01(){
     <span className="rc01-brand-mark">✳</span>
     <div><strong>MINDELEEV</strong><small>RELEASE CANDIDATE 01</small></div>
    </div>
-   <div className="rc01-score" aria-label={"Energy: "+(game?.score??RC01_START_SCORE)}>
-    <span>ENERGY</span><strong>{game?.score??RC01_START_SCORE}</strong>
+   <div className="rc01-score" aria-label={"Fusions: "+(game?.fusions??0)}>
+    <span>FUSIONS</span><strong>{game?.fusions??0}</strong>
    </div>
   </header>
   <section className="rc01-board-stage" ref={stageRef}
@@ -82,10 +84,19 @@ export default function MindeleevRC01(){
    <RC01ThreeBoard board={board} game={game}
     onSelect={select} onCommitMove={commitMove}
     onBusyChange={onPhysicsBusy}/>
-   <div className="rc01-scene-count" aria-hidden="true">
-    <span className="rc01-scene-dot"/> {game?.pawns.length??5} / 72 ON BOARD
+   <div className="rc01-fusion-notice" role="status">
+    {game?.fusions?game.lastAction:
+     "METATRON OPENING · 18 Polytrons · Drag onto a Polytron to inherit its form"}
    </div>
-   <button type="button" className="rc01-reset" aria-label="Start a new random game"
+   <div className="rc01-board-footer">
+    <div className="rc01-scene-count" aria-label="Polytrons on Mutatron">
+     <span className="rc01-scene-dot"/> {game?.pawns.length??18} / 18 ON BOARD
+    </div>
+    <button type="button" className="rc01-home-button"
+     aria-label={"Home reserve: "+(game?.home.length??0)+" Polytrons"}
+     onClick={()=>setSheet({kind:"home"})}>HOME · {game?.home.length??0}</button>
+   </div>
+   <button type="button" className="rc01-reset" aria-label="Reset fixed Metatron opening"
     disabled={physicsBusy} onClick={reset}>↻</button>
   </section>
   {/* Announcement for assistive technologies, not a visible status strip. */}
@@ -96,7 +107,8 @@ export default function MindeleevRC01(){
    <button type="button" className="rc01-scrim"
     aria-label="Close panel" onClick={()=>setSheet(null)}/>
    <section role="dialog" aria-modal="true"
-    aria-label={sheet.kind==="polytron"?"Polytron details":"Cell details"}
+    aria-label={sheet.kind==="polytron"?"Polytron details":
+     sheet.kind==="home"?"Home reserve":"Cell details"}
     className="rc01-sheet">
     <div className="rc01-sheet-handle"/>
     <button className="rc01-close" type="button" aria-label="Close"
@@ -104,6 +116,7 @@ export default function MindeleevRC01(){
     {selectedPawn&&<div className="rc01-poly-sheet">
      <RC01ThreeInspector pawn={selectedPawn}/>
      <h2>Polytron - {pawnName(selectedPawn)}</h2>
+     {isSelectedHome&&<div className="rc01-home-indicator">AT HOME</div>}
      <dl className="rc01-details">
       <div><dt>Polytronic Number</dt><dd>{selectedPawn.number}</dd></div>
       <div><dt>Conway DNA</dt><dd>{pawnDNA(selectedPawn)}</dd></div>
@@ -111,7 +124,22 @@ export default function MindeleevRC01(){
       <div><dt>Palette · Latin / Greek</dt><dd>{pawnPalette(selectedPawn).name}</dd></div>
       <div><dt>Permanent Identity</dt>
        <dd>{pawnName(selectedPawn)} · {selectedPawn.seal}/72</dd></div>
+      <div><dt>Manifestations</dt><dd>{selectedPawn.manifestations.map(n=>"#"+n).join(" → ")}</dd></div>
      </dl>
+    </div>}
+    {sheet.kind==="home"&&<div className="rc01-home-sheet">
+     <div className="rc01-sheet-kicker">PERMANENT IDENTITIES</div>
+     <h2>Home · {game?.home.length??0}</h2>
+     <p>Captured Polytrons return Home with a lower manifestation.
+      Their personal history is preserved.</p>
+     {!game?.home.length&&<p>All 18 Polytrons are on the Mutatron.</p>}
+     <div className="rc01-home-entries">
+      {game?.home.map(p=><button type="button" key={p.seal}
+       onClick={()=>setSheet({kind:"polytron",seal:p.seal})}>
+       <span>{pawnName(p)} <small>· {p.seal}/72</small></span>
+       <strong>#{p.number}</strong>
+      </button>)}
+     </div>
     </div>}
     {selectedCell&&<div className="rc01-cell-sheet">
      <div className="rc01-sheet-kicker">MUTATRON GEOMETRY</div>
