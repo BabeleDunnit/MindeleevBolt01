@@ -2,7 +2,7 @@ import {useEffect,useRef} from "react";
 import type {PointerEvent as ReactPointerEvent,KeyboardEvent as ReactKeyboardEvent} from "react";
 import * as THREE from "three";
 import type {RCBoard,RCCell,RCPoint} from "@/polytron/rc01Board";
-import {pawnAt,type RCGame,type RCPawn} from "@/polytron/rc01Game";
+import {pawnAt,rcParity,type RCGame,type RCPawn,type RCHomeParity} from "@/polytron/rc01Game";
 import {RC01RapierFlight,RC_RAPIER_FIXED_STEP}
  from "@/experiments/rc01RapierFlight";
 import {createRC3DWorld} from "@/experiments/rc01ThreeScene";
@@ -15,12 +15,13 @@ type Press={
 type ThreeWorld=ReturnType<typeof createRC3DWorld>;
 
 export default function RC01ThreeBoard({
- board,game,onSelect,onCommitMove,onOpenHome,onBusyChange
+ board,game,onSelect,onCommitMove,onOpenHome,onRecallParity,onBusyChange
 }:{
  board:RCBoard;game:RCGame|null;
  onSelect:(cell:RCCell,pawn:RCPawn|null)=>void;
  onCommitMove:(source:string,target:string)=>void;
- onOpenHome:()=>void;
+ onOpenHome:(parity?:RCHomeParity)=>void;
+ onRecallParity:(parity:RCHomeParity)=>void;
  onBusyChange?:(busy:boolean)=>void;
 }){
  const canvasRef=useRef<HTMLCanvasElement>(null);
@@ -29,6 +30,9 @@ export default function RC01ThreeBoard({
  const selectRef=useRef(onSelect);
  const commitRef=useRef(onCommitMove);
  const homeRef=useRef(onOpenHome);
+ const recallRef=useRef(onRecallParity);
+ const doubleTapRef=useRef<{parity:RCHomeParity;at:number}|null>(null);
+ const pendingVictimRef=useRef<RCPawn|null>(null);
  const busyRef=useRef(onBusyChange);
  const pressRef=useRef<Press|null>(null);
  const flightRef=useRef<RC01RapierFlight|null>(null);
@@ -39,6 +43,7 @@ export default function RC01ThreeBoard({
  selectRef.current=onSelect;
  commitRef.current=onCommitMove;
  homeRef.current=onOpenHome;
+ recallRef.current=onRecallParity;
  busyRef.current=onBusyChange;
  const isBusy=()=>launchingRef.current||flightRef.current!==null;
  const screenPoint=(e:ReactPointerEvent<HTMLCanvasElement>):RCPoint|null=>{
@@ -63,14 +68,29 @@ export default function RC01ThreeBoard({
   if(e.button!==0||isBusy()||!gameRef.current)return;
   const world=worldRef.current,point=screenPoint(e);
   if(!world||!point)return;
-  const cell=world.raycastCell(point.x,point.y);
-  if(!cell){
-   if(Math.hypot(point.x-board.homeCenter.x,
-    point.y-board.homeCenter.y)<=board.homeRadius){
-    homeRef.current();e.preventDefault();
-   }
+  // Hex hit-test matches the actual flat-top Home shapes, not a
+  // circular proxy. A second tap of the SAME parity triggers the
+  // high-density stress test without ever pausing board interaction.
+  const parity=(["odd","even"] as const).find(side=>{
+   const home=board.homes[side],dx=Math.abs(point.x-home.x),
+    dy=Math.abs(point.y-home.y),R=board.homeRadius;
+   return dy<=Math.sqrt(3)*R/2&&Math.sqrt(3)*dx+dy<=Math.sqrt(3)*R;
+  });
+  if(parity){
+   const now=performance.now(),previous=doubleTapRef.current;
+   if(previous?.parity===parity&&now-previous.at<390){
+    doubleTapRef.current=null;
+    const recalled=gameRef.current.pawns.filter(p=>rcParity(p.seal)===parity);
+    if(recalled.length){
+     world.transferParityToHome(recalled);
+     recallRef.current(parity);
+    }else homeRef.current(parity);
+   }else doubleTapRef.current={parity,at:now};
+   e.preventDefault();
    return;
   }
+  const cell=world.raycastCell(point.x,point.y);
+  if(!cell)return;
   pressRef.current={pointerId:e.pointerId,startX:e.clientX,
    startY:e.clientY,cell,
    pawn:pawnAt(gameRef.current,cell.key)??null,dragging:false};
@@ -98,6 +118,7 @@ export default function RC01ThreeBoard({
   if(!press.pawn||isBusy()||!gameRef.current)return;
   const world=worldRef.current;if(!world)return;
   const victim=pawnAt(gameRef.current,target.key)??null;
+  pendingVictimRef.current=victim;
   // The first frame of *actual* Polytron movement is strictly AFTER drop.
   world.dragPreview(null);
   const startedEpoch=epochRef.current;
@@ -184,6 +205,8 @@ export default function RC01ThreeBoard({
   renderer.outputColorSpace=THREE.SRGBColorSpace;
   const world=createRC3DWorld(board);
   worldRef.current=world;
+  void world.initHomePhysics().catch(error=>
+   console.error("Home Rapier initialization failed",error));
   world.setPawns(gameRef.current?.pawns??[],gameRef.current?.home??[]);
   const epoch=++epochRef.current;
   let alive=true,raf=0,last=performance.now(),accumulator=0;
@@ -204,12 +227,18 @@ export default function RC01ThreeBoard({
     world.physicalPose(physical.attacker.seal,physical.attacker);
     if(physical.victim)
      world.physicalPose(physical.victim.seal,physical.victim);
+    // The FIRST Rapier contact transfers the untouched full-size actor
+    // into Home's separate physics simulation. No offscreen excursion.
+    const victim=pendingVictimRef.current;
+    if(victim&&physical.collided&&physical.victim&&
+     physical.victim.seal===victim.seal){
+     world.transferToHome(victim,physical.victim);
+     flight.detachVictimToHome();
+     pendingVictimRef.current=null;
+    }
     for(const other of physical.bystanders)
      world.physicalPose(other.seal,other);
     if(physical.done){
-     // Start the Home attraction from the expelled rigid body's final pose.
-     if(physical.success&&physical.victim)
-      world.rememberExpulsion(physical.victim.seal,physical.victim.position);
      flightRef.current=null;
      flight.dispose();
      // Commit the destination BEFORE unlocking viewport measurements:
@@ -237,6 +266,7 @@ export default function RC01ThreeBoard({
    alive=false;cancelAnimationFrame(raf);
    epochRef.current=epoch+1;
    pressRef.current=null;launchingRef.current=false;
+   pendingVictimRef.current=null;doubleTapRef.current=null;
    flightRef.current?.dispose();flightRef.current=null;
    worldRef.current=null;
    world.dispose();renderer.dispose();
@@ -247,7 +277,7 @@ export default function RC01ThreeBoard({
   if(!isBusy())worldRef.current?.setPawns(game?.pawns??[],game?.home??[]);
  },[game]);
  return <canvas ref={canvasRef} className="rc01-three-board"
-  role="img" aria-label="3D Mutatron: 72 Polytrons across five hexagonal rings. Drag to move or fuse; captures return Home. Tap the Home hex to inspect the reserve."
+  role="img" aria-label="3D Mutatron: 72 Polytrons across five hexagonal rings. Drag to move or fuse; captures return Home. Double-tap the left odd or right even Home for the full-size Rapier crowd test."
   tabIndex={0} onPointerDown={onPointerDown} onPointerMove={onPointerMove}
   onPointerUp={onPointerUp} onPointerCancel={onPointerCancel}
   onLostPointerCapture={()=>{if(pressRef.current)cancelPointer();}}
