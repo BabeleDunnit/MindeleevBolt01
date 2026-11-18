@@ -474,7 +474,7 @@ try{
  const markup=renderToString(React.createElement(ui.default));
  assert(markup.includes("RELEASE CANDIDATE 01"));
  assert(markup.includes("FUSIONS"));
- assert(markup.includes("100"));
+ assert(markup.includes("0"),"Fusion counter starts at zero");
  assert(markup.includes('class="rc01-three-board"'));
  assert(!markup.includes("<svg"),"RC01 output must not mix SVG with 3D");
  assert(!markup.includes("rc01-status"),"No visible bottom status strip");
