@@ -1,13 +1,13 @@
 import {useEffect,useMemo,useRef,useState} from "react";
 import {makeRCBoard,type RCCell} from "@/polytron/rc01Board";
-import {initialRCGame,moveRCPawn,pawnDNA,pawnName,pawnPalette,
- type RCGame,type RCPawn} from "@/polytron/rc01Game";
+import {initialRCGame,moveRCPawn,recallRCParity,rcParity,pawnDNA,pawnName,pawnPalette,
+ type RCGame,type RCPawn,type RCHomeParity} from "@/polytron/rc01Game";
 import RC01ThreeBoard from "@/experiments/RC01ThreeBoard";
 import RC01ThreeInspector from "@/experiments/RC01ThreeInspector";
 import {intrinsicEnergy} from "@/polytron/mindeleevLife";
 import "./MindeleevRC01.css";
 
-type Sheet={kind:"polytron";seal:number}|{kind:"cell";key:string}|{kind:"home"}|null;
+type Sheet={kind:"polytron";seal:number}|{kind:"cell";key:string}|{kind:"home";parity?:RCHomeParity}|null;
 const INITIAL_VIEWPORT={width:390,height:700,ready:false};
 
 export default function MindeleevRC01(){
@@ -64,6 +64,10 @@ export default function MindeleevRC01(){
    return moveRCPawn(previous,from,to,board)?.game??previous;
   });
  };
+ const recallParity=(parity:RCHomeParity)=>{
+  if(physicsBusyRef.current)return;
+  setGame(previous=>previous?recallRCParity(previous,parity,board):previous);
+ };
  const reset=()=>{
   if(physicsBusy)return;
   setSheet(null);
@@ -87,7 +91,8 @@ export default function MindeleevRC01(){
    aria-label="3D Mutatron board">
    <RC01ThreeBoard board={board} game={game}
     onSelect={select} onCommitMove={commitMove}
-    onOpenHome={()=>setSheet({kind:"home"})}
+    onOpenHome={parity=>setSheet({kind:"home",parity})}
+    onRecallParity={recallParity}
     onBusyChange={onPhysicsBusy}/>
    <div className="rc01-fusion-notice" role="status">
     {game?.fusions?game.lastAction:
@@ -95,11 +100,20 @@ export default function MindeleevRC01(){
    </div>
    <div className="rc01-board-footer">
     <div className="rc01-scene-count" aria-label="Polytrons on Mutatron">
-     <span className="rc01-scene-dot"/> {game?.pawns.length??72} / 72 ON BOARD
+     <span className="rc01-scene-dot"/> {game?.pawns.length??72} / 72
     </div>
     <button type="button" className="rc01-home-button"
      aria-label={"Home reserve: "+(game?.home.length??0)+" Polytrons"}
      onClick={()=>setSheet({kind:"home"})}>HOME · {game?.home.length??0}</button>
+   </div>
+   <div className="rc01-home-labels" aria-hidden="true">
+    {(["odd","even"] as const).map(parity=>
+     <span key={parity} style={{
+      left:board.homes[parity].x/board.width*100+"%",
+      top:(board.homes[parity].y-board.homeRadius*.98)/board.height*100+"%"
+     }}>{parity==="odd"?"ODD":"EVEN"} · {game?.home.filter(
+      p=>rcParity(p.seal)===parity).length??0}</span>
+    )}
    </div>
   </section>
   {/* Announcement for assistive technologies, not a visible status strip. */}
@@ -132,12 +146,15 @@ export default function MindeleevRC01(){
     </div>}
     {sheet.kind==="home"&&<div className="rc01-home-sheet">
      <div className="rc01-sheet-kicker">PERMANENT IDENTITIES</div>
-     <h2>Home · {game?.home.length??0}</h2>
-     <p>Captured Polytrons return Home with a lower manifestation.
-      Their personal history is preserved.</p>
+     <h2>{sheet.parity?(sheet.parity==="odd"?"Odd":"Even")+" Home":"Home"} · {
+      game?.home.filter(p=>!sheet.parity||rcParity(p.seal)===sheet.parity).length??0}</h2>
+     <p>Captured Polytrons return directly to the {sheet.parity??"odd/even"} Home.
+      Double-tap a Home hex to recall all on-board Polytrons of that parity
+      for the full-size spring and collision stress test.</p>
      {!game?.home.length&&<p>All 72 Polytrons are on the Mutatron.</p>}
      <div className="rc01-home-entries">
-      {game?.home.map(p=><button type="button" key={p.seal}
+      {game?.home.filter(p=>!sheet.parity||rcParity(p.seal)===sheet.parity)
+       .map(p=><button type="button" key={p.seal}
        onClick={()=>setSheet({kind:"polytron",seal:p.seal})}>
        <span>{pawnName(p)} <small>· {p.seal}/72</small></span>
        <strong>#{p.number}</strong>
