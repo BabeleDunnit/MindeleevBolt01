@@ -15,11 +15,12 @@ type Press={
 type ThreeWorld=ReturnType<typeof createRC3DWorld>;
 
 export default function RC01ThreeBoard({
- board,game,onSelect,onCommitMove,onBusyChange
+ board,game,onSelect,onCommitMove,onOpenHome,onBusyChange
 }:{
  board:RCBoard;game:RCGame|null;
  onSelect:(cell:RCCell,pawn:RCPawn|null)=>void;
  onCommitMove:(source:string,target:string)=>void;
+ onOpenHome:()=>void;
  onBusyChange?:(busy:boolean)=>void;
 }){
  const canvasRef=useRef<HTMLCanvasElement>(null);
@@ -27,6 +28,7 @@ export default function RC01ThreeBoard({
  const gameRef=useRef(game);
  const selectRef=useRef(onSelect);
  const commitRef=useRef(onCommitMove);
+ const homeRef=useRef(onOpenHome);
  const busyRef=useRef(onBusyChange);
  const pressRef=useRef<Press|null>(null);
  const flightRef=useRef<RC01RapierFlight|null>(null);
@@ -36,6 +38,7 @@ export default function RC01ThreeBoard({
  gameRef.current=game;
  selectRef.current=onSelect;
  commitRef.current=onCommitMove;
+ homeRef.current=onOpenHome;
  busyRef.current=onBusyChange;
  const isBusy=()=>launchingRef.current||flightRef.current!==null;
  const screenPoint=(e:ReactPointerEvent<HTMLCanvasElement>):RCPoint|null=>{
@@ -61,7 +64,13 @@ export default function RC01ThreeBoard({
   const world=worldRef.current,point=screenPoint(e);
   if(!world||!point)return;
   const cell=world.raycastCell(point.x,point.y);
-  if(!cell)return;
+  if(!cell){
+   if(Math.hypot(point.x-board.homeCenter.x,
+    point.y-board.homeCenter.y)<=board.homeRadius){
+    homeRef.current();e.preventDefault();
+   }
+   return;
+  }
   pressRef.current={pointerId:e.pointerId,startX:e.clientX,
    startY:e.clientY,cell,
    pawn:pawnAt(gameRef.current,cell.key)??null,dragging:false};
@@ -238,7 +247,7 @@ export default function RC01ThreeBoard({
   if(!isBusy())worldRef.current?.setPawns(game?.pawns??[],game?.home??[]);
  },[game]);
  return <canvas ref={canvasRef} className="rc01-three-board"
-  role="img" aria-label="3D Mutatron: 72 Polytrons across five hexagonal rings. Drag to move or fuse; captures return Home."
+  role="img" aria-label="3D Mutatron: 72 Polytrons across five hexagonal rings. Drag to move or fuse; captures return Home. Tap the Home hex to inspect the reserve."
   tabIndex={0} onPointerDown={onPointerDown} onPointerMove={onPointerMove}
   onPointerUp={onPointerUp} onPointerCancel={onPointerCancel}
   onLostPointerCapture={()=>{if(pressRef.current)cancelPointer();}}
