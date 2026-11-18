@@ -216,6 +216,9 @@ export function createRC3DWorld(board:RCBoard){
   body:RAPIER.RigidBody|null
  };
  const homeParticles=new Map<number,HomeParticle>();
+ // Transferred on collision before the React game state commits; keep
+ // these bodies alive until the state confirms the Home reservation.
+ const pendingHome=new Set<number>();
  const homeRadius=rcVisualPawnRadius(board); // NEVER scaled for Home
  let homeWorld:RAPIER.World|null=null;
  let homeAccumulator=0;
@@ -280,18 +283,22 @@ export function createRC3DWorld(board:RCBoard){
   position:{x:number;y:number;z:number};
   rotation?:{x:number;y:number;z:number;w:number}
  }){
+  pendingHome.add(pawn.seal);
   newHomeParticle(pawn,pose);
  }
  function transferParityToHome(pawns:readonly RCPawn[]){
-  for(const pawn of pawns)newHomeParticle(pawn);
+  for(const pawn of pawns){
+   pendingHome.add(pawn.seal);
+   newHomeParticle(pawn);
+  }
  }
  function updateHome(home:readonly RCPawn[]){
   const active=new Set(home.map(p=>p.seal));
-  // A captured body is transferred visually at the Rapier collision,
-  // BEFORE it becomes part of the committed Home reserve; preserve it
-  // through that short handoff until the board move is committed.
+  for(const seal of active)pendingHome.delete(seal);
+  // Remove obsolete Home occupants, including when a new game starts.
+  // Pending captures are protected until their game state is committed.
   for(const [seal,p] of homeParticles){
-   if(!active.has(seal)&&actors.has(seal)){
+   if(!active.has(seal)&&!pendingHome.has(seal)){
     if(homeWorld&&p.body)homeWorld.removeRigidBody(p.body);
     scene.remove(p.model.root);p.model.dispose();
     homeParticles.delete(seal);
@@ -379,6 +386,7 @@ export function createRC3DWorld(board:RCBoard){
   actors.clear();
  }
  function setPawns(pawns:readonly RCPawn[],home:readonly RCPawn[]=[]){
+  if(home.length===0&&pawns.length===72)pendingHome.clear();
   updateHome(home);
   const updated=new Map<number,RCWorldModel>();
   const idleZ=rcVisualPawnHeight(board);
@@ -501,7 +509,7 @@ export function createRC3DWorld(board:RCBoard){
   for(const particle of homeParticles.values()){
    scene.remove(particle.model.root);particle.model.dispose();
   }
-  homeParticles.clear();
+  homeParticles.clear();pendingHome.clear();
   homeWorld?.free();homeWorld=null;
   homeShape.tile.dispose();homeShape.line.dispose();
   for(const material of [...homeMaterials,...homeEdgeMaterials])material.dispose();
