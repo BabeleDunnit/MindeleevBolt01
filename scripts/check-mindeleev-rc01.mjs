@@ -524,6 +524,8 @@ try{
  const markup=renderToString(React.createElement(ui.default));
  assert(markup.includes("RELEASE CANDIDATE 01"));
  assert(markup.includes("FUSIONS"));
+ assert(markup.includes("72 TETRAHEDRA")&&markup.includes("HOME"),
+  "The default UI must show the full 72-Seal opening and Home zone");
  assert(markup.includes("0"),"Fusion counter starts at zero");
  assert(markup.includes('class="rc01-three-board"'));
  assert(!markup.includes("<svg"),"RC01 output must not mix SVG with 3D");
@@ -567,6 +569,7 @@ try{
   "physical.bystanders","running.otherSeals",
   "setPointerCapture","onPointerCancel","onPointerUp",
   "RC01RapierFlight.create","flight.step()","world.physicalPose",
+  "world.rememberExpulsion","world.stepHome(dt)","onOpenHome",
   "RC_RAPIER_FIXED_STEP","rotateModels","onKeyDown"]){
   assert(boardCode.includes(phrase),"Missing native 3D board feature: "+phrase);
  }
@@ -579,7 +582,9 @@ try{
   "THREE.Raycaster","THREE.Plane","THREE.MeshStandardMaterial",
   "makeRC3DPolytron","polytronGeometry","pawnPalette(pawn)",
   "solid.position.copy(centre)","spin.rotation","scene.add(mesh)",
-  "actorOrientation","physicalPose","spin.quaternion.identity()"]){
+  "actorOrientation","physicalPose","spin.quaternion.identity()",
+  "const basin=new THREE.Mesh","homeParticles","rememberExpulsion",
+  "stepHome(dt:number)","const separation=miniRadius*1.7"]){
   assert(modelCode.includes(phrase),"Missing 3D architecture: "+phrase);
  }
  // RC01 inspector must use the very same canonical energy rule as the
@@ -616,5 +621,5 @@ try{
   pawns:sceneGame.pawns.length,score:sceneGame.score,
   camera:"orthographic",picking:"raycasting",capture:"Rapier impact with inherited manifestation and Home regression"
  }));
- console.log("PASS RC01: fixed 18-Polytron opening, fusion inheritance, Home regression, shared Conway geometry and Rapier multi-body collisions");
+ console.log("PASS RC01: 72 fixed tetrahedra on rings 1/2/4/5, north-first clockwise mapping, Home springs, fusion inheritance and Rapier collisions");
 }finally{await rm(temporary,{recursive:true,force:true});}
