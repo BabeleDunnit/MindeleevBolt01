@@ -6,7 +6,15 @@ import {rcKey,rcRingCells,type RCBoard} from "@/polytron/rc01Board";
 export const RC01_SEAL_COUNT=72;
 export const RC01_OPENING_COUNT=72;
 export const RC01_OPENING_RINGS=[1,2,4,5] as const;
-export const RC01_OPENING_NUMBER=1;
+export const RC01_OPENING_NUMBER=1; // outer rings 4 and 5
+export const RC01_INNER_OPENING_NUMBERS=[2,3] as const;
+/** Inner rings 1 and 2 alternate 2,3 from index 0; outer rings stay #1. */
+export function rcOpeningNumber(ring:number,idxInRing:number):number{
+ if(![1,2,4,5].includes(ring)||!Number.isInteger(idxInRing)||
+    idxInRing<0||idxInRing>=6*ring)
+  throw Error("Invalid initial ring/index");
+ return ring<=2?RC01_INNER_OPENING_NUMBERS[idxInRing%2]:RC01_OPENING_NUMBER;
+}
 export const RC01_OPENING_PALETTE={row:2,col:4} as const;
 export const RC01_START_SCORE=100;
 
@@ -51,8 +59,10 @@ export function rcHomeRegression(n:number):number{
  * Seals 1..6 -> ring 1; 7..18 -> ring 2;
  * 19..42 -> ring 4; 43..72 -> ring 5.
  * Both the Nucleus and ring 3 are empty, with exactly 19 free cells.
- * Every Seal starts as the SAME tetrahedron (Polytronic Number #1) with
- * the SAME Chromatica gradient. Different permanent identities remain.
+ * Ring 1 (Seals 1..6) and ring 2 (Seals 7..18) alternate
+ * Polytronic Numbers #2 and #3 from index 0, clockwise.
+ * The 54 Seals on rings 4 and 5 remain #1 tetrahedra.
+ * All 72 retain the SAME Chromatica gradient and distinct permanent IDs.
  */
 export function initialRCGame(board:RCBoard,_rng:()=>number=Math.random):RCGame{
  const cells=new Set(board.cells.map(c=>c.key));
@@ -61,15 +71,18 @@ export function initialRCGame(board:RCBoard,_rng:()=>number=Math.random):RCGame{
  if(positions.length!==RC01_OPENING_COUNT||
     positions.some(p=>!cells.has(rcKey(p.q,p.r))))
   throw Error("The Mutatron must contain all five complete rings");
- const pawns=positions.map((pos,i):RCPawn=>({
-  seal:i+1,number:RC01_OPENING_NUMBER,
-  row:RC01_OPENING_PALETTE.row,col:RC01_OPENING_PALETTE.col,
-  cellKey:rcKey(pos.q,pos.r),
-  manifestations:[RC01_OPENING_NUMBER]
- }));
+ const pawns=positions.map((pos,i):RCPawn=>{
+  const number=rcOpeningNumber(pos.ring,pos.idxInRing);
+  return {
+   seal:i+1,number,
+   row:RC01_OPENING_PALETTE.row,col:RC01_OPENING_PALETTE.col,
+   cellKey:rcKey(pos.q,pos.r),
+   manifestations:[number]
+  };
+ });
  return {pawns,home:[],score:RC01_START_SCORE,moves:0,fusions:0,
   homeTestPhase:{odd:"board",even:"board"},
-  lastAction:"Metatron opening: 72 tetrahedral Polytrons, third ring and Nucleus empty."};
+  lastAction:"Metatron opening: rings 1 & 2 alternate #2/#3; rings 4 & 5 are #1, Nucleus and ring 3 empty."};
 }
 
 /** Diagnostic fixture, never used for the production opening. */
