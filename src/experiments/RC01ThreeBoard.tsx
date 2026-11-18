@@ -35,6 +35,8 @@ export default function RC01ThreeBoard({
  const toggleRef=useRef(onToggleParity);
  const arrivalRef=useRef(onReturnArrived);
  const doubleTapRef=useRef<{parity:RCHomeParity;at:number}|null>(null);
+ // Reconstruct active returns after browser-chrome viewport resizes.
+ const activeReturnsRef=useRef<Set<number>>(new Set());
  const pendingVictimRef=useRef<RCPawn|null>(null);
  const busyRef=useRef(onBusyChange);
  const pressRef=useRef<Press|null>(null);
@@ -84,9 +86,15 @@ export default function RC01ThreeBoard({
     doubleTapRef.current=null;
     const outcome=toggleRef.current(parity);
     if(outcome.action==="recall"){
+     for(const seal of activeReturnsRef.current)
+      if((seal%2===0?"even":"odd")===parity)
+       activeReturnsRef.current.delete(seal);
      world.cancelHomeReturns(parity);
      world.transferParityToHome(outcome.pawns);
-    }else world.startHomeReturns(outcome.pawns);
+    }else{
+     for(const pawn of outcome.pawns)activeReturnsRef.current.add(pawn.seal);
+     world.startHomeReturns(outcome.pawns);
+    }
    }else doubleTapRef.current={parity,at:now};
    e.preventDefault();
    return;
@@ -210,6 +218,9 @@ export default function RC01ThreeBoard({
   void world.initHomePhysics().catch(error=>
    console.error("Home Rapier initialization failed",error));
   world.setPawns(gameRef.current?.pawns??[],gameRef.current?.home??[]);
+  const resumed=(gameRef.current?.home??[]).filter(
+   pawn=>activeReturnsRef.current.has(pawn.seal));
+  if(resumed.length)world.startHomeReturns(resumed);
   const epoch=++epochRef.current;
   let alive=true,raf=0,last=performance.now(),accumulator=0;
   const frame=(now:number)=>{
@@ -261,7 +272,10 @@ export default function RC01ThreeBoard({
    }
    world.rotateModels(now,active);
    const arrived=world.stepHome(dt,!isBusy());
-   for(const seal of arrived)arrivalRef.current(seal);
+   for(const seal of arrived){
+    activeReturnsRef.current.delete(seal);
+    arrivalRef.current(seal);
+   }
    renderer.render(world.scene,world.camera);
   };
   raf=requestAnimationFrame(frame);
@@ -277,6 +291,8 @@ export default function RC01ThreeBoard({
  },[board]);
  useEffect(()=>{
   // Game changes only after a completed, physically evaluated move.
+  if(game?.pawns.length===72&&game.home.length===0)
+   activeReturnsRef.current.clear();
   if(!isBusy())worldRef.current?.setPawns(game?.pawns??[],game?.home??[]);
  },[game]);
  return <canvas ref={canvasRef} className="rc01-three-board"
