@@ -110,44 +110,89 @@ try{
  world.hover(null,false);
  assert(!marker.visible,"Cancel and drop must hide the target marker");
  world.dispose();
- // Permanent cast and five individual Chromatica palettes on initial launch.
+ // Opening is fixed: first 18 Seals, first two complete hex rings,
+ // five first-period Platonic manifestations, Nucleus always empty.
  const sceneGame=model.initialRCGame(board,()=>.37);
- assert.equal(sceneGame.pawns.length,5);
+ assert.deepEqual(sceneGame,model.initialRCGame(board,()=>.92),
+  "The opening must never depend on random numbers");
+ assert.equal(sceneGame.pawns.length,18);
+ assert.equal(sceneGame.home.length,0);
+ assert.equal(sceneGame.fusions,0);
  assert.equal(sceneGame.score,100);
- assert(model.validateRCGame(sceneGame,board));
- assert.equal(new Set(sceneGame.pawns.map(p=>p.seal)).size,5);
- assert.equal(new Set(sceneGame.pawns.map(p=>p.cellKey)).size,5);
+ assert.deepEqual(sceneGame.pawns.map(p=>p.seal),
+  Array.from({length:18},(_,i)=>i+1));
+ assert.equal(new Set(sceneGame.pawns.map(p=>p.cellKey)).size,18);
+ assert.deepEqual([...new Set(sceneGame.pawns.map(p=>p.number))].sort(),
+  [1,2,3,4,5]);
+ assert(!sceneGame.pawns.some(p=>p.cellKey==="0,0"));
+ const ring1=sceneGame.pawns.slice(0,6),ring2=sceneGame.pawns.slice(6);
+ for(const [ring,pawns] of [[1,ring1],[2,ring2]]){
+  assert.equal(pawns.length,ring*6);
+  const coords=grid.rcRingCells(ring);
+  for(let i=0;i<pawns.length;i++){
+   assert.equal(pawns[i].cellKey,grid.rcKey(coords[i].q,coords[i].r));
+   assert.equal(pawns[i].number,pawns[(i+pawns.length/2)%pawns.length].number,
+    "The Metatron opening must retain 180-degree rotational symmetry");
+  }
+ }
  for(const pawn of sceneGame.pawns){
+  assert.deepEqual(pawn.manifestations,[pawn.number]);
   assert(model.pawnDNA(pawn).length>=1);
   assert(model.pawnPalette(pawn).name.length>=3);
   assert(model.pawnName(pawn).length>=3);
  }
- // The diagnostic fixture is retained as an optional test only, not launch.
+ assert(model.validateRCGame(sceneGame,board));
+ for(const [n,expected] of [[1,1],[2,1],[5,4],[6,1],[7,1],[13,7],[18,12]])
+  assert.equal(model.rcHomeRegression(n),expected,
+   "Home regression must work at period/group boundaries: "+n);
  const diag=model.rc01CenterDiagnostic(board);
  assert.equal(diag.pawns.length,1);
  assert.equal(diag.pawns[0].cellKey,"0,0");
- assert.equal(diag.score,100);
+ assert.deepEqual(diag.pawns[0].manifestations,[1]);
  const source=sceneGame.pawns[0];
- const empty=board.cells.find(c=>!sceneGame.pawns.some(p=>p.cellKey===c.key));
+ const empty=board.cells.find(c=>c.nucleus);
  assert(empty);
  const moved=model.moveRCPawn(sceneGame,source.cellKey,empty.key,board);
- assert(moved);
- assert.equal(moved.game.pawns.length,5);
- assert.equal(moved.game.score,100);
- assert.equal(model.pawnAt(moved.game,source.cellKey),undefined);
+ assert(moved&&model.validateRCGame(moved.game,board));
+ assert.equal(moved.game.pawns.length,18);
+ assert.equal(moved.game.home.length,0);
+ assert.equal(moved.game.fusions,0);
  assert.equal(model.pawnAt(moved.game,empty.key)?.seal,source.seal);
- assert(model.validateRCGame(moved.game,board));
  const victim=sceneGame.pawns[1];
  const taken=model.moveRCPawn(sceneGame,source.cellKey,victim.cellKey,board);
- assert(taken);
- assert.equal(taken.game.pawns.length,4);
+ assert(taken&&model.validateRCGame(taken.game,board));
+ assert.equal(taken.game.pawns.length,17);
+ assert.equal(taken.game.home.length,1);
+ assert.equal(taken.game.fusions,1);
  assert.equal(taken.captured?.seal,victim.seal);
- assert(!taken.game.pawns.some(p=>p.seal===victim.seal));
- assert.equal(model.pawnAt(taken.game,victim.cellKey)?.seal,source.seal);
- assert.equal(taken.game.score,100);
- assert(model.validateRCGame(taken.game,board));
+ const fused=model.pawnAt(taken.game,victim.cellKey);
+ assert.equal(fused?.seal,source.seal);
+ assert.equal(fused?.number,victim.number,
+  "The attacker must adopt the captured manifestation");
+ assert.deepEqual(fused?.manifestations,[source.number,victim.number]);
+ assert.equal(model.pawnDNA(fused),model.pawnDNA(victim),
+  "The shared Conway renderer must immediately show the inherited solid");
+ const atHome=taken.game.home[0];
+ assert.equal(atHome.seal,victim.seal,"Captured identities cannot disappear");
+ assert.equal(atHome.cellKey,"","Home occupants never occupy board cells");
+ assert.equal(atHome.number,model.rcHomeRegression(victim.number));
+ assert.deepEqual(atHome.manifestations,[victim.number,atHome.number]);
+ const nextVictim=sceneGame.pawns[2];
+ const second=model.moveRCPawn(taken.game,victim.cellKey,nextVictim.cellKey,board);
+ assert(second&&model.validateRCGame(second.game,board));
+ assert.equal(second.game.pawns.length,16);
+ assert.equal(second.game.home.length,2);
+ assert.equal(second.game.fusions,2);
+ assert.deepEqual(model.pawnAt(second.game,nextVictim.cellKey)?.manifestations,
+  [source.number,victim.number,nextVictim.number],
+  "Acquisitions must accumulate across successive fusions");
  assert.equal(model.moveRCPawn(sceneGame,source.cellKey,source.cellKey,board),null);
  assert.equal(model.moveRCPawn(sceneGame,source.cellKey,"99,99",board),null);
+ console.log("RC01 FUSION OPENING",JSON.stringify({
+  onBoard:sceneGame.pawns.length,home:sceneGame.home.length,
+  rings:[ring1.length,ring2.length],inherited:fused?.number,
+  regressed:atHome.number,history:fused?.manifestations
+ }));
  // Physically integrate the exact same geometries, velocities, restitution
  // and collision events as the live mobile game. No proximity-script shortcuts.
  const from=board.cells.find(c=>c.key==="0,0");
@@ -428,7 +473,7 @@ try{
  // SSR includes only WebGL canvas for the board. No hybrid SVG geometry.
  const markup=renderToString(React.createElement(ui.default));
  assert(markup.includes("RELEASE CANDIDATE 01"));
- assert(markup.includes("ENERGY"));
+ assert(markup.includes("FUSIONS"));
  assert(markup.includes("100"));
  assert(markup.includes('class="rc01-three-board"'));
  assert(!markup.includes("<svg"),"RC01 output must not mix SVG with 3D");
@@ -495,7 +540,10 @@ try{
   '<dt>Polytronic Number</dt><dd>{selectedPawn.number}</dd>',
   '<dt>Intrinsic Energy</dt><dd>{intrinsicEnergy(selectedPawn.number,0)} E</dd>',
   '<dt>Permanent Identity</dt>',
-  'import {intrinsicEnergy} from "@/polytron/mindeleevLife"'
+  'import {intrinsicEnergy} from "@/polytron/mindeleevLife"',
+  '<dt>Manifestations</dt>',
+  'game?.home.map(p=>',
+  'Reset fixed Metatron opening'
  ])assert(tsx.includes(phrase),
   "Inspector name heading and canonical data rows required: "+phrase);
  assert(!tsx.includes("POLYTRONE ·")&&!tsx.includes("<h2>#{selectedPawn.number}</h2>")&&
@@ -508,12 +556,14 @@ try{
  const css=await readFile("src/experiments/MindeleevRC01.css","utf8");
  assert(css.includes("height:100dvh")&&css.includes("touch-action:none"));
  assert(css.includes(".rc01-three-board")&&!css.includes(".rc01-status{"));
+ assert(css.includes(".rc01-fusion-notice")&&css.includes(".rc01-home-button"),
+  "A visible Fusion notice and Home inventory must exist");
  const app=await readFile("src/App.tsx","utf8");
  assert(app.includes('experiment") === "mindeleev-rc01"'));
  console.log("RC01 THREE",JSON.stringify({
   initialHexes:countCells(precedingRadius),native3dHexes:board.cells.length,
   pawns:sceneGame.pawns.length,score:sceneGame.score,
-  camera:"orthographic",picking:"raycasting",capture:"Rapier convex-hull restitution"
+  camera:"orthographic",picking:"raycasting",capture:"Rapier impact with inherited manifestation and Home regression"
  }));
- console.log("PASS RC01: Rapier rigid-body real contact and rebound, Convex Conway colliders, 3D torque, proper free-move settling, 72 seals, native Three.js and no SVG");
+ console.log("PASS RC01: fixed 18-Polytron opening, fusion inheritance, Home regression, shared Conway geometry and Rapier multi-body collisions");
 }finally{await rm(temporary,{recursive:true,force:true});}
