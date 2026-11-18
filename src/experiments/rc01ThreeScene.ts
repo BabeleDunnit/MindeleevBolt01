@@ -312,6 +312,13 @@ export function createRC3DWorld(board:RCBoard){
    particle.arrivalReported=false;
   }
  }
+ /** Cancel unfinished returns when the next double-tap recalls this parity. */
+ function cancelHomeReturns(parity:"odd"|"even"){
+  for(const [seal,p] of homeParticles)if(rcParity(seal)===parity){
+   p.returnTarget=null;
+   p.arrivalReported=false;
+  }
+ }
  function updateHome(home:readonly RCPawn[]){
   const active=new Set(home.map(p=>p.seal));
   for(const seal of active)pendingHome.delete(seal);
@@ -555,6 +562,6 @@ export function createRC3DWorld(board:RCBoard){
  return {scene,camera,cellsByKey,raycastCell,raycastBoardPlane,
   setPawns,moveActor,actorOrientation,physicalPose,dragPreview,
   initHomePhysics,stepHome,transferToHome,transferParityToHome,
-   startHomeReturns,homeStats,homeSnapshot,
+   startHomeReturns,cancelHomeReturns,homeStats,homeSnapshot,
   hover,rotateModels,dispose};
 }
