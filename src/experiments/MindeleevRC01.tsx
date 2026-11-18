@@ -86,11 +86,11 @@ export default function MindeleevRC01(){
     onBusyChange={onPhysicsBusy}/>
    <div className="rc01-fusion-notice" role="status">
     {game?.fusions?game.lastAction:
-     "METATRON OPENING · 18 Polytrons · Drag onto a Polytron to inherit its form"}
+     "72 TETRAHEDRA · RING 3 CLEAR · NUCLEUS EMPTY"}
    </div>
    <div className="rc01-board-footer">
     <div className="rc01-scene-count" aria-label="Polytrons on Mutatron">
-     <span className="rc01-scene-dot"/> {game?.pawns.length??18} / 18 ON BOARD
+     <span className="rc01-scene-dot"/> {game?.pawns.length??72} / 72 ON BOARD
     </div>
     <button type="button" className="rc01-home-button"
      aria-label={"Home reserve: "+(game?.home.length??0)+" Polytrons"}
@@ -132,7 +132,7 @@ export default function MindeleevRC01(){
      <h2>Home · {game?.home.length??0}</h2>
      <p>Captured Polytrons return Home with a lower manifestation.
       Their personal history is preserved.</p>
-     {!game?.home.length&&<p>All 18 Polytrons are on the Mutatron.</p>}
+     {!game?.home.length&&<p>All 72 Polytrons are on the Mutatron.</p>}
      <div className="rc01-home-entries">
       {game?.home.map(p=><button type="button" key={p.seal}
        onClick={()=>setSheet({kind:"polytron",seal:p.seal})}>
