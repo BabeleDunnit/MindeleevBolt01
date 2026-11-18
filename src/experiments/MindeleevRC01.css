@@ -60,9 +60,10 @@
  backdrop-filter:blur(8px)
 }
 .rc01-scene-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#4b9b7e}
+.rc01-header-actions{display:flex;align-items:center;gap:8px;flex-shrink:0}
 .rc01-reset{
- position:absolute;bottom:max(13px,env(safe-area-inset-bottom));
- right:16px;width:39px;height:39px;border-radius:12px;
+ position:static;flex-shrink:0;
+ width:36px;height:36px;border-radius:12px;
  display:grid;place-items:center;
  border:1px solid #d0ded5;background:#f7faf8e8;color:#427a5b;
  box-shadow:0 2px 8px #254c3620
