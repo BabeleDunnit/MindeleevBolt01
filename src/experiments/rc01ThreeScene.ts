@@ -1,8 +1,8 @@
 import * as THREE from "three";
 import * as RAPIER from "@dimforge/rapier3d-compat";
 import {polytronGeometry} from "@/polytron/polytron";
-import {pawnDNA,pawnPalette,rcParity,type RCPawn} from "@/polytron/rc01Game";
-import type {RCBoard,RCCell,RCPoint} from "@/polytron/rc01Board";
+import {openingCellKeyForSeal,pawnDNA,pawnPalette,rcParity,type RCPawn} from "@/polytron/rc01Game";
+import {RC_HOME_ROTATION,type RCBoard,type RCCell,type RCPoint} from "@/polytron/rc01Board";
 
 // The same resting height is used by the Three.js display and Rapier bodies.
 // A bounding-sphere radius guarantees that even rotated convex Polytrons sit
@@ -190,7 +190,7 @@ export function createRC3DWorld(board:RCBoard){
  const shadowMaterial=new THREE.MeshBasicMaterial({
   color:0x254e41,transparent:true,opacity:.10,depthWrite:false
  });
- // Two distinct Home hexagons. Same flat-top orientation as the Mutatron.
+ // Homes turn 30° to align with the outer Mutatron's lower slopes.
  const homeShape=makeHexGeometry(board.homeRadius);
  const homeMaterials=[
   new THREE.MeshBasicMaterial({
@@ -207,13 +207,16 @@ export function createRC3DWorld(board:RCBoard){
  for(const [index,center] of [board.homes.odd,board.homes.even].entries()){
   const mesh=new THREE.Mesh(homeShape.tile,homeMaterials[index]);
   mesh.position.copy(rcScreenWorld(board,center,0));
+  mesh.rotation.z=RC_HOME_ROTATION;
   const border=new THREE.LineLoop(homeShape.line,homeEdgeMaterials[index]);
   border.position.copy(rcScreenWorld(board,center,4));
+  border.rotation.z=RC_HOME_ROTATION;
   scene.add(mesh,border);
  }
  type HomeParticle={
   pawn:RCPawn;model:ReturnType<typeof makeRC3DPolytron>;
-  body:RAPIER.RigidBody|null
+  body:RAPIER.RigidBody|null;
+  returnTarget:THREE.Vector3|null;arrivalReported:boolean
  };
  const homeParticles=new Map<number,HomeParticle>();
  // Transferred on collision before the React game state commits; keep
@@ -275,7 +278,9 @@ export function createRC3DWorld(board:RCBoard){
   }else if(!actor)
    model.root.position.copy(rcScreenWorld(board,center,rcVisualPawnHeight(board)));
   if(!scene.children.includes(model.root))scene.add(model.root);
-  const particle={pawn,model,body:null} as HomeParticle;
+  const particle:HomeParticle={
+   pawn,model,body:null,returnTarget:null,arrivalReported:false
+  };
   homeParticles.set(pawn.seal,particle);
   createHomeBody(particle);
  }
@@ -290,6 +295,21 @@ export function createRC3DWorld(board:RCBoard){
   for(const pawn of pawns){
    pendingHome.add(pawn.seal);
    newHomeParticle(pawn);
+  }
+ }
+ /**
+  * After the second double tap, actual (unscaled) Rapier bodies fly from
+  * Home to their unique opening hex. The caller resolves occupancy and
+  * inheritance ONLY upon physical arrival. There is no scene teleport.
+  */
+ function startHomeReturns(pawns:readonly RCPawn[]){
+  for(const pawn of pawns){
+   if(!homeParticles.has(pawn.seal))newHomeParticle(pawn);
+   const particle=homeParticles.get(pawn.seal);
+   const cell=cellsByKey.get(openingCellKeyForSeal(pawn.seal));
+   if(!particle||!cell)continue;
+   particle.returnTarget=rcScreenWorld(board,cell,rcVisualPawnHeight(board));
+   particle.arrivalReported=false;
   }
  }
  function updateHome(home:readonly RCPawn[]){
@@ -319,20 +339,21 @@ export function createRC3DWorld(board:RCBoard){
    }
   }
  }
- function stepHome(dt:number){
-  if(!homeWorld||!homeParticles.size||dt<=0)return;
+ function stepHome(dt:number,allowArrivals=true):number[]{
+  if(!homeWorld||!homeParticles.size||dt<=0)return [];
   homeAccumulator=Math.min(.06,homeAccumulator+dt);
   let ticks=0;
   while(homeAccumulator>=fixedStep&&ticks++<8){
    for(const p of homeParticles.values()){
     const body=p.body;if(!body)continue;
     body.resetForces(true);
-    const target=rcScreenWorld(board,board.homes[rcParity(p.pawn.seal)],
-     rcVisualPawnHeight(board));
+    const target=p.returnTarget??rcScreenWorld(
+     board,board.homes[rcParity(p.pawn.seal)],rcVisualPawnHeight(board));
     const loc=body.translation(),velocity=body.linvel();
     // Mass-spring attractor plus genuine Rapier 3D rigid-body collisions.
     // Moderate damping allows wobble and piling without script-based slots.
-    const omega=3.4,zeta=.66,m=body.mass();
+    const omega=p.returnTarget?3.4:3.4;
+    const zeta=p.returnTarget?.82:.66,m=body.mass();
     const fx=m*(omega*omega*(target.x-loc.x)-2*zeta*omega*velocity.x);
     const fy=m*(omega*omega*(target.y-loc.y)-2*zeta*omega*velocity.y);
     const fz=m*(omega*omega*(target.z-loc.z)-2*zeta*omega*velocity.z);
@@ -344,11 +365,21 @@ export function createRC3DWorld(board:RCBoard){
    homeWorld.step();
    homeAccumulator-=fixedStep;
   }
-  for(const p of homeParticles.values()){
+  const arrived:number[]=[];
+  for(const [seal,p] of homeParticles){
    if(!p.body)continue;
    p.model.root.position.copy(p.body.translation());
    p.model.root.quaternion.copy(p.body.rotation());
+   if(!allowArrivals||!p.returnTarget||p.arrivalReported)continue;
+   const loc=p.body.translation(),v=p.body.linvel();
+   if(Math.hypot(loc.x-p.returnTarget.x,loc.y-p.returnTarget.y,
+     loc.z-p.returnTarget.z)<Math.max(1.5,homeRadius*.58)&&
+    Math.hypot(v.x,v.y,v.z)<Math.max(50,homeRadius*5)){
+    p.arrivalReported=true;
+    arrived.push(seal);
+   }
   }
+  return arrived;
  }
  function homeStats(){
   return {count:homeParticles.size,
@@ -523,6 +554,7 @@ export function createRC3DWorld(board:RCBoard){
  }
  return {scene,camera,cellsByKey,raycastCell,raycastBoardPlane,
   setPawns,moveActor,actorOrientation,physicalPose,dragPreview,
-  initHomePhysics,stepHome,transferToHome,transferParityToHome,homeStats,homeSnapshot,
+  initHomePhysics,stepHome,transferToHome,transferParityToHome,
+   startHomeReturns,homeStats,homeSnapshot,
   hover,rotateModels,dispose};
 }
