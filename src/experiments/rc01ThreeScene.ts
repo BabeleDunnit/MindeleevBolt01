@@ -430,8 +430,30 @@ export function createRC3DWorld(board:RCBoard){
   for(const actor of actors.values())disposeActor(actor);
   actors.clear();
  }
+ /**
+  * At the end of a Home return, hand over the SAME mesh and quaternion
+  * to the board. The last few pixels are settled onto the exact tile,
+  * without creating a second model or resetting its rotation.
+  */
+ function finishHomeReturnModels(pawns:readonly RCPawn[]){
+  for(const pawn of pawns){
+   const p=homeParticles.get(pawn.seal);
+   if(!p?.arrivalReported||!p.returnTarget)continue;
+   if(homeWorld&&p.body)homeWorld.removeRigidBody(p.body);
+   homeParticles.delete(pawn.seal);pendingHome.delete(pawn.seal);
+   const shadow=new THREE.Mesh(shadowGeometry,shadowMaterial);
+   const label=makeTextSprite("#"+pawn.number);
+   label.scale.set(Math.max(9,board.size*.75),
+    Math.max(5,board.size*.375),1);
+   label.position.set(0,-board.size*.72,4.5);
+   p.model.root.add(label);
+   scene.add(p.model.root,shadow);
+   actors.set(pawn.seal,{...p.model,pawn,shadow,label});
+  }
+ }
  function setPawns(pawns:readonly RCPawn[],home:readonly RCPawn[]=[]){
   if(home.length===0&&pawns.length===72)pendingHome.clear();
+  finishHomeReturnModels(pawns);
   updateHome(home);
   const updated=new Map<number,RCWorldModel>();
   const idleZ=rcVisualPawnHeight(board);
