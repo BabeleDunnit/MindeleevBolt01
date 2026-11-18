@@ -75,14 +75,19 @@ export default function MindeleevRC01(){
     <span className="rc01-brand-mark">✳</span>
     <div><strong>MINDELEEV</strong><small>RELEASE CANDIDATE 01</small></div>
    </div>
-   <div className="rc01-score" aria-label={"Fusions: "+(game?.fusions??0)}>
-    <span>FUSIONS</span><strong>{game?.fusions??0}</strong>
+   <div className="rc01-header-actions">
+    <div className="rc01-score" aria-label={"Fusions: "+(game?.fusions??0)}>
+     <span>FUSIONS</span><strong>{game?.fusions??0}</strong>
+    </div>
+    <button type="button" className="rc01-reset" aria-label="Reset fixed Metatron opening"
+     disabled={physicsBusy} onClick={reset}>↻</button>
    </div>
   </header>
   <section className="rc01-board-stage" ref={stageRef}
    aria-label="3D Mutatron board">
    <RC01ThreeBoard board={board} game={game}
     onSelect={select} onCommitMove={commitMove}
+    onOpenHome={()=>setSheet({kind:"home"})}
     onBusyChange={onPhysicsBusy}/>
    <div className="rc01-fusion-notice" role="status">
     {game?.fusions?game.lastAction:
@@ -96,8 +101,6 @@ export default function MindeleevRC01(){
      aria-label={"Home reserve: "+(game?.home.length??0)+" Polytrons"}
      onClick={()=>setSheet({kind:"home"})}>HOME · {game?.home.length??0}</button>
    </div>
-   <button type="button" className="rc01-reset" aria-label="Reset fixed Metatron opening"
-    disabled={physicsBusy} onClick={reset}>↻</button>
   </section>
   {/* Announcement for assistive technologies, not a visible status strip. */}
   <p className="rc01-visually-hidden" role="status" aria-live="polite">
