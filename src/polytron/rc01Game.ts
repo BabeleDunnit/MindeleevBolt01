@@ -8,12 +8,13 @@ export const RC01_OPENING_COUNT=72;
 export const RC01_OPENING_RINGS=[1,2,4,5] as const;
 export const RC01_OPENING_NUMBER=1; // outer rings 4 and 5
 export const RC01_INNER_OPENING_NUMBERS=[2,3] as const;
-/** Inner rings 1 and 2 alternate 2,3 from index 0; outer rings stay #1. */
+/** Only ring 1 and ring 2 indices 0..5 alternate #2/#3; all others are #1. */
 export function rcOpeningNumber(ring:number,idxInRing:number):number{
  if(![1,2,4,5].includes(ring)||!Number.isInteger(idxInRing)||
     idxInRing<0||idxInRing>=6*ring)
   throw Error("Invalid initial ring/index");
- return ring<=2?RC01_INNER_OPENING_NUMBERS[idxInRing%2]:RC01_OPENING_NUMBER;
+ return ring<=2&&idxInRing<6?
+  RC01_INNER_OPENING_NUMBERS[idxInRing%2]:RC01_OPENING_NUMBER;
 }
 export const RC01_OPENING_PALETTE={row:2,col:4} as const;
 export const RC01_START_SCORE=100;
@@ -59,9 +60,10 @@ export function rcHomeRegression(n:number):number{
  * Seals 1..6 -> ring 1; 7..18 -> ring 2;
  * 19..42 -> ring 4; 43..72 -> ring 5.
  * Both the Nucleus and ring 3 are empty, with exactly 19 free cells.
- * Ring 1 (Seals 1..6) and ring 2 (Seals 7..18) alternate
- * Polytronic Numbers #2 and #3 from index 0, clockwise.
- * The 54 Seals on rings 4 and 5 remain #1 tetrahedra.
+ * Ring 1 (Seals 1..6) and the first half of ring 2 (Seals 7..12)
+ * alternate Polytronic Numbers #2 and #3 from index 0, clockwise.
+ * Ring 2's remaining six positions (Seals 13..18), plus all 54 Seals
+ * on rings 4 and 5, remain #1 tetrahedra.
  * All 72 retain the SAME Chromatica gradient and distinct permanent IDs.
  */
 export function initialRCGame(board:RCBoard,_rng:()=>number=Math.random):RCGame{
@@ -82,7 +84,7 @@ export function initialRCGame(board:RCBoard,_rng:()=>number=Math.random):RCGame{
  });
  return {pawns,home:[],score:RC01_START_SCORE,moves:0,fusions:0,
   homeTestPhase:{odd:"board",even:"board"},
-  lastAction:"Metatron opening: rings 1 & 2 alternate #2/#3; rings 4 & 5 are #1, Nucleus and ring 3 empty."};
+  lastAction:"Metatron opening: ring 1 and ring 2 indices 0–5 alternate #2/#3; all other occupied cells #1."};
 }
 
 /** Diagnostic fixture, never used for the production opening. */
