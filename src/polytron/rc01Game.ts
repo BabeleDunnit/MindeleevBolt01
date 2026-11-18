@@ -23,6 +23,7 @@ export type RCPawn={
 export type RCGame={
  pawns:RCPawn[];home:RCPawn[];score:number;moves:number;
  fusions:number;lastAction:string;
+ homeTestPhase:{odd:"board"|"home";even:"board"|"home"};
 };
 export const pawnDNA=(p:RCPawn)=>dnaFromPolitronNumber(p.number);
 export const pawnPalette=(p:RCPawn)=>gradientPair(p.row,p.col);
@@ -67,6 +68,7 @@ export function initialRCGame(board:RCBoard,_rng:()=>number=Math.random):RCGame{
   manifestations:[RC01_OPENING_NUMBER]
  }));
  return {pawns,home:[],score:RC01_START_SCORE,moves:0,fusions:0,
+  homeTestPhase:{odd:"board",even:"board"},
   lastAction:"Metatron opening: 72 tetrahedral Polytrons, third ring and Nucleus empty."};
 }
 
@@ -78,10 +80,33 @@ export function rc01CenterDiagnostic(board:RCBoard):RCGame{
   pawns:[{seal:1,number:1,row:2,col:4,cellKey:"0,0",
    manifestations:[1]}],
   home:[],score:RC01_START_SCORE,moves:0,fusions:0,
+  homeTestPhase:{odd:"board",even:"board"},
   lastAction:"Centering diagnostic: a single Polytron #1 at the nucleus (0,0)."
  };
 }
 
+/**
+ * Canonical opening cell of a permanent Seal, independent of its
+ * current manifestation, ownership and current board position.
+ */
+export function openingCellKeyForSeal(seal:number):string{
+ if(!Number.isInteger(seal)||seal<1||seal>RC01_SEAL_COUNT)
+  throw Error("Invalid permanent Seal ID");
+ const ring=seal<=6?1:seal<=18?2:seal<=42?4:5;
+ const start=ring===1?1:ring===2?7:ring===4?19:43;
+ const {q,r}=rcRingCells(ring)[seal-start];
+ return rcKey(q,r);
+}
+/** One fusion rule shared by drag captures and Home return captures. */
+function inheritManifestation(attacker:RCPawn,captured:RCPawn,target:string){
+ const regressed=rcHomeRegression(captured.number);
+ return {
+  attacker:{...attacker,cellKey:target,number:captured.number,
+   manifestations:appendManifestation(attacker.manifestations,captured.number)},
+  defender:{...captured,cellKey:"",number:regressed,
+   manifestations:appendManifestation(captured.manifestations,regressed)}
+ };
+}
 export type RCMoveResult={game:RCGame;captured:RCPawn|null;attacker:RCPawn};
 
 /**
@@ -94,19 +119,12 @@ export function moveRCPawn(game:RCGame,source:string,target:string,board:RCBoard
  const attacker=pawnAt(game,source);if(!attacker)return null;
  const captured=pawnAt(game,target)??null;
  if(captured?.seal===attacker.seal)return null;
- const inherited=captured?.number;
+ const fused=captured?inheritManifestation(attacker,captured,target):null;
  const pawns=game.pawns.filter(p=>p.seal!==captured?.seal)
-  .map(p=>p.seal===attacker.seal?{
-   ...p,cellKey:target,
-   number:inherited??p.number,
-   manifestations:inherited===undefined?p.manifestations:
-    appendManifestation(p.manifestations,inherited)
-  }:p);
- const regressed=captured?rcHomeRegression(captured.number):null;
- const home=captured&&regressed!==null?[...game.home,{
-  ...captured,cellKey:"",number:regressed,
-  manifestations:appendManifestation(captured.manifestations,regressed)
- }]:game.home;
+  .map(p=>p.seal===attacker.seal?
+   fused?.attacker??{...p,cellKey:target}:p);
+ const regressed=fused?.defender.number??null;
+ const home=fused?[...game.home,fused.defender]:game.home;
  const updated:RCGame={...game,pawns,home,
   moves:game.moves+1,fusions:game.fusions+(captured?1:0),
   lastAction:captured?
@@ -142,13 +160,69 @@ export function recallRCParity(game:RCGame,parity:RCHomeParity,board:RCBoard):RC
  return updated;
 }
 
+export type RCHomeToggleResult={
+ game:RCGame;action:"recall"|"return";pawns:RCPawn[]
+};
+/**
+ * Alternate on each double tap. In the return phase the game only records
+ * the intent; each arrival is committed independently by returnRCPawnHome.
+ */
+export function toggleRCParityHome(
+ game:RCGame,parity:RCHomeParity,board:RCBoard
+):RCHomeToggleResult{
+ const returning=game.homeTestPhase[parity]==="home";
+ const pawns=(returning?game.home:game.pawns)
+  .filter(p=>rcParity(p.seal)===parity).sort((a,b)=>a.seal-b.seal);
+ const next=returning?game:recallRCParity(game,parity,board);
+ const updated:RCGame={
+  ...next,homeTestPhase:{...game.homeTestPhase,[parity]:returning?"board":"home"},
+  lastAction:returning?
+   "HOME TEST · "+pawns.length+" "+parity+" Polytrons returning to their opening cells.":
+   next.lastAction
+ };
+ if(!validateRCGame(updated,board))throw Error("Invalid Home toggle");
+ return {game:updated,action:returning?"return":"recall",pawns};
+}
+export type RCHomeArrivalResult={
+ game:RCGame;attacker:RCPawn;captured:RCPawn|null;target:string
+};
+/** Resolve each animated return against the LIVE board on arrival. */
+export function returnRCPawnHome(
+ game:RCGame,seal:number,board:RCBoard
+):RCHomeArrivalResult|null{
+ const incoming=game.home.find(p=>p.seal===seal);
+ if(!incoming)return null;
+ const target=openingCellKeyForSeal(seal);
+ if(!board.cells.some(c=>c.key===target))return null;
+ const captured=pawnAt(game,target)??null;
+ const fused=captured?inheritManifestation(incoming,captured,target):null;
+ const attacker=fused?.attacker??{...incoming,cellKey:target};
+ const updated:RCGame={
+  ...game,
+  pawns:[...game.pawns.filter(p=>p.seal!==captured?.seal),attacker],
+  home:[...game.home.filter(p=>p.seal!==incoming.seal),
+   ...(fused?[fused.defender]:[])],
+  moves:game.moves+1,fusions:game.fusions+(captured?1:0),
+  lastAction:captured?
+   "HOME FUSION · "+pawnName(incoming)+" inherits #"+captured.number+
+   " from "+pawnName(captured)+". "+pawnName(captured)+
+   " returns Home as #"+fused?.defender.number+".":
+   "HOME RETURN · "+pawnName(incoming)+" returns to "+target+"."
+ };
+ if(!validateRCGame(updated,board))throw Error("Invalid Home arrival");
+ return {game:updated,attacker,captured,target};
+}
+
 export function validateRCGame(game:RCGame,board:RCBoard):boolean{
  const cells=new Set(board.cells.map(c=>c.key));
  const occupied=new Set<string>(),seals=new Set<number>();
  if(!Array.isArray(game.pawns)||!Array.isArray(game.home)||
     !Number.isInteger(game.moves)||game.moves<0||
     !Number.isInteger(game.fusions)||game.fusions<0||
-    game.fusions>game.moves)return false;
+    game.fusions>game.moves||
+    !game.homeTestPhase||
+    !["board","home"].includes(game.homeTestPhase.odd)||
+    !["board","home"].includes(game.homeTestPhase.even))return false;
  for(const [location,list] of [["board",game.pawns],["home",game.home]] as const){
   for(const p of list){
    if(seals.has(p.seal)||p.seal<1||p.seal>RC01_SEAL_COUNT||
