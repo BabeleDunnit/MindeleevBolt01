@@ -220,6 +220,13 @@ try{
   regressed:stolen.game.home[0].number
  }));
  // HOME STRESS TEST: 36 odd + 36 even with full-size Rapier bodies.
+ // Node CI has no HTML Canvas. This is a headless scene test, not a
+ // screenshot test; text textures are placeholders while genuine Three.js
+ // meshes, Rapier colliders and all dynamics remain unchanged.
+ const savedDocument=globalThis.document;
+ globalThis.document={createElement:tag=>tag==="canvas"?{
+  width:128,height:64,getContext:()=>null
+ }:{}};
  const homeScene=worldModule.createRC3DWorld(board);
  try{
   homeScene.setPawns(sceneGame.pawns,[]);
@@ -267,7 +274,11 @@ try{
    initialDistance:+start.toFixed(2),finalDistance:+finish.toFixed(2),
    resetClean:true
   }));
- }finally{homeScene.dispose();}
+ }finally{
+  homeScene.dispose();
+  if(savedDocument===undefined)delete globalThis.document;
+  else globalThis.document=savedDocument;
+ }
  // Realistic crowded opening: all 72 Conway bodies must participate
  // in the SAME Rapier simulation. Verify one adjacent first-ring fusion
  // and the offscreen return of its victim without losing other identities.
