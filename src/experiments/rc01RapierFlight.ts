@@ -22,7 +22,7 @@
  */
 import * as RAPIER from "@dimforge/rapier3d-compat";
 import {polytronGeometry} from "@/polytron/polytron";
-import {pawnDNA,pawnPalette,type RCPawn} from "@/polytron/rc01Game";
+import {pawnDNA,pawnPalette,rcParity,type RCPawn} from "@/polytron/rc01Game";
 import type {RCBoard,RCCell} from "@/polytron/rc01Board";
 import {rcScreenWorld,rcVisualPawnRadius,rcVisualPawnHeight,RC_TILE_SURFACE_Z}
  from "@/experiments/rc01ThreeScene";
@@ -120,8 +120,8 @@ export class RC01RapierFlight{
  private seconds=0;
  private hits=0;
  private collided=false;
- private captureAt=0;
- private exitRecovery=false;
+
+ private captureDetached=false;
  private ended=false;
  private succeeded=false;
  private restSeconds=0;
@@ -143,17 +143,11 @@ export class RC01RapierFlight{
   this.travel=d;
   this.omega=rcAttractorOmega(d);
   this.away={x:dx/d,y:dy/d};
-  const distances:number[]=[];
-  if(Math.abs(this.away.x)>1e-5)
-   distances.push(((this.away.x>0?this.board.width/2:-this.board.width/2)-
-    this.target.x)/this.away.x);
-  if(Math.abs(this.away.y)>1e-5)
-   distances.push(((this.away.y>0?this.board.height/2:-this.board.height/2)-
-    this.target.y)/this.away.y);
-  const edge=Math.max(radius,Math.min(...distances.filter(x=>x>0)));
-  const exitDistance=edge+radius*2.8;
-  this.exitTarget=vec(this.target.x+this.away.x*exitDistance,
-   this.target.y+this.away.y*exitDistance,this.target.z);
+  // Direct destination is the correct parity Home, never an off-screen
+  // waypoint. The board transfers the body on the first Rapier impact.
+  const destination=rcScreenWorld(args.board,
+   args.board.homes[rcParity(args.victim?.seal??args.attacker.seal)],z);
+  this.exitTarget=vec(destination.x,destination.y,destination.z);
  }
  static async create(args:RCPhysicsStart):Promise<RC01RapierFlight>{
   await RAPIER.init();
@@ -208,6 +202,14 @@ export class RC01RapierFlight{
  get hasCollided(){return this.collided;}
  get completed(){return this.ended;}
  get success(){return this.succeeded;}
+ /** Transfer on the exact first collision event; the separate Home world
+  * owns the visual journey immediately, while board physics keeps settling. */
+ detachVictimToHome(){
+  if(!this.collided||!this.victim||this.captureDetached)return false;
+  this.captureDetached=true;
+  this.victim.body.setEnabled(false);
+  return true;
+ }
  private pose(actor:ActorBody):RCPhysicsPose{
   const t=actor.body.translation(),r=actor.body.rotation();
   return {seal:actor.seal,position:{...t},rotation:{...r},
@@ -264,38 +266,16 @@ export class RC01RapierFlight{
   */
  private applyCaptureImpulse(){
   if(!this.victim)return;
-  const body=this.victim.body,p=body.translation(),v=body.linvel();
-  const dir=this.away;
-  const distanceToEdges:number[]=[];
-  if(Math.abs(dir.x)>1e-5){
-   const edge=(dir.x>0?this.board.width/2:-this.board.width/2)-
-    this.target.x;
-   distanceToEdges.push(edge/dir.x);
-  }
-  if(Math.abs(dir.y)>1e-5){
-   const edge=(dir.y>0?this.board.height/2:-this.board.height/2)-
-    this.target.y;
-   distanceToEdges.push(edge/dir.y);
-  }
-  const toEdge=Math.max(this.radius,
-   Math.min(...distanceToEdges.filter(d=>d>0)));
-  // A ONE-TICK momentum transfer at the Rapier contact event. Enough
-  // initial velocity to exit while decelerating under linear damping:
-  // no accelerating destination spring after the initial hit.
-  const desiredSpeed=Math.min(320,
-   Math.max(145,.70*(toEdge+this.radius*2.4)));
+  const body=this.victim.body,loc=body.translation(),v=body.linvel();
+  const dx=this.exitTarget.x-loc.x,dy=this.exitTarget.y-loc.y;
+  const d=Math.max(1,Math.hypot(dx,dy)),dir={x:dx/d,y:dy/d};
+  const desiredSpeed=Math.min(300,Math.max(115,d*.45));
   const outwardSpeed=v.x*dir.x+v.y*dir.y;
-  // The extra momentum belongs to the fictional recall, but is applied
-  // through Rapier as a physical impulse and subsequently dissipated.
-  const extraSpeed=Math.max(0,desiredSpeed-outwardSpeed);
-  body.applyImpulse(vec(
-   dir.x*extraSpeed*body.mass(),
-   dir.y*extraSpeed*body.mass(),
-   body.mass()*4
-  ),true);
+  const extra=Math.max(0,desiredSpeed-outwardSpeed);
+  // Immediate physical momentum, now pointing to the actual Home.
+  body.applyImpulse(vec(dir.x*extra*body.mass(),
+   dir.y*extra*body.mass(),body.mass()*4),true);
   body.setLinearDamping(RC_HOME_LINEAR_DAMPING);
-  body.setAngularDamping(1.15);
-  // The recall is an in-world impulse, not a render-only rotation tween.
   body.applyTorqueImpulse(vec(12,-7,11),true);
  }
  private applyUncapturedVictimField(){
@@ -312,37 +292,15 @@ export class RC01RapierFlight{
   ),true);
  }
  private applyCaptureAttractor(){
-  if(!this.collided||!this.victim)return;
-  const body=this.victim.body,p=body.translation(),v=body.linvel(),m=body.mass();
-  const outwardSpeed=v.x*this.away.x+v.y*this.away.y;
-  const offscreen=Math.abs(p.x)>this.board.width/2+this.radius*1.2||
-   Math.abs(p.y)>this.board.height/2+this.radius*1.2;
-  const sinceImpact=this.seconds-this.captureAt;
-  // A normal capture is impulse then passive Rapier drag: never accelerate
-  // it along the exit direction after the initial collision.
-  // Only a genuinely stalled pawn is recovered from a blocked chain impact.
-  if(!this.exitRecovery&&sinceImpact>RC_EXIT_RECOVERY_DELAY&&
-   outwardSpeed<RC_EXIT_STALL_SPEED&&!offscreen){
-   this.exitRecovery=true;
-  }
-  let fx=0,fy=0;
-  if(this.exitRecovery&&!offscreen){
-   const omega=2.15,zeta=.86,rate=omega*omega,drag=2*zeta*omega;
-   const ax=rate*(this.exitTarget.x-p.x)-drag*v.x;
-   const ay=rate*(this.exitTarget.y-p.y)-drag*v.y;
-   const magnitude=Math.hypot(ax,ay);
-   const maxAcceleration=this.seconds>=RECOVERY_SECONDS?
-    RC_EXIT_RECOVERY_ACCELERATION*1.5:RC_EXIT_RECOVERY_ACCELERATION;
-   const ramp=Math.min(1,Math.max(0,
-    (sinceImpact-RC_EXIT_RECOVERY_DELAY)/.45));
-   const scale=magnitude>0?
-    Math.min(1,maxAcceleration/magnitude)*ramp:0;
-   fx=m*ax*scale;fy=m*ay*scale;
-  }
-  // Keep 3D impact response, while stabilizing height above the tiles.
-  const verticalOmega=3.8,verticalDrag=2*.92*verticalOmega;
-  body.addForce(vec(fx,fy,
-   m*(verticalOmega*verticalOmega*(this.exitTarget.z-p.z)-verticalDrag*v.z)
+  if(!this.collided||!this.victim||this.captureDetached)return;
+  // For standalone physical simulations (no GUI hand-off), the victim
+  // also heads directly to Home. Never use an offscreen-exit condition.
+  const body=this.victim.body,loc=body.translation(),v=body.linvel();
+  const mass=body.mass(),omega=2.6,zeta=.74,k=omega*omega,c=2*zeta*omega;
+  body.addForce(vec(
+   mass*(k*(this.exitTarget.x-loc.x)-c*v.x),
+   mass*(k*(this.exitTarget.y-loc.y)-c*v.y),
+   mass*(k*(this.exitTarget.z-loc.z)-c*v.z)
   ),true);
  }
  step():RCPhysicsFrame{
@@ -376,7 +334,6 @@ export class RC01RapierFlight{
    const ah=this.attacker.collider.handle,vh=this.victim.collider.handle;
    if((a===ah&&b===vh)||(a===vh&&b===ah)){
     this.collided=true;
-    this.captureAt=this.seconds;
     this.applyCaptureImpulse();
    }
   });
@@ -394,14 +351,9 @@ export class RC01RapierFlight{
   this.restSeconds=nearEnough?this.restSeconds+RC_RAPIER_FIXED_STEP:0;
   const rested=this.restSeconds>=REST_WINDOW;
   if(this.victim){
-   const vpos=this.victim.body.translation();
-   // The invisible "home" is beyond the visible camera bounds, not just
-   // three pawn radii away from the collision. Never cut the victim off
-   // while it is still plainly visible on the Mutatron.
-   const beyondX=Math.abs(vpos.x)>this.board.width/2+this.radius*1.2;
-   const beyondY=Math.abs(vpos.y)>this.board.height/2+this.radius*1.2;
-   const offscreen=beyondX||beyondY;
-   if(this.collided&&elapsed>=MIN_CAPTURE_TIME&&offscreen&&rested&&
+   // Home is an independent, non-blocking physics process. Unlock the
+   // Mutatron when its attacker and displaced bystanders have settled.
+   if(this.collided&&elapsed>=MIN_CAPTURE_TIME&&rested&&
     this.bystandersRested()){
     this.ended=true;this.succeeded=true;
    }
