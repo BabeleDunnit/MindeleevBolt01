@@ -50,14 +50,26 @@ try{
   assert.equal(outer.length,30);
   for(const parity of ["odd","even"]){
    const home=layout.homes[parity];
-   assert(home.x-layout.homeRadius>=2-1e-6&&
-    home.x+layout.homeRadius<=width-2+1e-6,
-    "Both Home hexagons must fit horizontally");
-   assert(home.y-Math.sqrt(3)*layout.homeRadius/2>
-    Math.max(...outer.map(c=>c.y+halfH)),
-    "Both Home hexagons must be below the outer ring");
-   assert(home.y+Math.sqrt(3)*layout.homeRadius/2<=height,
-    "Neither Home hexagon may be cropped below");
+   const pointyHalfWidth=Math.sqrt(3)*layout.homeRadius/2;
+   assert(home.x-pointyHalfWidth>=2-1e-6&&
+    home.x+pointyHalfWidth<=width-2+1e-6,
+    "The rotated, point-up Home hexagons must fit horizontally");
+   assert(home.y-layout.homeRadius>=0&&
+    home.y+layout.homeRadius<=height+1e-6,
+    "Both rotated Homes must be completely inside the viewport");
+   const center=layout.cells.find(c=>c.nucleus);
+   assert(center);
+   const wall=5*Math.sqrt(3)+2/Math.sqrt(3);
+   const slopingClearance=(home.y-center.y+
+    Math.abs(home.x-center.x)/Math.sqrt(3)-layout.homeRadius-
+    wall*layout.size)*Math.sqrt(3)/2;
+   assert(Math.abs(slopingClearance-
+    Math.sqrt(3)*layout.size*grid.RC_HOME_GAP_ROWS)<1e-6,
+    "Each Home must have exactly one cell-row clearance from the ring-5 wall");
+   assert(grid.rcHomeContains(layout,parity,home));
+   assert(!grid.rcHomeContains(layout,parity,{
+    x:home.x,y:home.y+layout.homeRadius+1
+   }));
   }
   assert(layout.homes.odd.x<width/2&&layout.homes.even.x>width/2);
   assert(Math.abs(layout.homes.odd.y-layout.homes.even.y)<1e-6);
@@ -154,6 +166,7 @@ try{
   const coords=grid.rcRingCells(ring);
   for(let i=0;i<pawns.length;i++){
    assert.equal(pawns[i].cellKey,grid.rcKey(coords[i].q,coords[i].r));
+   assert.equal(model.openingCellKeyForSeal(pawns[i].seal),pawns[i].cellKey);
    assert.equal(board.cells.find(c=>c.key===pawns[i].cellKey)?.ring,ring);
    assert.equal(board.cells.find(c=>c.key===pawns[i].cellKey)?.idxInRing,i);
   }
@@ -218,6 +231,75 @@ try{
   seed:"T",number:1,palette:model.RC01_OPENING_PALETTE,
   inherited:stolen.game.pawns.find(p=>p.seal===source.seal)?.number,
   regressed:stolen.game.home[0].number
+ }));
+ // Each Home double-tap alternates between recall and return, even if
+ // one parity has already lost pieces to regular captures.
+ const firstOdd=model.toggleRCParityHome(sceneGame,"odd",board);
+ assert.equal(firstOdd.action,"recall");
+ assert.equal(firstOdd.pawns.length,36);
+ assert.equal(firstOdd.game.homeTestPhase.odd,"home");
+ assert.equal(firstOdd.game.home.length,36);
+ const secondOdd=model.toggleRCParityHome(firstOdd.game,"odd",board);
+ assert.equal(secondOdd.action,"return");
+ assert.equal(secondOdd.pawns.length,36);
+ assert.equal(secondOdd.game.homeTestPhase.odd,"board");
+ assert.equal(secondOdd.game.home.length,36,
+  "Return must not teleport pieces before they physically arrive");
+ let restored=secondOdd.game;
+ for(const pawn of secondOdd.pawns){
+  const arrival=model.returnRCPawnHome(restored,pawn.seal,board);
+  assert(arrival,"Every opening cell must exist");
+  restored=arrival.game;
+  assert(model.validateRCGame(restored,board));
+ }
+ assert.equal(restored.pawns.length,72);
+ assert.equal(restored.home.length,0);
+ assert.equal(restored.fusions,0);
+ assert.deepEqual(restored.pawns.slice().sort((a,b)=>a.seal-b.seal)
+  .map(p=>p.cellKey),sceneGame.pawns.map(p=>p.cellKey),
+  "Every permanent Seal must return to its own opening position");
+ assert.deepEqual(model.toggleRCParityHome(restored,"odd",board).action,"recall");
+
+ // An arriving Seal is the ATTACKER if its opening cell became occupied.
+ // Give the defender a distinct number so inherited DNA and regression
+ // can be verified through the same helper as a normal drag capture.
+ const occupiedOdd=firstOdd.game;
+ const occupiedKey=model.openingCellKeyForSeal(1);
+ const evenSeal=sceneGame.pawns.find(p=>p.seal===2);
+ const evenMoved=model.moveRCPawn(occupiedOdd,evenSeal.cellKey,occupiedKey,board);
+ assert(evenMoved);
+ const distinct={
+  ...evenMoved.game,
+  pawns:evenMoved.game.pawns.map(p=>p.seal===2?{
+   ...p,number:18,manifestations:[1,18]}:p)
+ };
+ assert(model.validateRCGame(distinct,board));
+ const pendingOdd=model.toggleRCParityHome(distinct,"odd",board);
+ assert.equal(pendingOdd.action,"return");
+ const capturedReturn=model.returnRCPawnHome(pendingOdd.game,1,board);
+ assert(capturedReturn&&capturedReturn.captured?.seal===2);
+ assert.equal(capturedReturn.game.fusions,1);
+ assert.equal(model.pawnAt(capturedReturn.game,occupiedKey)?.seal,1);
+ assert.equal(model.pawnAt(capturedReturn.game,occupiedKey)?.number,18);
+ assert.deepEqual(model.pawnAt(capturedReturn.game,occupiedKey)?.manifestations,[1,18]);
+ const defenderHome=capturedReturn.game.home.find(p=>p.seal===2);
+ assert.equal(defenderHome?.number,12);
+ assert.deepEqual(defenderHome?.manifestations,[1,18,12]);
+ assert(model.validateRCGame(capturedReturn.game,board));
+ let resolvedAll=capturedReturn.game;
+ for(const pawn of pendingOdd.pawns.filter(p=>p.seal!==1)){
+  const result=model.returnRCPawnHome(resolvedAll,pawn.seal,board);
+  assert(result);
+  resolvedAll=result.game;
+ }
+ assert.equal(resolvedAll.pawns.length,71);
+ assert.equal(resolvedAll.home.length,1);
+ assert.equal(resolvedAll.fusions,1);
+ assert.equal(resolvedAll.home[0].seal,2);
+ assert(model.validateRCGame(resolvedAll,board));
+ console.log("RC01 HOME TOGGLE",JSON.stringify({
+  recalled:36,returned:36,interruptedCapture:true,
+  inherited:18,regressed:12,remainingAtHome:resolvedAll.home.length
  }));
  // HOME STRESS TEST: 36 odd + 36 even with full-size Rapier bodies.
  // Node CI has no HTML Canvas. This is a headless scene test, not a
