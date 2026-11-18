@@ -8,7 +8,7 @@ import type {RCBoard,RCCell,RCPoint} from "@/polytron/rc01Board";
 // entirely above the 3D hex tiles (including the bevel).
 export const RC_TILE_SURFACE_Z=3.25;
 export const rcVisualPawnRadius=(board:RCBoard)=>
- Math.max(23,Math.min(31,board.width/14.4))*.88;
+ Math.max(4,board.size*.59);
 export const rcVisualPawnHeight=(board:RCBoard)=>
  rcVisualPawnRadius(board)+RC_TILE_SURFACE_Z+1.5;
 
@@ -70,7 +70,7 @@ function makeTextSprite(text:string):THREE.Sprite{
 function makeHexGeometry(radius:number){
  const shape=new THREE.Shape();
  for(let i=0;i<6;i++){
-  const theta=(i*60-90)*Math.PI/180;
+  const theta=i*Math.PI/3;
   const x=Math.cos(theta)*radius,y=Math.sin(theta)*radius;
   if(!i)shape.moveTo(x,y);else shape.lineTo(x,y);
  }
@@ -81,7 +81,7 @@ function makeHexGeometry(radius:number){
  });
  const positions:number[]=[];
  for(let i=0;i<6;i++){
-  const a=(i*60-90)*Math.PI/180;
+  const a=i*Math.PI/3;
   positions.push(Math.cos(a)*radius,Math.sin(a)*radius,0);
  }
  const line=new THREE.BufferGeometry();
@@ -189,6 +189,84 @@ export function createRC3DWorld(board:RCBoard){
  const shadowMaterial=new THREE.MeshBasicMaterial({
   color:0x254e41,transparent:true,opacity:.10,depthWrite:false
  });
+ // Shared Home hexagon, inside the same WebGL scene.
+ const basinShape=makeHexGeometry(board.homeRadius);
+ const basinMaterial=new THREE.MeshBasicMaterial({
+  color:0xb6dfc9,transparent:true,opacity:.52,side:THREE.DoubleSide
+ });
+ const basinEdgeMaterial=new THREE.LineBasicMaterial({
+  color:0x3e896d,transparent:true,opacity:.88
+ });
+ const basin=new THREE.Mesh(basinShape.tile,basinMaterial);
+ basin.position.copy(rcScreenWorld(board,board.homeCenter,0));
+ const basinBorder=new THREE.LineLoop(basinShape.line,basinEdgeMaterial);
+ basinBorder.position.copy(rcScreenWorld(board,board.homeCenter,4));
+ scene.add(basin,basinBorder);
+
+ // Home actors follow real integrated mass-spring-damper trajectories with
+ // pairwise short-range repulsion, not 72 predetermined parking slots.
+ type HomeParticle={
+  pawn:RCPawn;model:ReturnType<typeof makeRC3DPolytron>;
+  x:number;y:number;vx:number;vy:number
+ };
+ const homeParticles=new Map<number,HomeParticle>();
+ const expelled=new Map<number,RCPoint>();
+ const miniRadius=Math.max(2.8,board.size*.19);
+ function rememberExpulsion(seal:number,position:{x:number;y:number}){
+  expelled.set(seal,{x:position.x+board.width/2,
+   y:board.height/2-position.y});
+ }
+ function updateHome(home:readonly RCPawn[]){
+  const active=new Set(home.map(p=>p.seal));
+  for(const [seal,p] of homeParticles)if(!active.has(seal)){
+   scene.remove(p.model.root);p.model.dispose();
+   homeParticles.delete(seal);
+  }
+  for(const pawn of home){
+   const existing=homeParticles.get(pawn.seal);
+   if(existing&&existing.pawn.number===pawn.number)continue;
+   if(existing){scene.remove(existing.model.root);existing.model.dispose();}
+   const model=makeRC3DPolytron(pawn,miniRadius);
+   const start=expelled.get(pawn.seal)??{
+    x:board.homeCenter.x,y:board.homeCenter.y-board.homeRadius
+   };
+   expelled.delete(pawn.seal);
+   model.root.position.copy(rcScreenWorld(board,start,miniRadius+5));
+   scene.add(model.root);
+   homeParticles.set(pawn.seal,{
+    pawn,model,x:start.x,y:start.y,vx:0,vy:0
+   });
+  }
+ }
+ function stepHome(dt:number){
+  if(dt<=0||!homeParticles.size)return;
+  const particles=[...homeParticles.values()];
+  const forces=particles.map(p=>({
+   x:(board.homeCenter.x-p.x)*18-p.vx*7.3,
+   y:(board.homeCenter.y-p.y)*18-p.vy*7.3
+  }));
+  const separation=miniRadius*1.7;
+  for(let i=0;i<particles.length;i++)for(let j=i+1;j<particles.length;j++){
+   const a=particles[i],b=particles[j];
+   let dx=a.x-b.x,dy=a.y-b.y,d=Math.hypot(dx,dy);
+   if(d>=separation)continue;
+   if(d<.001){dx=.01;dy=.01;d=Math.hypot(dx,dy);}
+   const magnitude=Math.min(180,(separation-d)*38)/d;
+   const fx=dx*magnitude,fy=dy*magnitude;
+   forces[i].x+=fx;forces[i].y+=fy;
+   forces[j].x-=fx;forces[j].y-=fy;
+  }
+  const step=Math.min(.032,dt);
+  for(let i=0;i<particles.length;i++){
+   const p=particles[i],f=forces[i];
+   p.vx+=f.x*step;p.vy+=f.y*step;
+   p.x+=p.vx*step;p.y+=p.vy*step;
+   p.model.root.position.copy(rcScreenWorld(board,{x:p.x,y:p.y},miniRadius+5));
+   p.model.spin.rotation.y+=step*.5;
+   p.model.spin.rotation.x+=step*.24;
+  }
+ }
+
  let actors=new Map<number,RCWorldModel>();
  const selection=new THREE.Raycaster(),mouse=new THREE.Vector2();
  const pointerRay=(x:number,y:number)=>{
@@ -217,7 +295,8 @@ export function createRC3DWorld(board:RCBoard){
   for(const actor of actors.values())disposeActor(actor);
   actors.clear();
  }
- function setPawns(pawns:readonly RCPawn[]){
+ function setPawns(pawns:readonly RCPawn[],home:readonly RCPawn[]=[]){
+  updateHome(home);
   const updated=new Map<number,RCWorldModel>();
   const idleZ=rcVisualPawnHeight(board);
   for(const pawn of pawns){
@@ -245,7 +324,8 @@ export function createRC3DWorld(board:RCBoard){
    shadow.position.copy(rcScreenWorld(board,cell,RC_TILE_SURFACE_Z+.05));
    scene.add(shadow);
    const label=makeTextSprite("#"+pawn.number);
-   label.position.set(0,-board.size*.76,4.5);
+   label.scale.set(Math.max(9,board.size*.75),Math.max(5,board.size*.375),1);
+   label.position.set(0,-board.size*.72,4.5);
    actor.root.add(label);
    actor.root.position.copy(rcScreenWorld(board,cell,idleZ));
    scene.add(actor.root);
@@ -334,8 +414,15 @@ export function createRC3DWorld(board:RCBoard){
   dragMaterial.dispose();dragOutlineMaterial.dispose();
   ringGeometry.dispose();ringMaterial.dispose();
   shadowGeometry.dispose();shadowMaterial.dispose();
+  for(const particle of homeParticles.values()){
+   scene.remove(particle.model.root);particle.model.dispose();
+  }
+  homeParticles.clear();expelled.clear();
+  basinShape.tile.dispose();basinShape.line.dispose();
+  basinMaterial.dispose();basinEdgeMaterial.dispose();
  }
  return {scene,camera,cellsByKey,raycastCell,raycastBoardPlane,
   setPawns,moveActor,actorOrientation,physicalPose,dragPreview,
+  stepHome,rememberExpulsion,
   hover,rotateModels,dispose};
 }
