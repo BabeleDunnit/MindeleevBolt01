@@ -4,7 +4,10 @@ import {sealName} from "@/polytron/spectralFutures";
 import {rcKey,rcRingCells,type RCBoard} from "@/polytron/rc01Board";
 
 export const RC01_SEAL_COUNT=72;
-export const RC01_OPENING_COUNT=18;
+export const RC01_OPENING_COUNT=72;
+export const RC01_OPENING_RINGS=[1,2,4,5] as const;
+export const RC01_OPENING_NUMBER=1;
+export const RC01_OPENING_PALETTE={row:2,col:4} as const;
 export const RC01_START_SCORE=100;
 
 /**
@@ -27,54 +30,28 @@ export const pawnName=(p:RCPawn)=>sealName(p.seal);
 export const pawnAt=(game:RCGame,key:string)=>game.pawns.find(p=>p.cellKey===key);
 
 /**
- * Symmetric Metatron-inspired opening: three paired axes on the inner
- * hexagonal ring, six paired spokes on the outer ring. All five Platonic
- * manifestations (T,C,O,D,I => #1..#5) occur; opposite cells have
- * matching manifests. The Nucleus remains EMPTY.
- *
- * First 18 of the 72 permanent Seals participate, always in this order.
+ * Canonical full-cast opening, clockwise from due north:
+ * Seals 1..6 -> ring 1; 7..18 -> ring 2;
+ * 19..42 -> ring 4; 43..72 -> ring 5.
+ * Both the Nucleus and ring 3 are empty, with exactly 19 free cells.
+ * Every Seal starts as the SAME tetrahedron (Polytronic Number #1) with
+ * the SAME Chromatica gradient. Different permanent identities remain.
  */
-export const RC01_OPENING_NUMBERS={
- inner:[1,2,3,1,2,3],
- outer:[4,5,1,2,3,4,4,5,1,2,3,4]
-} as const;
-
-const appendManifestation=(history:readonly number[],n:number):number[]=>
- history.includes(n)?[...history]:[...history,n];
-
-/**
- * The captured Polytron loses its CURRENT manifestation.
- * Prefer a diagonal step to the previous period AND previous group (-6).
- * On the first period, fall back to the previous group (-1).
- * A group-1 Polytron cannot decrease its group: it returns to the #1 floor.
- * This also avoids a discontinuous wrap from group T to group I.
- */
-export function rcHomeRegression(n:number):number{
- if(!Number.isSafeInteger(n)||n<1)throw Error("Invalid Polytronic Number");
- const period=Math.floor((n-1)/5)+1;
- const group=((n-1)%5)+1;
- if(group===1)return 1;
- if(period>1)return n-6;
- return n-1;
-}
-
 export function initialRCGame(board:RCBoard,_rng:()=>number=Math.random):RCGame{
- const cells=new Map(board.cells.map(c=>[c.key,c]));
- const rings=[
-  ...rcRingCells(1).map((cell,i)=>({...cell,number:RC01_OPENING_NUMBERS.inner[i]})),
-  ...rcRingCells(2).map((cell,i)=>({...cell,number:RC01_OPENING_NUMBERS.outer[i]}))
- ];
- if(rings.length!==RC01_OPENING_COUNT||rings.some(c=>!cells.has(rcKey(c.q,c.r))))
-  throw Error("The full first two Mutatron rings must fit inside the board");
- const pawns=rings.map((c,i):RCPawn=>{
-  const seal=i+1;
-  // Stable Chromatica coordinates tied to the identity, not the shape.
-  return {seal,number:c.number,row:(seal*7+2)%12,
-   col:(seal*5+3)%12,cellKey:rcKey(c.q,c.r),
-   manifestations:[c.number]};
- });
+ const cells=new Set(board.cells.map(c=>c.key));
+ const positions=RC01_OPENING_RINGS.flatMap(ring=>
+  rcRingCells(ring).map(p=>({...p,ring})));
+ if(positions.length!==RC01_OPENING_COUNT||
+    positions.some(p=>!cells.has(rcKey(p.q,p.r))))
+  throw Error("The Mutatron must contain all five complete rings");
+ const pawns=positions.map((pos,i):RCPawn=>({
+  seal:i+1,number:RC01_OPENING_NUMBER,
+  row:RC01_OPENING_PALETTE.row,col:RC01_OPENING_PALETTE.col,
+  cellKey:rcKey(pos.q,pos.r),
+  manifestations:[RC01_OPENING_NUMBER]
+ }));
  return {pawns,home:[],score:RC01_START_SCORE,moves:0,fusions:0,
-  lastAction:"Metatron opening: 18 Polytrons on two rings. The Nucleus is empty."};
+  lastAction:"Metatron opening: 72 tetrahedral Polytrons, third ring and Nucleus empty."};
 }
 
 /** Diagnostic fixture, never used for the production opening. */
