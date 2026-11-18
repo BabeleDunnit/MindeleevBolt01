@@ -120,7 +120,7 @@ export default function RC01ThreeBoard({
    if(epochRef.current!==startedEpoch)return;
    launchingRef.current=false;
    busyRef.current?.(false);
-   world.setPawns(gameRef.current?.pawns??[]);
+   world.setPawns(gameRef.current?.pawns??[],gameRef.current?.home??[]);
    console.error("Rapier RC01 physics initialization failed",error);
   });
  };
@@ -147,10 +147,10 @@ export default function RC01ThreeBoard({
   if(!world||isBusy())return;
   const active=world.cellsByKey.get(focusKey.current)??world.cellsByKey.get("0,0");
   if(!active)return;
-  const dir=e.key==="ArrowRight"?[1,0]:
-   e.key==="ArrowLeft"?[-1,0]:
-   e.key==="ArrowUp"?[0,-1]:
-   e.key==="ArrowDown"?[0,1]:null;
+  const dir=e.key==="ArrowRight"?[0,1]:
+   e.key==="ArrowLeft"?[0,-1]:
+   e.key==="ArrowUp"?[1,0]:
+   e.key==="ArrowDown"?[-1,0]:null;
   if(dir){
    e.preventDefault();
    const key=(active.q+dir[0])+","+(active.r+dir[1]);
@@ -175,7 +175,7 @@ export default function RC01ThreeBoard({
   renderer.outputColorSpace=THREE.SRGBColorSpace;
   const world=createRC3DWorld(board);
   worldRef.current=world;
-  world.setPawns(gameRef.current?.pawns??[]);
+  world.setPawns(gameRef.current?.pawns??[],gameRef.current?.home??[]);
   const epoch=++epochRef.current;
   let alive=true,raf=0,last=performance.now(),accumulator=0;
   const frame=(now:number)=>{
@@ -198,6 +198,9 @@ export default function RC01ThreeBoard({
     for(const other of physical.bystanders)
      world.physicalPose(other.seal,other);
     if(physical.done){
+     // Start the Home attraction from the expelled rigid body's final pose.
+     if(physical.success&&physical.victim)
+      world.rememberExpulsion(physical.victim.seal,physical.victim.position);
      flightRef.current=null;
      flight.dispose();
      // Commit the destination BEFORE unlocking viewport measurements:
@@ -217,6 +220,7 @@ export default function RC01ThreeBoard({
     for(const seal of running.otherSeals)active.add(seal);
    }
    world.rotateModels(now,active);
+   world.stepHome(dt);
    renderer.render(world.scene,world.camera);
   };
   raf=requestAnimationFrame(frame);
@@ -231,10 +235,10 @@ export default function RC01ThreeBoard({
  },[board]);
  useEffect(()=>{
   // Game changes only after a completed, physically evaluated move.
-  if(!isBusy())worldRef.current?.setPawns(game?.pawns??[]);
+  if(!isBusy())worldRef.current?.setPawns(game?.pawns??[],game?.home??[]);
  },[game]);
  return <canvas ref={canvasRef} className="rc01-three-board"
-  role="img" aria-label="Scacchiera 3D esagonale con motore Rapier: trascina per muovere o effettuare una presa fisica."
+  role="img" aria-label="3D Mutatron: 72 Polytrons across five hexagonal rings. Drag to move or fuse; captures return Home."
   tabIndex={0} onPointerDown={onPointerDown} onPointerMove={onPointerMove}
   onPointerUp={onPointerUp} onPointerCancel={onPointerCancel}
   onLostPointerCapture={()=>{if(pressRef.current)cancelPointer();}}
