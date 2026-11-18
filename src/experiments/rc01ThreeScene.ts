@@ -356,6 +356,13 @@ export function createRC3DWorld(board:RCBoard){
    even:[...homeParticles.keys()].filter(seal=>seal%2===0).length,
    physical:[...homeParticles.values()].filter(p=>p.body!==null).length};
  }
+ function homeSnapshot(){
+  return [...homeParticles.entries()].map(([seal,p])=>({
+   seal,
+   position:{...p.model.root.position},
+   speed:p.body?Math.hypot(...Object.values(p.body.linvel())):0
+  }));
+ }
 
  let actors=new Map<number,RCWorldModel>();
  const selection=new THREE.Raycaster(),mouse=new THREE.Vector2();
@@ -516,6 +523,6 @@ export function createRC3DWorld(board:RCBoard){
  }
  return {scene,camera,cellsByKey,raycastCell,raycastBoardPlane,
   setPawns,moveActor,actorOrientation,physicalPose,dragPreview,
-  initHomePhysics,stepHome,transferToHome,transferParityToHome,homeStats,
+  initHomePhysics,stepHome,transferToHome,transferParityToHome,homeStats,homeSnapshot,
   hover,rotateModels,dispose};
 }
