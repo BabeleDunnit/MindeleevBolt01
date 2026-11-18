@@ -48,9 +48,19 @@ try{
   }
   const outer=layout.cells.filter(c=>c.ring===5);
   assert.equal(outer.length,30);
-  assert(layout.homeCenter.y-layout.homeRadius>
-   Math.max(...outer.map(c=>c.y+halfH)),
-   "Home must be lower than the last row of tiles");
+  for(const parity of ["odd","even"]){
+   const home=layout.homes[parity];
+   assert(home.x-layout.homeRadius>=2-1e-6&&
+    home.x+layout.homeRadius<=width-2+1e-6,
+    "Both Home hexagons must fit horizontally");
+   assert(home.y-Math.sqrt(3)*layout.homeRadius/2>
+    Math.max(...outer.map(c=>c.y+halfH)),
+    "Both Home hexagons must be below the outer ring");
+   assert(home.y+Math.sqrt(3)*layout.homeRadius/2<=height,
+    "Neither Home hexagon may be cropped below");
+  }
+  assert(layout.homes.odd.x<width/2&&layout.homes.even.x>width/2);
+  assert(Math.abs(layout.homes.odd.y-layout.homes.even.y)<1e-6);
   if(height>=560&&width<=430)
    assert((width-17*layout.size)/width<.12,
     "Five rings should maximize their mobile width");
