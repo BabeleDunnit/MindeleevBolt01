@@ -287,32 +287,24 @@ try{
   assert(topVictim>15,"Victim must receive nonzero physical momentum");
   assert(topRotation>.01,"Rapier must rotate the struck polyhedron");
   assert(departureSpeeds.length>=20,
-   "Collision must lead to a sustained physical exit, not a teleport");
-  // The first 200ms after an impact must not contain a second acceleration.
+   "Standalone victim continues a real trajectory");
   const opening=departureSpeeds.slice(0,Math.min(24,departureSpeeds.length));
-  const earlyPeak=Math.max(...opening),earlyPeakAt=opening.indexOf(earlyPeak);
-  assert(opening[0]>90,
-   "Target must receive an immediate, clearly visible impact impulse");
-  assert(earlyPeak<=opening[0]*1.08,
-   "Target must not accelerate significantly AFTER its first collision");
-  assert(opening.at(-1)<opening[0],
-   "The first departure frames should dissipate impact momentum");
-  console.log("RC01 IMPACT SPEED",JSON.stringify({
-   first:+opening[0].toFixed(2),peak:+earlyPeak.toFixed(2),
-   peakStep:earlyPeakAt,lastOpening:+opening.at(-1).toFixed(2),
-   firstSamples:opening.slice(0,8).map(v=>+v.toFixed(2))
+  assert(opening[0]>90,"Immediate impact impulse is still mandatory");
+  assert(opening.every(Number.isFinite)&&Math.max(...opening)<390,
+   "Homewards spring remains below Rapier velocity cap");
+  const home=worldModule.rcScreenWorld(board,board.homes.even);
+  const orig=worldModule.rcScreenWorld(board,to);
+  const initialHomeDistance=Math.hypot(orig.x-home.x,orig.y-home.y);
+  const finalHomeDistance=finished?.victim?Math.hypot(
+   finished.victim.position.x-home.x,finished.victim.position.y-home.y):Infinity;
+  console.log("RC01 DIRECT HOME",JSON.stringify({
+   firstSpeed:+opening[0].toFixed(2),
+   startDistance:+initialHomeDistance.toFixed(2),
+   endDistance:+finalHomeDistance.toFixed(2),
+   time:+(finished?.time??0).toFixed(3),contacts:collisionEvents
   }));
-  assert(departureSpeeds[0]>departureSpeeds.at(-1)*1.15,
-   "Victim must visibly decelerate under drag after the impact, not cruise at constant speed");
-  console.log("RC01 CAPTURE",JSON.stringify({
-   time:+(finished?.time??0).toFixed(3),contacts:collisionEvents,
-   attackerEndSpeed:+(finished?.attacker.speed??0).toFixed(3),
-   victimOffscreen:!!finished?.victim&&
-    (Math.abs(finished.victim.position.x)>board.width/2+
-      physics.rcRapierPawnRadius(board)||
-     Math.abs(finished.victim.position.y)>board.height/2+
-      physics.rcRapierPawnRadius(board))
-  }));
+  assert(finalHomeDistance<initialHomeDistance,
+   "The target must move towards its EVEN Home");
   assert(finished?.success,"Contact-driven physical capture must complete");
   assert(finished?.victim,"Capture keeps both bodies until the end of the dance");
   assert.equal(flight.from,from.key);
@@ -366,20 +358,17 @@ try{
   "The old timeout must not snap a valid move back to the source");
  assert(physicalSource.includes("RECOVERY_SECONDS"),
   "Long movements must settle by physically increasing damping");
- assert(physicalSource.includes("RC_EXIT_RECOVERY_DELAY")&&
-  physicalSource.includes("RC_EXIT_STALL_SPEED")&&
-  physicalSource.includes("this.captureAt=this.seconds"),
-  "Any later outward force must require a detected, delayed stall");
- assert(physicalSource.includes("this.exitRecovery&&!offscreen"),
-  "Normal capture should coast after the initial impact");
- assert(!physicalSource.includes("applyHomeField"),
-  "No continuous homeward push that yields constant exit velocity");
- assert(physicalSource.includes("applyCaptureImpulse()"),
-  "A single real collision-triggered impulse replaces homeward acceleration");
- assert(physicalSource.includes("body.setLinearDamping(RC_HOME_LINEAR_DAMPING)"),
-  "Victim must physically slow down after impact");
- assert(physicalSource.includes("offscreen&&rested"),
-  "Captured pawn must actually be beyond the viewport before removal");
+ assert(physicalSource.includes("detachVictimToHome()")&&
+  physicalSource.includes("this.victim.body.setEnabled(false)"),
+  "First Rapier impact detaches captured Polytron into the Home world");
+ assert(physicalSource.includes("args.board.homes[rcParity(")&&
+  physicalSource.includes("this.collided&&elapsed>=MIN_CAPTURE_TIME&&rested"),
+  "A capture targets its Home and does NOT wait for the screen boundary");
+ assert(!physicalSource.includes("offscreen&&rested"),
+  "No offscreen completion gates");
+ assert(physicalSource.includes("applyCaptureImpulse()")&&
+  physicalSource.includes("body.setLinearDamping(RC_HOME_LINEAR_DAMPING)"),
+  "One real physical impulse on impact");
  // Sample the Rapier trajectory, not an authored easing curve. Verify a
  // velocity peak followed by a strong, smooth falloff before completion.
  const extendedTo=board.cells.find(c=>c.key==="3,0");
@@ -579,7 +568,9 @@ try{
   "physical.bystanders","running.otherSeals",
   "setPointerCapture","onPointerCancel","onPointerUp",
   "RC01RapierFlight.create","flight.step()","world.physicalPose",
-  "world.rememberExpulsion","world.stepHome(dt)","onOpenHome",
+  "world.transferToHome(victim,physical.victim)",
+  "flight.detachVictimToHome()","world.stepHome(dt)",
+  "onOpenHome","onRecallParity","doubleTapRef.current",
   "RC_RAPIER_FIXED_STEP","rotateModels","onKeyDown"]){
   assert(boardCode.includes(phrase),"Missing native 3D board feature: "+phrase);
  }
@@ -593,8 +584,9 @@ try{
   "makeRC3DPolytron","polytronGeometry","pawnPalette(pawn)",
   "solid.position.copy(centre)","spin.rotation","scene.add(mesh)",
   "actorOrientation","physicalPose","spin.quaternion.identity()",
-  "const basin=new THREE.Mesh","homeParticles","rememberExpulsion",
-  "stepHome(dt:number)","const separation=miniRadius*1.7"]){
+  "homeShape=makeHexGeometry","homeParticles","initHomePhysics",
+  "RAPIER.World","RAPIER.ColliderDesc.ball","body.addForce",
+   "transferToHome","transferParityToHome","stepHome(dt:number)"]){
   assert(modelCode.includes(phrase),"Missing 3D architecture: "+phrase);
  }
  // RC01 inspector must use the very same canonical energy rule as the
@@ -607,7 +599,7 @@ try{
   '<dt>Permanent Identity</dt>',
   'import {intrinsicEnergy} from "@/polytron/mindeleevLife"',
   '<dt>Manifestations</dt>',
-  'game?.home.map(p=>',
+  'game?.home.filter(p=>!sheet.parity||rcParity(p.seal)===sheet.parity)',
   'Reset fixed Metatron opening'
  ])assert(tsx.includes(phrase),
   "Inspector name heading and canonical data rows required: "+phrase);
@@ -627,7 +619,7 @@ try{
  assert(app.includes('experiment") === "mindeleev-rc01"'));
  console.log("RC01 THREE",JSON.stringify({
   native3dHexes:board.cells.length,occupied:sceneGame.pawns.length,
-   homeCapacity:"one shared spring crowd",
+   homeCapacity:"two parity Rapier crowds, full-size",
   pawns:sceneGame.pawns.length,score:sceneGame.score,
   camera:"orthographic",picking:"raycasting",capture:"Rapier impact with inherited manifestation and Home regression"
  }));
