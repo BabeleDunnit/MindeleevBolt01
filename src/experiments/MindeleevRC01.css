@@ -67,6 +67,42 @@
  border:1px solid #d0ded5;background:#f7faf8e8;color:#427a5b;
  box-shadow:0 2px 8px #254c3620
 }
+/* Fusion results stay visible without obstructing the 3D board. */
+.rc01-fusion-notice{
+ position:absolute;top:12px;left:12px;right:12px;
+ background:#f9fcf3e8;border:1px solid #c0d9c6;color:#285b48;
+ backdrop-filter:blur(10px);border-radius:12px;
+ padding:10px 12px;line-height:1.35;
+ font-size:11px;font-weight:730;letter-spacing:.015em;
+ box-shadow:0 4px 16px #24483a18;pointer-events:none;
+}
+.rc01-board-footer{
+ position:absolute;bottom:max(15px,env(safe-area-inset-bottom));left:15px;
+ display:flex;align-items:center;gap:7px;
+ max-width:calc(100% - 85px);
+}
+.rc01-board-footer .rc01-scene-count{position:static;white-space:nowrap}
+.rc01-home-button{
+ border-radius:999px;padding:7px 11px;
+ background:#e4f1e9ed;border:1px solid #a9cbbb;color:#2f7155;
+ font-size:10px;font-weight:850;letter-spacing:.07em;
+ white-space:nowrap;backdrop-filter:blur(8px)
+}
+.rc01-home-indicator{
+ color:#388b68;background:#e8f3eb;border-radius:7px;
+ width:max-content;font-size:10px;font-weight:800;
+ letter-spacing:.11em;padding:5px 9px;margin:-5px 0 12px
+}
+.rc01-home-sheet{padding-top:20px}
+.rc01-home-sheet p{font-size:13px;line-height:1.5;color:#72867b}
+.rc01-home-entries{display:grid;gap:7px;margin-top:15px}
+.rc01-home-entries button{
+ display:flex;align-items:center;justify-content:space-between;gap:12px;
+ background:#eff6f0;border:1px solid #d5e5d8;border-radius:11px;
+ padding:12px 14px;text-align:left;color:#2d5643;font-size:14px
+}
+.rc01-home-entries button strong{font-size:18px;color:#257a55}
+.rc01-home-entries button small{color:#799188;font-size:11px}
 .rc01-visually-hidden{
  position:absolute!important;width:1px!important;height:1px!important;
  padding:0!important;margin:-1px!important;border:0!important;
