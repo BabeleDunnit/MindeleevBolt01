@@ -611,7 +611,8 @@ try{
  const app=await readFile("src/App.tsx","utf8");
  assert(app.includes('experiment") === "mindeleev-rc01"'));
  console.log("RC01 THREE",JSON.stringify({
-  initialHexes:countCells(precedingRadius),native3dHexes:board.cells.length,
+  native3dHexes:board.cells.length,occupied:sceneGame.pawns.length,
+   homeCapacity:"one shared spring crowd",
   pawns:sceneGame.pawns.length,score:sceneGame.score,
   camera:"orthographic",picking:"raycasting",capture:"Rapier impact with inherited manifestation and Home regression"
  }));
