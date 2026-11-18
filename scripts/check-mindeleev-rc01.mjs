@@ -149,7 +149,7 @@ try{
   Array.from({length:72},(_,i)=>i+1));
  assert.equal(new Set(sceneGame.pawns.map(p=>p.cellKey)).size,72);
  assert.deepEqual([...new Set(sceneGame.pawns.map(p=>p.number))].sort(),
-  [1,2,3],"The first two rings alternate #2/#3; outer rings #1");
+  [1,2,3],"Ring 1 and ring 2 indices 0..5 alternate #2/#3; all others #1");
  assert.deepEqual([...new Set(sceneGame.pawns.map(p=>p.row+','+p.col))],
   [model.RC01_OPENING_PALETTE.row+','+model.RC01_OPENING_PALETTE.col],
   "All 72 opening Polytrons retain the same Chromatica palette");
@@ -169,9 +169,9 @@ try{
    assert.equal(model.openingCellKeyForSeal(pawns[i].seal),pawns[i].cellKey);
    assert.equal(board.cells.find(c=>c.key===pawns[i].cellKey)?.ring,ring);
    assert.equal(board.cells.find(c=>c.key===pawns[i].cellKey)?.idxInRing,i);
-   const expected=ring<=2?(i%2===0?2:3):1;
+   const expected=ring<=2&&i<6?(i%2===0?2:3):1;
    assert.equal(pawns[i].number,expected,
-    "Each inner ring alternates #2/#3 from idx0; outer ring remains #1");
+    "Only (1,0..5) and (2,0..5) alternate #2/#3; all others #1");
    assert.equal(model.rcOpeningNumber(ring,i),expected);
    assert.deepEqual(pawns[i].manifestations,[expected]);
   }
@@ -179,7 +179,7 @@ try{
  assert.equal(board.cells.filter(c=>!sceneGame.pawns.some(p=>p.cellKey===c.key)).length,19);
  assert.deepEqual(sceneGame.pawns.reduce((acc,p)=>{
   acc[p.number]=(acc[p.number]??0)+1;return acc;
- },{}),{"1":54,"2":9,"3":9});
+ },{}),{"1":60,"2":6,"3":6});
  for(const pawn of sceneGame.pawns){
   assert.equal(model.pawnDNA(pawn),pawn.number===1?"T":pawn.number===2?"C":"O");
   assert(model.pawnPalette(pawn).name.length>=3);
@@ -236,7 +236,7 @@ try{
  console.log("RC01 FULL OPENING",JSON.stringify({
   onBoard:sceneGame.pawns.length,home:sceneGame.home.length,
   rings:[6,12,0,24,30],nucleus:"empty",
-  openingNumbers:{tetrahedron:54,cube:9,octahedron:9},
+  openingNumbers:{tetrahedron:60,cube:6,octahedron:6},
   ring1:ring1.map(p=>p.number),ring2:ring2.map(p=>p.number),
   palette:model.RC01_OPENING_PALETTE,
   inherited:stolen.game.pawns.find(p=>p.seal===source.seal)?.number,
@@ -331,8 +331,8 @@ try{
   assert.equal(oddGame.home.length,36);
   assert.equal(oddGame.fusions,0);
   assert(oddGame.home.every(p=>p.manifestations[0]===p.number));
-  assert.equal(oddGame.home.filter(p=>p.number===2).length,9);
-  assert.equal(oddGame.home.filter(p=>p.number===1).length,27);
+  assert.equal(oddGame.home.filter(p=>p.number===2).length,6);
+  assert.equal(oddGame.home.filter(p=>p.number===1).length,30);
   homeScene.transferParityToHome(odd);
   homeScene.setPawns(oddGame.pawns,oddGame.home);
   assert.deepEqual(homeScene.homeStats(),
@@ -746,7 +746,7 @@ try{
  const markup=renderToString(React.createElement(ui.default));
  assert(markup.includes("RELEASE CANDIDATE 01"));
  assert(markup.includes("FUSIONS"));
- assert(markup.includes("INNER RINGS #2 / #3")&&markup.includes("HOME"),
+ assert(markup.includes("RING 1 + RING 2 (0–5): #2/#3")&&markup.includes("HOME"),
   "The default UI must show the full 72-Seal opening and Home zone");
  assert(markup.includes("0"),"Fusion counter starts at zero");
  assert(markup.includes('class="rc01-three-board"'));
@@ -847,5 +847,5 @@ try{
   pawns:sceneGame.pawns.length,score:sceneGame.score,
   camera:"orthographic",picking:"raycasting",capture:"Rapier impact with inherited manifestation and Home regression"
  }));
- console.log("PASS RC01: 18 alternating inner #2/#3, 54 outer #1 tetrahedra, Home toggle, capture-on-return and Rapier collisions");
+ console.log("PASS RC01: six #2 and six #3 at (1,0..5)/(2,0..5), 60 remaining #1, Home toggle, capture-on-return and Rapier collisions");
 }finally{await rm(temporary,{recursive:true,force:true});}
