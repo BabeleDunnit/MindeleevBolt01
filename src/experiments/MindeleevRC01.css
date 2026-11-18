@@ -69,18 +69,21 @@
 }
 /* Fusion results stay visible without obstructing the 3D board. */
 .rc01-fusion-notice{
- position:absolute;top:12px;left:12px;right:12px;
+ position:absolute;top:5px;left:12px;right:12px;z-index:3;
  background:#f9fcf3e8;border:1px solid #c0d9c6;color:#285b48;
- backdrop-filter:blur(10px);border-radius:12px;
- padding:10px 12px;line-height:1.35;
- font-size:11px;font-weight:730;letter-spacing:.015em;
+ backdrop-filter:blur(10px);border-radius:9px;
+ padding:5px 10px;line-height:1.2;
+ font-size:10px;font-weight:730;letter-spacing:.015em;
+ white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
  box-shadow:0 4px 16px #24483a18;pointer-events:none;
 }
 .rc01-board-footer{
- position:absolute;bottom:max(15px,env(safe-area-inset-bottom));left:15px;
- display:flex;align-items:center;gap:7px;
- max-width:calc(100% - 85px);
+ position:absolute;bottom:max(12px,env(safe-area-inset-bottom));
+ left:12px;right:12px;z-index:4;
+ display:flex;align-items:center;justify-content:space-between;gap:7px;
+ pointer-events:none
 }
+.rc01-board-footer .rc01-home-button{pointer-events:auto}
 .rc01-board-footer .rc01-scene-count{position:static;white-space:nowrap}
 .rc01-home-button{
  border-radius:999px;padding:7px 11px;
