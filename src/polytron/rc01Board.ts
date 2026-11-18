@@ -13,6 +13,10 @@ export type RCBoard={
  homes:{odd:RCPoint;even:RCPoint};homeRadius:number;
 };
 export const RC_RING_COUNT=5;
+/** Point-up Home hexagons: 30° relative to the board's flat-top tiles. */
+export const RC_HOME_ROTATION=Math.PI/6;
+/** Clearance normal to the lower sloping outer walls: one hex-row. */
+export const RC_HOME_GAP_ROWS=1;
 export const rcKey=(q:number,r:number)=>q+","+r;
 export const rcRing=(q:number,r:number)=>
  Math.max(Math.abs(q),Math.abs(r),Math.abs(-q-r));
@@ -46,37 +50,50 @@ export function rcPolygon(x:number,y:number,size:number):string{
  }).join(" ");
 }
 /**
- * Fit ALL 91 tiles (nucleus + rings 1..5), exactly and without cropping.
- * Horizontal bounds are 17 radii wide in this frame; vertical bounds
- * are 11 sqrt(3) radii. Preserve space for the home attractor below.
+ * Fit all 91 board tiles PLUS the two rotated Home hexagons.
+ * Home coordinates derive exclusively from the 5th-ring geometry;
+ * extra viewport height centers the composition instead of anchoring
+ * the Homes to the bottom edge. Width-first until height becomes limiting.
  */
 export function makeRCBoard(width:number,height:number):RCBoard{
  if(!Number.isFinite(width)||!Number.isFinite(height)||width<=0||height<=0)
   throw Error("Invalid board viewport");
  const margin=Math.min(10,Math.max(3,width*.022));
  const topReserve=Math.min(34,Math.max(10,height*.075));
- const bottomReserve=Math.min(110,Math.max(55,height*.17));
+ const bottomMargin=Math.min(12,Math.max(6,height*.012));
+ // Geometry of the outermost tile hull; sloping bottom edge is
+ // y + abs(x-x0)/sqrt(3) = hullWall * size, relative to the nucleus.
+ const hullHalfHeight=5.5*Math.sqrt(3);
+ const hullWall=5*Math.sqrt(3)+2/Math.sqrt(3);
+ const homeRadiusInCells=3.1;
+ const homeOffsetInCells=5.4;
+ const homeGapInCells=2*RC_HOME_GAP_ROWS;
+ const totalHeightInCells=hullHalfHeight+hullWall-
+  homeOffsetInCells/Math.sqrt(3)+
+  2*homeRadiusInCells+homeGapInCells;
  const size=Math.max(.1,Math.min(
   (width-2*margin)/17,
-  (height-topReserve-bottomReserve)/(11*Math.sqrt(3))
+  (height-topReserve-bottomMargin)/totalHeightInCells
  ));
- const x0=width/2,y0=(topReserve+height-bottomReserve)/2;
+ // Center the complete board+Homes ensemble in unused vertical space.
+ const top=Math.max(topReserve,(height-totalHeightInCells*size)/2);
+ const x0=width/2,y0=top+hullHalfHeight*size;
  const cells:RCCell[]=[];
  for(let k=0;k<=RC_RING_COUNT;k++)for(const v of rcRingCells(k)){
   const p=rcAxial(v.q,v.r,size);
   cells.push({...v,key:rcKey(v.q,v.r),x:x0+p.x,y:y0+p.y,
    ring:k,nucleus:k===0});
  }
- // Two full-sized, flat-top homes in the lower corners, one for each
- // permanent identity parity. Both are fully inside the mobile viewport.
- const homeRadius=Math.max(8,Math.min(
-  size*2.55,(width-2*margin)/4.25,bottomReserve*.55
- ));
- const homeY=height-bottomReserve*.50;
- const homeX=margin+homeRadius+2;
+ // The point-up Home hexagons follow the TWO lower oblique walls.
+ // The gap is measured perpendicular to each wall and equals the
+ // distance between consecutive rows of Mutatron tile centers.
+ const homeRadius=homeRadiusInCells*size;
+ const homeOffset=homeOffsetInCells*size;
+ const homeY=y0+(hullWall-homeOffsetInCells/Math.sqrt(3)+
+  homeRadiusInCells+homeGapInCells)*size;
  const homes={
-  odd:{x:homeX,y:homeY},
-  even:{x:width-homeX,y:homeY}
+  odd:{x:x0-homeOffset,y:homeY},
+  even:{x:x0+homeOffset,y:homeY}
  };
  return {width,height,size,cells,homes,homeRadius};
 }
@@ -87,4 +104,12 @@ export function rcCellAt(board:RCBoard,x:number,y:number):RCCell|null{
   if(d<dist){dist=d;nearest=cell;}
  }
  return dist<=board.size*.99?nearest:null;
+}
+
+/** Geometric hit test for rotated, point-up Home hexagons. */
+export function rcHomeContains(board:RCBoard,parity:"odd"|"even",point:RCPoint):boolean{
+ const center=board.homes[parity],radius=board.homeRadius;
+ const dx=Math.abs(point.x-center.x),dy=Math.abs(point.y-center.y);
+ return dx<=Math.sqrt(3)*radius/2&&
+  dy+dx/Math.sqrt(3)<=radius;
 }
