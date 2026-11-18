@@ -29,6 +29,22 @@ export const pawnPalette=(p:RCPawn)=>gradientPair(p.row,p.col);
 export const pawnName=(p:RCPawn)=>sealName(p.seal);
 export const pawnAt=(game:RCGame,key:string)=>game.pawns.find(p=>p.cellKey===key);
 
+const appendManifestation=(history:readonly number[],n:number):number[]=>
+ history.includes(n)?[...history]:[...history,n];
+
+/**
+ * Home regression: decrease period and group together (-6) where possible.
+ * On the first period, step back one group; a group-one form returns to #1.
+ */
+export function rcHomeRegression(n:number):number{
+ if(!Number.isSafeInteger(n)||n<1)throw Error("Invalid Polytronic Number");
+ const period=Math.floor((n-1)/5)+1;
+ const group=((n-1)%5)+1;
+ if(group===1)return 1;
+ if(period>1)return n-6;
+ return n-1;
+}
+
 /**
  * Canonical full-cast opening, clockwise from due north:
  * Seals 1..6 -> ring 1; 7..18 -> ring 2;
