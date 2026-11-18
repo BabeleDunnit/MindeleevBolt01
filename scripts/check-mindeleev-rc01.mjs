@@ -29,40 +29,42 @@ try{
  assert(nucleus);
  assert.equal(nucleus.key,"0,0");
  assert.deepEqual([nucleus.q,nucleus.r,nucleus.ring,nucleus.idxInRing],[0,0,0,0]);
- const precedingRadius=390/10.9;
- assert(board.size<precedingRadius*.89&&board.size>precedingRadius*.86,
-  "3D RC01 must fit more fully closed hexagons, with smaller tiles");
- const countCells=(radius)=>{
-  let count=0;
-  const halfWidth=Math.sqrt(3)*radius/2,maxRing=30;
-  for(let k=0;k<=maxRing;k++)for(const cell of grid.rcRingCells(k)){
-   const pos=grid.rcAxial(cell.q,cell.r,radius);
-   const x=195+pos.x,y=760*.435+pos.y;
-   if(x-halfWidth>=2&&x+halfWidth<=388&&
-      y-radius>=2&&y+radius<=758)count++;
-  }
-  return count;
- };
- assert(board.cells.length>countCells(precedingRadius)+10,
-  "Smaller hex size must create at least eleven extra complete cells");
- for(const [width,height] of [[320,560],[360,670],[390,720],[430,860],[600,900]]){
+ // The axial axis (1,0) is due north, with clockwise ring indices.
+ assert.equal(board.cells.length,91,"All five rings and Nucleus are present");
+ const northern=board.cells.find(c=>c.key==="1,0");
+ assert(northern&&Math.abs(northern.x-nucleus.x)<1e-7&&northern.y<nucleus.y);
+ for(const [width,height] of [[320,560],[360,670],[390,720],[430,860],[600,900],[390,430]]){
   const layout=grid.makeRCBoard(width,height);
-  assert(layout.cells.length>15);
-  assert.equal(new Set(layout.cells.map(c=>c.key)).size,layout.cells.length);
-  const halfWidth=Math.sqrt(3)*layout.size/2;
+  assert.equal(layout.cells.length,91,"No ring 5 tile can be cropped on mobile");
+  assert.equal(new Set(layout.cells.map(c=>c.key)).size,91);
+  const halfH=Math.sqrt(3)*layout.size/2;
   for(const cell of layout.cells){
-   assert(cell.x-halfWidth>=2-1e-6&&cell.x+halfWidth<=width-2+1e-6);
-   assert(cell.y-layout.size>=2-1e-6&&cell.y+layout.size<=height-2+1e-6);
+   assert(cell.x-layout.size>=2-1e-6&&cell.x+layout.size<=width-2+1e-6);
+   assert(cell.y-halfH>=-1e-6&&cell.y+halfH<=height-layout.homeRadius);
    assert.equal(cell.ring,grid.rcRing(cell.q,cell.r));
-   assert(grid.rcRingCells(cell.ring).some(x=>x.q===cell.q&&
-    x.r===cell.r&&x.idxInRing===cell.idxInRing));
+   assert(grid.rcRingCells(cell.ring).some(v=>
+    v.q===cell.q&&v.r===cell.r&&v.idxInRing===cell.idxInRing));
    assert.equal(grid.rcCellAt(layout,cell.x,cell.y)?.key,cell.key);
   }
+  const outer=layout.cells.filter(c=>c.ring===5);
+  assert.equal(outer.length,30);
+  assert(layout.homeCenter.y-layout.homeRadius>
+   Math.max(...outer.map(c=>c.y+halfH)),
+   "Home must be lower than the last row of tiles");
+  if(height>=560&&width<=430)
+   assert((width-17*layout.size)/width<.12,
+    "Five rings should maximize their mobile width");
  }
- for(let k=0;k<12;k++){
-  const ring=grid.rcRingCells(k);
-  assert.equal(ring.length,k?6*k:1);
-  assert.equal(new Set(ring.map(p=>grid.rcKey(p.q,p.r))).size,ring.length);
+ for(let ring=0;ring<=5;ring++){
+  const cells=grid.rcRingCells(ring);
+  assert.equal(cells.length,ring?ring*6:1);
+  assert.equal(new Set(cells.map(c=>grid.rcKey(c.q,c.r))).size,cells.length);
+  if(ring){
+   assert.deepEqual([cells[0].q,cells[0].r],[ring,0]);
+   const a=grid.rcAxial(cells[0].q,cells[0].r,1);
+   const b=grid.rcAxial(cells[1].q,cells[1].r,1);
+   assert(b.x>a.x&&b.y>a.y,"Ring indexing must be clockwise from north");
+  }
  }
  // Both tile and Conway geometry are in the exact same 3D world.
  const world=worldModule.createRC3DWorld(board);
