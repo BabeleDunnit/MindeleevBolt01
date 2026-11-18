@@ -10,7 +10,7 @@ export type RCCell=RCPoint&{
 };
 export type RCBoard={
  width:number;height:number;size:number;cells:RCCell[];
- homeCenter:RCPoint;homeRadius:number;
+ homes:{odd:RCPoint;even:RCPoint};homeRadius:number;
 };
 export const RC_RING_COUNT=5;
 export const rcKey=(q:number,r:number)=>q+","+r;
@@ -67,10 +67,18 @@ export function makeRCBoard(width:number,height:number):RCBoard{
   cells.push({...v,key:rcKey(v.q,v.r),x:x0+p.x,y:y0+p.y,
    ring:k,nucleus:k===0});
  }
- // A single shared basin for all captured Polytrons.
- const homeRadius=Math.max(8,Math.min(size*2.25,bottomReserve*.45));
- const homeCenter={x:x0,y:height-bottomReserve*.51};
- return {width,height,size,cells,homeCenter,homeRadius};
+ // Two full-sized, flat-top homes in the lower corners, one for each
+ // permanent identity parity. Both are fully inside the mobile viewport.
+ const homeRadius=Math.max(8,Math.min(
+  size*2.55,(width-2*margin)/4.25,bottomReserve*.55
+ ));
+ const homeY=height-bottomReserve*.50;
+ const homeX=margin+homeRadius+2;
+ const homes={
+  odd:{x:homeX,y:homeY},
+  even:{x:width-homeX,y:homeY}
+ };
+ return {width,height,size,cells,homes,homeRadius};
 }
 export function rcCellAt(board:RCBoard,x:number,y:number):RCCell|null{
  let nearest:RCCell|null=null,dist=Infinity;
