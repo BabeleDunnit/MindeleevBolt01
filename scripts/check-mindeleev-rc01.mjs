@@ -350,6 +350,48 @@ try{
   assert.deepEqual(homeScene.homeStats(),
    {count:0,odd:0,even:0,physical:0},
    "Reset must dispose ALL Home rigid bodies");
+  // Re-use the real Home Rapier world for a PHYSICAL return followed by
+  // the exact same capture semantics as a regular board drag.
+  const arrivingOdd=ring1[0],occupyingEven=ring1[1];
+  const occupiedByEven=model.moveRCPawn(sceneGame,
+   occupyingEven.cellKey,arrivingOdd.cellKey,board);
+  assert(occupiedByEven);
+  homeScene.setPawns(occupiedByEven.game.pawns,occupiedByEven.game.home);
+  const returningPawn=occupiedByEven.game.home[0];
+  assert.equal(returningPawn.seal,arrivingOdd.seal);
+  const openingCell=board.cells.find(c=>
+   c.key===model.openingCellKeyForSeal(arrivingOdd.seal));
+  assert(openingCell);
+  for(let i=0;i<240;i++)homeScene.stepHome(1/60);
+  const openingPoint=worldModule.rcScreenWorld(board,openingCell,
+   worldModule.rcVisualPawnHeight(board));
+  const homePose=homeScene.homeSnapshot().find(p=>p.seal===arrivingOdd.seal);
+  assert(homePose);
+  const distanceAtHome=Math.hypot(
+   homePose.position.x-openingPoint.x,homePose.position.y-openingPoint.y);
+  assert(distanceAtHome>board.size*2,
+   "Home return must begin far from the opening tile");
+  homeScene.startHomeReturns([returningPawn]);
+  let arrivalSeen=false;
+  for(let i=0;i<1200;i++){
+   const arrived=homeScene.stepHome(1/60);
+   if(arrived.includes(arrivingOdd.seal)){arrivalSeen=true;break;}
+  }
+  assert(arrivalSeen,"The unscaled Rapier body must reach its original tile");
+  const capturedOnReturn=model.returnRCPawnHome(
+   occupiedByEven.game,arrivingOdd.seal,board);
+  assert(capturedOnReturn?.captured?.seal===occupyingEven.seal);
+  assert.equal(capturedOnReturn.game.fusions,2);
+  homeScene.setPawns(capturedOnReturn.game.pawns,capturedOnReturn.game.home);
+  assert.equal(homeScene.homeStats().odd,0);
+  assert.equal(homeScene.homeStats().even,1);
+  homeScene.setPawns(sceneGame.pawns,[]);
+  assert.equal(homeScene.homeStats().count,0);
+  console.log("RC01 RAP-RETURN",JSON.stringify({
+   distanceAtHome:+distanceAtHome.toFixed(2),
+   reachedOpening:arrivalSeen,returnedAsCapture:true,
+   remainingHome:capturedOnReturn.game.home.length
+  }));
   console.log("RC01 PARITY HOME",JSON.stringify({
    odd:odd.length,even:even.length,
    radius:worldModule.rcVisualPawnRadius(board),
@@ -738,8 +780,8 @@ try{
   "setPointerCapture","onPointerCancel","onPointerUp",
   "RC01RapierFlight.create","flight.step()","world.physicalPose",
   "world.transferToHome(victim,physical.victim)",
-  "flight.detachVictimToHome()","world.stepHome(dt)",
-  "onOpenHome","onRecallParity","doubleTapRef.current",
+  "flight.detachVictimToHome()","world.stepHome(dt,!isBusy())",
+  "onOpenHome","onToggleParity","onReturnArrived","doubleTapRef.current",
   "RC_RAPIER_FIXED_STEP","rotateModels","onKeyDown"]){
   assert(boardCode.includes(phrase),"Missing native 3D board feature: "+phrase);
  }
@@ -755,7 +797,8 @@ try{
   "actorOrientation","physicalPose","spin.quaternion.identity()",
   "homeShape=makeHexGeometry","homeParticles","initHomePhysics",
   "RAPIER.World","RAPIER.ColliderDesc.ball","body.addForce",
-   "transferToHome","transferParityToHome","stepHome(dt:number)"]){
+   "transferToHome","transferParityToHome","startHomeReturns",
+   "cancelHomeReturns","stepHome(dt:number"]){
   assert(modelCode.includes(phrase),"Missing 3D architecture: "+phrase);
  }
  // RC01 inspector must use the very same canonical energy rule as the
