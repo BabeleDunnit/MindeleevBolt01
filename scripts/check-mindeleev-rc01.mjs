@@ -219,6 +219,55 @@ try{
   inherited:stolen.game.pawns.find(p=>p.seal===source.seal)?.number,
   regressed:stolen.game.home[0].number
  }));
+ // HOME STRESS TEST: 36 odd + 36 even with full-size Rapier bodies.
+ const homeScene=worldModule.createRC3DWorld(board);
+ try{
+  homeScene.setPawns(sceneGame.pawns,[]);
+  await homeScene.initHomePhysics();
+  const odd=sceneGame.pawns.filter(p=>p.seal%2===1);
+  const even=sceneGame.pawns.filter(p=>p.seal%2===0);
+  const oddGame=model.recallRCParity(sceneGame,"odd",board);
+  assert(model.validateRCGame(oddGame,board));
+  assert.equal(oddGame.pawns.length,36);
+  assert.equal(oddGame.home.length,36);
+  assert.equal(oddGame.fusions,0);
+  assert(oddGame.home.every(p=>p.number===1&&p.manifestations[0]===1));
+  homeScene.transferParityToHome(odd);
+  homeScene.setPawns(oddGame.pawns,oddGame.home);
+  assert.deepEqual(homeScene.homeStats(),
+   {count:36,odd:36,even:0,physical:36});
+  const average=(records,side)=>{
+   const home=worldModule.rcScreenWorld(board,board.homes[side]);
+   return records.reduce((sum,p)=>sum+Math.hypot(
+    p.position.x-home.x,p.position.y-home.y),0)/records.length;
+  };
+  const start=average(homeScene.homeSnapshot(),"odd");
+  for(let i=0;i<240;i++)homeScene.stepHome(1/60);
+  const finish=average(homeScene.homeSnapshot(),"odd");
+  assert(finish<start*.75,"Odd Polytrons must approach the left Home");
+  const evenGame=model.recallRCParity(oddGame,"even",board);
+  assert.equal(evenGame.pawns.length,0);
+  assert.equal(evenGame.home.length,72);
+  assert(model.validateRCGame(evenGame,board));
+  homeScene.transferParityToHome(even);
+  homeScene.setPawns(evenGame.pawns,evenGame.home);
+  assert.deepEqual(homeScene.homeStats(),
+   {count:72,odd:36,even:36,physical:72});
+  for(let i=0;i<120;i++)homeScene.stepHome(1/60);
+  assert(homeScene.homeSnapshot().every(p=>Number.isFinite(p.position.x)&&
+   Number.isFinite(p.position.y)&&Number.isFinite(p.position.z)&&
+   Number.isFinite(p.speed)));
+  homeScene.setPawns(sceneGame.pawns,[]);
+  assert.deepEqual(homeScene.homeStats(),
+   {count:0,odd:0,even:0,physical:0},
+   "Reset must dispose ALL Home rigid bodies");
+  console.log("RC01 PARITY HOME",JSON.stringify({
+   odd:odd.length,even:even.length,
+   radius:worldModule.rcVisualPawnRadius(board),
+   initialDistance:+start.toFixed(2),finalDistance:+finish.toFixed(2),
+   resetClean:true
+  }));
+ }finally{homeScene.dispose();}
  // Realistic crowded opening: all 72 Conway bodies must participate
  // in the SAME Rapier simulation. Verify one adjacent first-ring fusion
  // and the offscreen return of its victim without losing other identities.
