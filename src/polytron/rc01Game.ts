@@ -119,6 +119,29 @@ export function moveRCPawn(game:RCGame,source:string,target:string,board:RCBoard
  return {game:updated,captured,attacker};
 }
 
+/**
+ * Interactive Home stress test. On double-tap, recall ALL on-board Seals
+ * of the requested permanent-ID parity into their corresponding Home.
+ * This is a diagnostic move, NOT a Fusion and does not change identity,
+ * number, palette, history, or Fusion counter.
+ */
+export type RCHomeParity="odd"|"even";
+export const rcParity=(seal:number):RCHomeParity=>
+ seal%2===0?"even":"odd";
+export function recallRCParity(game:RCGame,parity:RCHomeParity,board:RCBoard):RCGame{
+ const recalled=game.pawns.filter(p=>rcParity(p.seal)===parity);
+ if(!recalled.length)return game;
+ const updated:RCGame={
+  ...game,
+  pawns:game.pawns.filter(p=>rcParity(p.seal)!==parity),
+  home:[...game.home,...recalled.map(p=>({...p,cellKey:""}))],
+  lastAction:"HOME TEST · "+recalled.length+" "+parity+
+   " Polytrons recalled into their Home."
+ };
+ if(!validateRCGame(updated,board))throw Error("Home recall changed permanent identities");
+ return updated;
+}
+
 export function validateRCGame(game:RCGame,board:RCBoard):boolean{
  const cells=new Set(board.cells.map(c=>c.key));
  const occupied=new Set<string>(),seals=new Set<number>();
