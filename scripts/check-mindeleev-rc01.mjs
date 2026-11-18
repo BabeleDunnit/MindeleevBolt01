@@ -148,13 +148,13 @@ try{
  assert.deepEqual(sceneGame.pawns.map(p=>p.seal),
   Array.from({length:72},(_,i)=>i+1));
  assert.equal(new Set(sceneGame.pawns.map(p=>p.cellKey)).size,72);
- assert.deepEqual([...new Set(sceneGame.pawns.map(p=>p.number))],[1],
-  "Every initial Polytron must be a #1 tetrahedron");
+ assert.deepEqual([...new Set(sceneGame.pawns.map(p=>p.number))].sort(),
+  [1,2,3],"The first two rings alternate #2/#3; outer rings #1");
  assert.deepEqual([...new Set(sceneGame.pawns.map(p=>p.row+','+p.col))],
   [model.RC01_OPENING_PALETTE.row+','+model.RC01_OPENING_PALETTE.col],
-  "All 72 tetrahedra must have the same Chromatica palette");
+  "All 72 opening Polytrons retain the same Chromatica palette");
  assert(sceneGame.pawns.every(p=>p.manifestations.length===1&&
-  p.manifestations[0]===1));
+  p.manifestations[0]===p.number));
  assert(!sceneGame.pawns.some(p=>p.cellKey==="0,0"));
  assert(!sceneGame.pawns.some(p=>board.cells.find(c=>c.key===p.cellKey)?.ring===3));
  const ring1=sceneGame.pawns.slice(0,6);
@@ -169,11 +169,19 @@ try{
    assert.equal(model.openingCellKeyForSeal(pawns[i].seal),pawns[i].cellKey);
    assert.equal(board.cells.find(c=>c.key===pawns[i].cellKey)?.ring,ring);
    assert.equal(board.cells.find(c=>c.key===pawns[i].cellKey)?.idxInRing,i);
+   const expected=ring<=2?(i%2===0?2:3):1;
+   assert.equal(pawns[i].number,expected,
+    "Each inner ring alternates #2/#3 from idx0; outer ring remains #1");
+   assert.equal(model.rcOpeningNumber(ring,i),expected);
+   assert.deepEqual(pawns[i].manifestations,[expected]);
   }
  }
  assert.equal(board.cells.filter(c=>!sceneGame.pawns.some(p=>p.cellKey===c.key)).length,19);
+ assert.deepEqual(sceneGame.pawns.reduce((acc,p)=>{
+  acc[p.number]=(acc[p.number]??0)+1;return acc;
+ },{}),{"1":54,"2":9,"3":9});
  for(const pawn of sceneGame.pawns){
-  assert.equal(model.pawnDNA(pawn),"T");
+  assert.equal(model.pawnDNA(pawn),pawn.number===1?"T":pawn.number===2?"C":"O");
   assert(model.pawnPalette(pawn).name.length>=3);
   assert(model.pawnName(pawn).length>=3);
  }
@@ -192,18 +200,18 @@ try{
  assert.equal(moved.game.pawns.length,72);
  assert.equal(moved.game.home.length,0);
  assert.equal(model.pawnAt(moved.game,empty.key)?.seal,source.seal);
- // Identical tetrahedral captures intentionally do not invent a new number:
- // inheritance is #1 and the defender returns Home at the #1 floor.
+ // Opening captures now demonstrate immediate #2 -> #3 inheritance
+ // and defender Home regression from #3 to #2.
  const taken=model.moveRCPawn(sceneGame,source.cellKey,victim.cellKey,board);
  assert(taken&&model.validateRCGame(taken.game,board));
  assert.equal(taken.game.pawns.length,71);
  assert.equal(taken.game.home.length,1);
  assert.equal(taken.game.fusions,1);
- assert.equal(model.pawnAt(taken.game,victim.cellKey)?.number,1);
- assert.deepEqual(model.pawnAt(taken.game,victim.cellKey)?.manifestations,[1]);
+ assert.equal(model.pawnAt(taken.game,victim.cellKey)?.number,3);
+ assert.deepEqual(model.pawnAt(taken.game,victim.cellKey)?.manifestations,[2,3]);
  assert.equal(taken.game.home[0].seal,victim.seal);
- assert.equal(taken.game.home[0].number,1);
- assert.deepEqual(taken.game.home[0].manifestations,[1]);
+ assert.equal(taken.game.home[0].number,2);
+ assert.deepEqual(taken.game.home[0].manifestations,[3,2]);
  // Distinct later manifestations must still transfer with persistent history.
  const changed=sceneGame.pawns.map(p=>p.seal===victim.seal?
   {...p,number:13,manifestations:[13]}:p.seal===ring1[2].seal?
@@ -212,7 +220,7 @@ try{
  const stolen=model.moveRCPawn(varied,source.cellKey,victim.cellKey,board);
  assert(stolen&&model.validateRCGame(stolen.game,board));
  assert.equal(model.pawnAt(stolen.game,victim.cellKey)?.number,13);
- assert.deepEqual(model.pawnAt(stolen.game,victim.cellKey)?.manifestations,[1,13]);
+ assert.deepEqual(model.pawnAt(stolen.game,victim.cellKey)?.manifestations,[2,13]);
  assert.equal(stolen.game.home[0].number,7);
  assert.deepEqual(stolen.game.home[0].manifestations,[13,7]);
  const second=model.moveRCPawn(stolen.game,victim.cellKey,ring1[2].cellKey,board);
@@ -221,14 +229,16 @@ try{
  assert.equal(second.game.home.length,2);
  assert.equal(second.game.fusions,2);
  assert.equal(model.pawnAt(second.game,ring1[2].cellKey)?.number,18);
- assert.deepEqual(model.pawnAt(second.game,ring1[2].cellKey)?.manifestations,[1,13,18]);
+ assert.deepEqual(model.pawnAt(second.game,ring1[2].cellKey)?.manifestations,[2,13,18]);
  assert.equal(second.game.home[1].number,12);
  assert.equal(model.moveRCPawn(sceneGame,source.cellKey,source.cellKey,board),null);
  assert.equal(model.moveRCPawn(sceneGame,source.cellKey,"99,99",board),null);
  console.log("RC01 FULL OPENING",JSON.stringify({
   onBoard:sceneGame.pawns.length,home:sceneGame.home.length,
   rings:[6,12,0,24,30],nucleus:"empty",
-  seed:"T",number:1,palette:model.RC01_OPENING_PALETTE,
+  openingNumbers:{tetrahedron:54,cube:9,octahedron:9},
+  ring1:ring1.map(p=>p.number),ring2:ring2.map(p=>p.number),
+  palette:model.RC01_OPENING_PALETTE,
   inherited:stolen.game.pawns.find(p=>p.seal===source.seal)?.number,
   regressed:stolen.game.home[0].number
  }));
@@ -271,7 +281,7 @@ try{
  const distinct={
   ...evenMoved.game,
   pawns:evenMoved.game.pawns.map(p=>p.seal===2?{
-   ...p,number:18,manifestations:[1,18]}:p)
+   ...p,number:18,manifestations:[3,18]}:p)
  };
  assert(model.validateRCGame(distinct,board));
  const pendingOdd=model.toggleRCParityHome(distinct,"odd",board);
@@ -281,10 +291,10 @@ try{
  assert.equal(capturedReturn.game.fusions,1);
  assert.equal(model.pawnAt(capturedReturn.game,occupiedKey)?.seal,1);
  assert.equal(model.pawnAt(capturedReturn.game,occupiedKey)?.number,18);
- assert.deepEqual(model.pawnAt(capturedReturn.game,occupiedKey)?.manifestations,[1,18]);
+ assert.deepEqual(model.pawnAt(capturedReturn.game,occupiedKey)?.manifestations,[2,18]);
  const defenderHome=capturedReturn.game.home.find(p=>p.seal===2);
  assert.equal(defenderHome?.number,12);
- assert.deepEqual(defenderHome?.manifestations,[1,18,12]);
+ assert.deepEqual(defenderHome?.manifestations,[3,18,12]);
  assert(model.validateRCGame(capturedReturn.game,board));
  let resolvedAll=capturedReturn.game;
  for(const pawn of pendingOdd.pawns.filter(p=>p.seal!==1)){
@@ -320,7 +330,9 @@ try{
   assert.equal(oddGame.pawns.length,36);
   assert.equal(oddGame.home.length,36);
   assert.equal(oddGame.fusions,0);
-  assert(oddGame.home.every(p=>p.number===1&&p.manifestations[0]===1));
+  assert(oddGame.home.every(p=>p.manifestations[0]===p.number));
+  assert.equal(oddGame.home.filter(p=>p.number===2).length,9);
+  assert.equal(oddGame.home.filter(p=>p.number===1).length,27);
   homeScene.transferParityToHome(odd);
   homeScene.setPawns(oddGame.pawns,oddGame.home);
   assert.deepEqual(homeScene.homeStats(),
@@ -734,7 +746,7 @@ try{
  const markup=renderToString(React.createElement(ui.default));
  assert(markup.includes("RELEASE CANDIDATE 01"));
  assert(markup.includes("FUSIONS"));
- assert(markup.includes("72 TETRAHEDRA")&&markup.includes("HOME"),
+ assert(markup.includes("INNER RINGS #2 / #3")&&markup.includes("HOME"),
   "The default UI must show the full 72-Seal opening and Home zone");
  assert(markup.includes("0"),"Fusion counter starts at zero");
  assert(markup.includes('class="rc01-three-board"'));
@@ -745,7 +757,7 @@ try{
  assert(!markup.includes("rc01-footer"),"Give height back to the 3D board");
  const tsx=await readFile("src/experiments/MindeleevRC01.tsx","utf8");
  assert(tsx.includes("initialRCGame(board)"),
-  "Production must restore five randomly chosen starting Polytrons");
+  "Production must restore the fixed 72-Polytron opening");
  assert(!tsx.includes("<svg")&&!tsx.includes("<polygon"));
  assert(!tsx.includes("LifePolytron3D"));
  assert(tsx.includes("RC01ThreeBoard")&&tsx.includes("RC01ThreeInspector"));
@@ -835,5 +847,5 @@ try{
   pawns:sceneGame.pawns.length,score:sceneGame.score,
   camera:"orthographic",picking:"raycasting",capture:"Rapier impact with inherited manifestation and Home regression"
  }));
- console.log("PASS RC01: 72 fixed tetrahedra on rings 1/2/4/5, north-first clockwise mapping, Home springs, fusion inheritance and Rapier collisions");
+ console.log("PASS RC01: 18 alternating inner #2/#3, 54 outer #1 tetrahedra, Home toggle, capture-on-return and Rapier collisions");
 }finally{await rm(temporary,{recursive:true,force:true});}
