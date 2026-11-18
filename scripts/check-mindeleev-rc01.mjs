@@ -112,88 +112,102 @@ try{
  world.hover(null,false);
  assert(!marker.visible,"Cancel and drop must hide the target marker");
  world.dispose();
- // Opening is fixed: first 18 Seals, first two complete hex rings,
- // five first-period Platonic manifestations, Nucleus always empty.
+ // All 72 permanent identities: 1..6 at ring 1, 7..18 at ring 2,
+ // 19..42 at ring 4, 43..72 at ring 5. Ring 3 and Nucleus stay empty.
  const sceneGame=model.initialRCGame(board,()=>.37);
  assert.deepEqual(sceneGame,model.initialRCGame(board,()=>.92),
-  "The opening must never depend on random numbers");
- assert.equal(sceneGame.pawns.length,18);
+  "The opening is deterministic, regardless of RNG");
+ assert.equal(model.RC01_OPENING_COUNT,72);
+ assert.deepEqual(model.RC01_OPENING_RINGS,[1,2,4,5]);
+ assert.equal(sceneGame.pawns.length,72);
  assert.equal(sceneGame.home.length,0);
  assert.equal(sceneGame.fusions,0);
  assert.equal(sceneGame.score,100);
  assert.deepEqual(sceneGame.pawns.map(p=>p.seal),
-  Array.from({length:18},(_,i)=>i+1));
- assert.equal(new Set(sceneGame.pawns.map(p=>p.cellKey)).size,18);
- assert.deepEqual([...new Set(sceneGame.pawns.map(p=>p.number))].sort(),
-  [1,2,3,4,5]);
+  Array.from({length:72},(_,i)=>i+1));
+ assert.equal(new Set(sceneGame.pawns.map(p=>p.cellKey)).size,72);
+ assert.deepEqual([...new Set(sceneGame.pawns.map(p=>p.number))],[1],
+  "Every initial Polytron must be a #1 tetrahedron");
+ assert.deepEqual([...new Set(sceneGame.pawns.map(p=>p.row+','+p.col))],
+  [model.RC01_OPENING_PALETTE.row+','+model.RC01_OPENING_PALETTE.col],
+  "All 72 tetrahedra must have the same Chromatica palette");
+ assert(sceneGame.pawns.every(p=>p.manifestations.length===1&&
+  p.manifestations[0]===1));
  assert(!sceneGame.pawns.some(p=>p.cellKey==="0,0"));
- const ring1=sceneGame.pawns.slice(0,6),ring2=sceneGame.pawns.slice(6);
- for(const [ring,pawns] of [[1,ring1],[2,ring2]]){
+ assert(!sceneGame.pawns.some(p=>board.cells.find(c=>c.key===p.cellKey)?.ring===3));
+ const ring1=sceneGame.pawns.slice(0,6);
+ const ring2=sceneGame.pawns.slice(6,18);
+ const ring4=sceneGame.pawns.slice(18,42);
+ const ring5=sceneGame.pawns.slice(42,72);
+ for(const [ring,pawns] of [[1,ring1],[2,ring2],[4,ring4],[5,ring5]]){
   assert.equal(pawns.length,ring*6);
   const coords=grid.rcRingCells(ring);
   for(let i=0;i<pawns.length;i++){
    assert.equal(pawns[i].cellKey,grid.rcKey(coords[i].q,coords[i].r));
-   assert.equal(pawns[i].number,pawns[(i+pawns.length/2)%pawns.length].number,
-    "The Metatron opening must retain 180-degree rotational symmetry");
+   assert.equal(board.cells.find(c=>c.key===pawns[i].cellKey)?.ring,ring);
+   assert.equal(board.cells.find(c=>c.key===pawns[i].cellKey)?.idxInRing,i);
   }
  }
+ assert.equal(board.cells.filter(c=>!sceneGame.pawns.some(p=>p.cellKey===c.key)).length,19);
  for(const pawn of sceneGame.pawns){
-  assert.deepEqual(pawn.manifestations,[pawn.number]);
-  assert(model.pawnDNA(pawn).length>=1);
+  assert.equal(model.pawnDNA(pawn),"T");
   assert(model.pawnPalette(pawn).name.length>=3);
   assert(model.pawnName(pawn).length>=3);
  }
  assert(model.validateRCGame(sceneGame,board));
  for(const [n,expected] of [[1,1],[2,1],[5,4],[6,1],[7,1],[13,7],[18,12]])
-  assert.equal(model.rcHomeRegression(n),expected,
-   "Home regression must work at period/group boundaries: "+n);
+  assert.equal(model.rcHomeRegression(n),expected);
  const diag=model.rc01CenterDiagnostic(board);
  assert.equal(diag.pawns.length,1);
  assert.equal(diag.pawns[0].cellKey,"0,0");
  assert.deepEqual(diag.pawns[0].manifestations,[1]);
- const source=sceneGame.pawns[0];
+ const source=ring1[0],victim=ring1[1];
  const empty=board.cells.find(c=>c.nucleus);
  assert(empty);
  const moved=model.moveRCPawn(sceneGame,source.cellKey,empty.key,board);
  assert(moved&&model.validateRCGame(moved.game,board));
- assert.equal(moved.game.pawns.length,18);
+ assert.equal(moved.game.pawns.length,72);
  assert.equal(moved.game.home.length,0);
- assert.equal(moved.game.fusions,0);
  assert.equal(model.pawnAt(moved.game,empty.key)?.seal,source.seal);
- const victim=sceneGame.pawns[1];
+ // Identical tetrahedral captures intentionally do not invent a new number:
+ // inheritance is #1 and the defender returns Home at the #1 floor.
  const taken=model.moveRCPawn(sceneGame,source.cellKey,victim.cellKey,board);
  assert(taken&&model.validateRCGame(taken.game,board));
- assert.equal(taken.game.pawns.length,17);
+ assert.equal(taken.game.pawns.length,71);
  assert.equal(taken.game.home.length,1);
  assert.equal(taken.game.fusions,1);
- assert.equal(taken.captured?.seal,victim.seal);
- const fused=model.pawnAt(taken.game,victim.cellKey);
- assert.equal(fused?.seal,source.seal);
- assert.equal(fused?.number,victim.number,
-  "The attacker must adopt the captured manifestation");
- assert.deepEqual(fused?.manifestations,[source.number,victim.number]);
- assert.equal(model.pawnDNA(fused),model.pawnDNA(victim),
-  "The shared Conway renderer must immediately show the inherited solid");
- const atHome=taken.game.home[0];
- assert.equal(atHome.seal,victim.seal,"Captured identities cannot disappear");
- assert.equal(atHome.cellKey,"","Home occupants never occupy board cells");
- assert.equal(atHome.number,model.rcHomeRegression(victim.number));
- assert.deepEqual(atHome.manifestations,[victim.number,atHome.number]);
- const nextVictim=sceneGame.pawns[2];
- const second=model.moveRCPawn(taken.game,victim.cellKey,nextVictim.cellKey,board);
+ assert.equal(model.pawnAt(taken.game,victim.cellKey)?.number,1);
+ assert.deepEqual(model.pawnAt(taken.game,victim.cellKey)?.manifestations,[1]);
+ assert.equal(taken.game.home[0].seal,victim.seal);
+ assert.equal(taken.game.home[0].number,1);
+ assert.deepEqual(taken.game.home[0].manifestations,[1]);
+ // Distinct later manifestations must still transfer with persistent history.
+ const changed=sceneGame.pawns.map(p=>p.seal===victim.seal?
+  {...p,number:13,manifestations:[13]}:p.seal===ring1[2].seal?
+  {...p,number:18,manifestations:[18]}:p);
+ const varied={...sceneGame,pawns:changed};
+ const stolen=model.moveRCPawn(varied,source.cellKey,victim.cellKey,board);
+ assert(stolen&&model.validateRCGame(stolen.game,board));
+ assert.equal(model.pawnAt(stolen.game,victim.cellKey)?.number,13);
+ assert.deepEqual(model.pawnAt(stolen.game,victim.cellKey)?.manifestations,[1,13]);
+ assert.equal(stolen.game.home[0].number,7);
+ assert.deepEqual(stolen.game.home[0].manifestations,[13,7]);
+ const second=model.moveRCPawn(stolen.game,victim.cellKey,ring1[2].cellKey,board);
  assert(second&&model.validateRCGame(second.game,board));
- assert.equal(second.game.pawns.length,16);
+ assert.equal(second.game.pawns.length,70);
  assert.equal(second.game.home.length,2);
  assert.equal(second.game.fusions,2);
- assert.deepEqual(model.pawnAt(second.game,nextVictim.cellKey)?.manifestations,
-  [source.number,victim.number,nextVictim.number],
-  "Acquisitions must accumulate across successive fusions");
+ assert.equal(model.pawnAt(second.game,ring1[2].cellKey)?.number,18);
+ assert.deepEqual(model.pawnAt(second.game,ring1[2].cellKey)?.manifestations,[1,13,18]);
+ assert.equal(second.game.home[1].number,12);
  assert.equal(model.moveRCPawn(sceneGame,source.cellKey,source.cellKey,board),null);
  assert.equal(model.moveRCPawn(sceneGame,source.cellKey,"99,99",board),null);
- console.log("RC01 FUSION OPENING",JSON.stringify({
+ console.log("RC01 FULL OPENING",JSON.stringify({
   onBoard:sceneGame.pawns.length,home:sceneGame.home.length,
-  rings:[ring1.length,ring2.length],inherited:fused?.number,
-  regressed:atHome.number,history:fused?.manifestations
+  rings:[6,12,0,24,30],nucleus:"empty",
+  seed:"T",number:1,palette:model.RC01_OPENING_PALETTE,
+  inherited:stolen.game.pawns.find(p=>p.seal===source.seal)?.number,
+  regressed:stolen.game.home[0].number
  }));
  // Realistic crowded opening: all 18 Conway bodies must participate
  // in the SAME Rapier simulation. Verify one adjacent first-ring fusion
