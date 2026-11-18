@@ -209,7 +209,7 @@ try{
   inherited:stolen.game.pawns.find(p=>p.seal===source.seal)?.number,
   regressed:stolen.game.home[0].number
  }));
- // Realistic crowded opening: all 18 Conway bodies must participate
+ // Realistic crowded opening: all 72 Conway bodies must participate
  // in the SAME Rapier simulation. Verify one adjacent first-ring fusion
  // and the offscreen return of its victim without losing other identities.
  const denseSource=ring1[0],denseVictim=ring1[1];
@@ -226,14 +226,14 @@ try{
  });
  let crowdedFinished=null,crowdedHit=false,maxImpacted=0;
  try{
-  assert.equal(crowded.snapshot().bystanders.length,16);
+  assert.equal(crowded.snapshot().bystanders.length,70);
   for(let i=0;i<3600;i++){
    const f=crowded.step();
    crowdedHit ||= f.collided;
    maxImpacted=Math.max(maxImpacted,f.impactedSeals.length);
    if(f.done){crowdedFinished=f;break;}
   }
-  console.log("RC01 18-BODY FUSION",JSON.stringify({
+  console.log("RC01 72-BODY FUSION",JSON.stringify({
    contacted:crowdedHit,done:!!crowdedFinished,
    success:crowdedFinished?.success??false,
    duration:crowdedFinished?.time??crowded.snapshot().time,
@@ -241,7 +241,7 @@ try{
   }));
   assert(crowdedHit,"An adjacent fusion must trigger real Rapier contact");
   assert(crowdedFinished?.success,
-   "The full 18-body opening must allow a capture to finish physically");
+   "The full 72-body opening must allow a capture to finish physically");
  }finally{crowded.dispose();}
  // Physically integrate the exact same geometries, velocities, restitution
  // and collision events as the live mobile game. No proximity-script shortcuts.
