@@ -1,7 +1,8 @@
 import {useEffect,useMemo,useRef,useState} from "react";
 import {makeRCBoard,type RCCell} from "@/polytron/rc01Board";
-import {initialRCGame,moveRCPawn,recallRCParity,rcParity,pawnDNA,pawnName,pawnPalette,
- type RCGame,type RCPawn,type RCHomeParity} from "@/polytron/rc01Game";
+import {initialRCGame,moveRCPawn,toggleRCParityHome,returnRCPawnHome,rcParity,
+ pawnDNA,pawnName,pawnPalette,
+ type RCGame,type RCPawn,type RCHomeParity,type RCHomeToggleResult} from "@/polytron/rc01Game";
 import RC01ThreeBoard from "@/experiments/RC01ThreeBoard";
 import RC01ThreeInspector from "@/experiments/RC01ThreeInspector";
 import {intrinsicEnergy} from "@/polytron/mindeleevLife";
@@ -64,9 +65,15 @@ export default function MindeleevRC01(){
    return moveRCPawn(previous,from,to,board)?.game??previous;
   });
  };
- const recallParity=(parity:RCHomeParity)=>{
-  if(physicsBusyRef.current)return;
-  setGame(previous=>previous?recallRCParity(previous,parity,board):previous);
+ const toggleParity=(parity:RCHomeParity):RCHomeToggleResult=>{
+  const result=toggleRCParityHome(game??initialRCGame(board),parity,board);
+  setGame(result.game);
+  return result;
+ };
+ const returnArrived=(seal:number)=>{
+  // Each arrival reads the live game, including any intervening moves.
+  setGame(previous=>previous?
+   returnRCPawnHome(previous,seal,board)?.game??previous:previous);
  };
  const reset=()=>{
   if(physicsBusy)return;
@@ -92,7 +99,8 @@ export default function MindeleevRC01(){
    <RC01ThreeBoard board={board} game={game}
     onSelect={select} onCommitMove={commitMove}
     onOpenHome={parity=>setSheet({kind:"home",parity})}
-    onRecallParity={recallParity}
+    onToggleParity={toggleParity}
+    onReturnArrived={returnArrived}
     onBusyChange={onPhysicsBusy}/>
    <div className="rc01-fusion-notice" role="status">
     {game?.fusions?game.lastAction:
@@ -148,9 +156,9 @@ export default function MindeleevRC01(){
      <div className="rc01-sheet-kicker">PERMANENT IDENTITIES</div>
      <h2>{sheet.parity?(sheet.parity==="odd"?"Odd":"Even")+" Home":"Home"} · {
       game?.home.filter(p=>!sheet.parity||rcParity(p.seal)===sheet.parity).length??0}</h2>
-     <p>Captured Polytrons return directly to the {sheet.parity??"odd/even"} Home.
-      Double-tap a Home hex to recall all on-board Polytrons of that parity
-      for the full-size spring and collision stress test.</p>
+     <p>Double-tap a Home to recall its Polytrons; double-tap again to
+       return them physically to their original cells. Occupied cells
+       trigger a capture and inheritance. The board remains interactive.</p>
      {!game?.home.length&&<p>All 72 Polytrons are on the Mutatron.</p>}
      <div className="rc01-home-entries">
       {game?.home.filter(p=>!sheet.parity||rcParity(p.seal)===sheet.parity)
