@@ -193,6 +193,40 @@ try{
   rings:[ring1.length,ring2.length],inherited:fused?.number,
   regressed:atHome.number,history:fused?.manifestations
  }));
+ // Realistic crowded opening: all 18 Conway bodies must participate
+ // in the SAME Rapier simulation. Verify one adjacent first-ring fusion
+ // and the offscreen return of its victim without losing other identities.
+ const denseSource=ring1[0],denseVictim=ring1[1];
+ const denseFrom=board.cells.find(c=>c.key===denseSource.cellKey);
+ const denseTo=board.cells.find(c=>c.key===denseVictim.cellKey);
+ assert(denseFrom&&denseTo);
+ const denseOthers=sceneGame.pawns.filter(p=>
+  p.seal!==denseSource.seal&&p.seal!==denseVictim.seal)
+  .map(p=>({pawn:p,cell:board.cells.find(c=>c.key===p.cellKey)}));
+ assert(denseOthers.every(o=>o.cell));
+ const crowded=await physics.RC01RapierFlight.create({
+  board,from:denseFrom,to:denseTo,
+  attacker:denseSource,victim:denseVictim,others:denseOthers
+ });
+ let crowdedFinished=null,crowdedHit=false,maxImpacted=0;
+ try{
+  assert.equal(crowded.snapshot().bystanders.length,16);
+  for(let i=0;i<3600;i++){
+   const f=crowded.step();
+   crowdedHit ||= f.collided;
+   maxImpacted=Math.max(maxImpacted,f.impactedSeals.length);
+   if(f.done){crowdedFinished=f;break;}
+  }
+  console.log("RC01 18-BODY FUSION",JSON.stringify({
+   contacted:crowdedHit,done:!!crowdedFinished,
+   success:crowdedFinished?.success??false,
+   duration:crowdedFinished?.time??crowded.snapshot().time,
+   secondaryImpacts:maxImpacted,contacts:crowded.snapshot().contacts
+  }));
+  assert(crowdedHit,"An adjacent fusion must trigger real Rapier contact");
+  assert(crowdedFinished?.success,
+   "The full 18-body opening must allow a capture to finish physically");
+ }finally{crowded.dispose();}
  // Physically integrate the exact same geometries, velocities, restitution
  // and collision events as the live mobile game. No proximity-script shortcuts.
  const from=board.cells.find(c=>c.key==="0,0");
