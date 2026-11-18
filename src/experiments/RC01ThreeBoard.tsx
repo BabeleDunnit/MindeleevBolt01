@@ -83,9 +83,10 @@ export default function RC01ThreeBoard({
    if(previous?.parity===parity&&now-previous.at<390){
     doubleTapRef.current=null;
     const outcome=toggleRef.current(parity);
-    if(outcome.action==="recall")
+    if(outcome.action==="recall"){
+     world.cancelHomeReturns(parity);
      world.transferParityToHome(outcome.pawns);
-    else world.startHomeReturns(outcome.pawns);
+    }else world.startHomeReturns(outcome.pawns);
    }else doubleTapRef.current={parity,at:now};
    e.preventDefault();
    return;
