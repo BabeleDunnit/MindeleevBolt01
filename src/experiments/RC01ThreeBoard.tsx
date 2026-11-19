@@ -37,6 +37,7 @@ export default function RC01ThreeBoard({
  const doubleTapRef=useRef<{parity:RCHomeParity;at:number}|null>(null);
  // Reconstruct active returns after browser-chrome viewport resizes.
  const activeReturnsRef=useRef<Set<number>>(new Set());
+ const lastMutationGenerationRef=useRef(0);
  const pendingVictimRef=useRef<RCPawn|null>(null);
  const busyRef=useRef(onBusyChange);
  const pressRef=useRef<Press|null>(null);
@@ -271,6 +272,7 @@ export default function RC01ThreeBoard({
     for(const seal of running.otherSeals)active.add(seal);
    }
    world.rotateModels(now,active);
+   world.stepMutationHalos(dt);
    const arrived=world.stepHome(dt,!isBusy());
    for(const seal of arrived){
     activeReturnsRef.current.delete(seal);
@@ -294,6 +296,12 @@ export default function RC01ThreeBoard({
   if(game?.pawns.length===72&&game.home.length===0)
    activeReturnsRef.current.clear();
   if(!isBusy())worldRef.current?.setPawns(game?.pawns??[],game?.home??[]);
+  const generation=game?.mutatron.generation??0;
+  if(generation!==lastMutationGenerationRef.current){
+   lastMutationGenerationRef.current=generation;
+   if(game?.mutatron.changes.length)
+    worldRef.current?.pulseMutations(game.mutatron.changes);
+  }
  },[game]);
  return <canvas ref={canvasRef} className="rc01-three-board"
   role="img" aria-label="3D Mutatron: 72 Polytrons across five hexagonal rings. Drag to move or fuse; captures return Home. Double-tap an odd/even Home to recall its Polytrons; double-tap again to return them to their opening cells with capture on occupation."
