@@ -124,9 +124,12 @@ function targetFor(p:RCPawn,q:RCPawn,a:Local,b:Local,diversity:number){
   target:high,needed:MUTATRON_GROUP_CHARGE,
   reason:"One adjacent group step repairs the opposed pair."
  };
- const periodReady=Math.min(a.axes,b.axes)>=2&&diversity>=3;
- // Group 5 cannot advance to the next group without a discontinuous
- // energy drop; instead it takes a one-period step.
+ const catalyticNeighbour=[...a.near,...b.near].some(p=>
+  mutatronPeriod(p.number)>mutatronPeriod(high));
+ const periodReady=Math.min(a.axes,b.axes)>=2&&
+  diversity>=3&&catalyticNeighbour;
+ // A leap in period requires an evolved neighbour of a later period,
+ // EXCEPT for group 5, which naturally opens the next period.
  if(mutatronGroup(high)===5||periodReady)return {
   target:high+5,needed:MUTATRON_PERIOD_CHARGE,
   reason:"Strong balanced axes sustain a one-period transition."
@@ -156,8 +159,15 @@ export function forecastRCMutatron(game:RCGame,board:RCBoard):RCMutatronForecast
   // The players must create more seed sites before pushing farther.
   const rarePreserved=!(p.number===q.number&&mutatronGroup(p.number)>=4&&
    counts[mutatronGroup(p.number)-1]<=2);
-  const adjacent= Math.abs(p.number-q.number)<=1;
-  const supported=localSupport&&rarePreserved&&adjacent;
+  const adjacent=Math.abs(p.number-q.number)<=1;
+  const localMax=Math.max(0,...a.near.map(p=>p.number),
+   ...b.near.map(p=>p.number));
+  // A player cannot farm arbitrarily large N by repeatedly clicking on
+  // one isolated seed. One-step group changes need supporting neighbours
+  // within 1 group; period changes need another seed within 1 period.
+  const neighbourhoodCap=proposed.target<=localMax+
+   (mutatronPeriod(proposed.target)>mutatronPeriod(Math.max(p.number,q.number))?5:1);
+  const supported=localSupport&&rarePreserved&&adjacent&&neighbourhoodCap;
   const charge=supported?
    Math.min(MUTATRON_MAX_CHARGE,(game.mutatron.resonance[pair.id]??0)+1):
    Math.max(0,(game.mutatron.resonance[pair.id]??0)-1);
