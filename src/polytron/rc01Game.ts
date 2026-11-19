@@ -7,14 +7,23 @@ export const RC01_SEAL_COUNT=72;
 export const RC01_OPENING_COUNT=72;
 export const RC01_OPENING_RINGS=[1,2,4,5] as const;
 export const RC01_OPENING_NUMBER=1; // outer rings 4 and 5
-export const RC01_INNER_OPENING_NUMBERS=[2,3] as const;
-/** Only ring 1 and ring 2 indices 0..5 alternate #2/#3; all others are #1. */
+/**
+ * Canonical opening transcribed from the hand-drawn pointy-top sketch,
+ * rotated counterclockwise 30° into the CURRENT north-first board frame.
+ * In particular (ring 1,index 0) and (ring 2,index 0) are both cubes (#2).
+ * Tetrahedron T = #1; Cube C = #2; Octahedron O = #3.
+ */
+export const RC01_OPENING_RING_1=[2,3,2,3,2,3] as const;
+export const RC01_OPENING_RING_2=[
+ 2,1,3,1,2,1,3,1,2,1,3,1
+] as const;
 export function rcOpeningNumber(ring:number,idxInRing:number):number{
  if(![1,2,4,5].includes(ring)||!Number.isInteger(idxInRing)||
     idxInRing<0||idxInRing>=6*ring)
   throw Error("Invalid initial ring/index");
- return ring<=2&&idxInRing<6?
-  RC01_INNER_OPENING_NUMBERS[idxInRing%2]:RC01_OPENING_NUMBER;
+ if(ring===1)return RC01_OPENING_RING_1[idxInRing];
+ if(ring===2)return RC01_OPENING_RING_2[idxInRing];
+ return RC01_OPENING_NUMBER;
 }
 export const RC01_OPENING_PALETTE={row:2,col:4} as const;
 export const RC01_START_SCORE=100;
@@ -60,10 +69,10 @@ export function rcHomeRegression(n:number):number{
  * Seals 1..6 -> ring 1; 7..18 -> ring 2;
  * 19..42 -> ring 4; 43..72 -> ring 5.
  * Both the Nucleus and ring 3 are empty, with exactly 19 free cells.
- * Ring 1 (Seals 1..6) and the first half of ring 2 (Seals 7..12)
- * alternate Polytronic Numbers #2 and #3 from index 0, clockwise.
- * Ring 2's remaining six positions (Seals 13..18), plus all 54 Seals
- * on rings 4 and 5, remain #1 tetrahedra.
+ * Ring 1 (Seals 1..6): C O C O C O, clockwise from due north.
+ * Ring 2 (Seals 7..18): C T O T C T O T C T O T.
+ * Together these make six cubes (#2), six octahedra (#3), and six
+ * tetrahedra (#1). Rings 4 and 5 add 54 tetrahedra (#1).
  * All 72 retain the SAME Chromatica gradient and distinct permanent IDs.
  */
 export function initialRCGame(board:RCBoard,_rng:()=>number=Math.random):RCGame{
@@ -84,7 +93,7 @@ export function initialRCGame(board:RCBoard,_rng:()=>number=Math.random):RCGame{
  });
  return {pawns,home:[],score:RC01_START_SCORE,moves:0,fusions:0,
   homeTestPhase:{odd:"board",even:"board"},
-  lastAction:"Metatron opening: ring 1 and ring 2 indices 0–5 alternate #2/#3; all other occupied cells #1."};
+  lastAction:"Metatron opening: Ring 1 C/O alternating, Ring 2 C-T-O-T repeating; all outer Polytrons #1."};
 }
 
 /** Diagnostic fixture, never used for the production opening. */
