@@ -61,6 +61,26 @@ export const pawnPalette=(p:RCPawn)=>gradientPair(p.row,p.col);
 export const pawnName=(p:RCPawn)=>sealName(p.seal);
 export const pawnAt=(game:RCGame,key:string)=>game.pawns.find(p=>p.cellKey===key);
 
+/** One canonical bilateral-symmetry metric, recalculated after EVERY
+ * action (drag, capture, Home recall/return and Mutatron evolution).
+ * Both occupied equal pairs and symmetrical empty pairs count; the Nucleus
+ * has no diametrically opposed partner and is excluded.
+ */
+export function rcBoardSymmetry(pawns:readonly RCPawn[],board:RCBoard):number{
+ const occupied=new Map(pawns.map(p=>[p.cellKey,p]));
+ let total=0,matching=0;
+ for(const cell of board.cells){
+  if(cell.nucleus)continue;
+  const oppositeKey=rcKey(-cell.q,-cell.r);
+  if(cell.key>=oppositeKey)continue;
+  total++;
+  const a=occupied.get(cell.key),b=occupied.get(oppositeKey);
+  if((!a&&!b)||(!!a&&!!b&&a.number===b.number&&
+   a.row===b.row&&a.col===b.col))matching++;
+ }
+ return total?Math.round(100*matching/total):100;
+}
+
 const appendManifestation=(history:readonly number[],n:number):number[]=>
  history.includes(n)?[...history]:[...history,n];
 
@@ -106,7 +126,8 @@ export function initialRCGame(board:RCBoard,_rng:()=>number=Math.random):RCGame{
  });
  return {pawns,home:[],score:RC01_START_SCORE,moves:0,fusions:0,
   homeTestPhase:{odd:"board",even:"board"},
-  mutatron:{generation:0,resonance:{},symmetry:87,changes:[],
+  mutatron:{generation:0,resonance:{},
+   symmetry:rcBoardSymmetry(pawns,board),changes:[],
    lastNote:"The symmetry field is at rest; evolve to test geometrical resonance."},
   lastAction:"Metatron opening: Ring 1 C/O alternating, Ring 2 C-T-O-T repeating; all outer Polytrons #1."};
 }
@@ -173,6 +194,8 @@ export function moveRCPawn(game:RCGame,source:string,target:string,board:RCBoard
    " (from #"+attacker.number+"). "+pawnName(captured)+
    " returns Home as #"+regressed+".":
    pawnName(attacker)+" moves to cell "+target+"."};
+ updated.mutatron={...updated.mutatron,
+  symmetry:rcBoardSymmetry(updated.pawns,board)};
  if(!validateRCGame(updated,board))
   throw Error("Fusion violates permanent identities, history or board exclusivity");
  return {game:updated,captured,attacker};
@@ -197,6 +220,8 @@ export function recallRCParity(game:RCGame,parity:RCHomeParity,board:RCBoard):RC
   lastAction:"HOME TEST · "+recalled.length+" "+parity+
    " Polytrons recalled into their Home."
  };
+ updated.mutatron={...updated.mutatron,
+  symmetry:rcBoardSymmetry(updated.pawns,board)};
  if(!validateRCGame(updated,board))throw Error("Home recall changed permanent identities");
  return updated;
 }
@@ -250,6 +275,8 @@ export function returnRCPawnHome(
    " returns Home as #"+fused?.defender.number+".":
    "HOME RETURN · "+pawnName(incoming)+" returns to "+target+"."
  };
+ updated.mutatron={...updated.mutatron,
+  symmetry:rcBoardSymmetry(updated.pawns,board)};
  if(!validateRCGame(updated,board))throw Error("Invalid Home arrival");
  return {game:updated,attacker,captured,target};
 }
