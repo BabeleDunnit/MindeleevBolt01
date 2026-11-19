@@ -13,7 +13,7 @@
  * Its history records emergent manifestations; Home is unaffected.
  */
 import {rcKey,type RCBoard,type RCCell} from "@/polytron/rc01Board";
-import {RC01_OPENING_PALETTE,validateRCGame,
+import {RC01_OPENING_PALETTE,rcBoardSymmetry,validateRCGame,
  type RCGame,type RCPawn,type RCMutatronChange}
  from "@/polytron/rc01Game";
 
@@ -53,16 +53,7 @@ function localAt(cell:RCCell,occupied:ReadonlyMap<string,RCPawn>):Local{
  };
 }
 export function mutatronSymmetry(game:RCGame,board:RCBoard):number{
- const occupied=new Map(game.pawns.map(p=>[p.cellKey,p]));
- const pairs=oppositePairs(board);
- if(!pairs.length)return 100;
- const matches=pairs.filter(({a,b})=>{
-  const p=occupied.get(a.key),q=occupied.get(b.key);
-  if(!p&&!q)return true;
-  return !!p&&!!q&&p.number===q.number&&
-   p.row===q.row&&p.col===q.col;
- }).length;
- return Math.round(matches*100/pairs.length);
+ return rcBoardSymmetry(game.pawns,board);
 }
 export function mutatronCounts(game:RCGame):readonly number[]{
  const counts=[0,0,0,0,0];
