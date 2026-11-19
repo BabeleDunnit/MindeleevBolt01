@@ -78,6 +78,31 @@
  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
  box-shadow:0 4px 16px #24483a18;pointer-events:none;
 }
+/* Deliberately manual Mutatron turn, between both Home hexes.
+ * The button never blocks either Home or a board drag gesture.
+ */
+.rc01-evolve-panel{
+ position:absolute;left:50%;bottom:max(54px,calc(54px + env(safe-area-inset-bottom)));
+ transform:translateX(-50%);z-index:5;
+ display:flex;flex-direction:column;align-items:center;gap:5px;
+ pointer-events:none;white-space:nowrap
+}
+.rc01-evolve-button{
+ pointer-events:auto;
+ border:1px solid #4c9278;border-radius:999px;
+ color:#f5fff8;background:#2b8063;
+ padding:9px 11px;font-size:10px!important;font-weight:830!important;
+ letter-spacing:.015em;box-shadow:0 4px 18px #245e4230;
+ transition:background .15s ease,transform .15s ease
+}
+.rc01-evolve-button:active:not(:disabled){transform:scale(.965)}
+.rc01-evolve-button:disabled{opacity:.55;cursor:default}
+.rc01-evolve-meta{
+ font-size:9px;line-height:1.1;font-weight:800;
+ color:#477863;border-radius:999px;padding:5px 8px;
+ background:#f7fcf5e8;border:1px solid #cee3d4;
+ font-variant-numeric:tabular-nums;backdrop-filter:blur(6px)
+}
 .rc01-board-footer{
  position:absolute;bottom:max(6px,env(safe-area-inset-bottom));
  left:50%;transform:translateX(-50%);z-index:4;
