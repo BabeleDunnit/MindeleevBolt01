@@ -134,6 +134,18 @@ try{
  assert.notEqual(color0,color1,"Occupied cells must use a capture highlight");
  world.hover(null,false);
  assert(!marker.visible,"Cancel and drop must hide the target marker");
+ // A transient 3D gold ring highlights each mutation, then releases
+ // geometry/material allocations; no Polytron model is scaled.
+ const ringsBefore=world.scene.children.filter(x=>
+  x.isMesh&&x.geometry?.type==="RingGeometry").length;
+ world.pulseMutations([{seal:1,cellKey:"1,0"},{seal:2,cellKey:"0,1"}]);
+ assert.equal(world.scene.children.filter(x=>
+  x.isMesh&&x.geometry?.type==="RingGeometry").length,ringsBefore+2);
+ world.stepMutationHalos(1);
+ world.stepMutationHalos(1);
+ assert.equal(world.scene.children.filter(x=>
+  x.isMesh&&x.geometry?.type==="RingGeometry").length,ringsBefore,
+  "Temporary evolution halos must disappear after fading");
  world.dispose();
  // All 72 permanent identities: 1..6 at ring 1, 7..18 at ring 2,
  // 19..42 at ring 4, 43..72 at ring 5. Ring 3 and Nucleus stay empty.
@@ -903,6 +915,7 @@ try{
   "world.transferToHome(victim,physical.victim)",
   "flight.detachVictimToHome()","world.stepHome(dt,!isBusy())",
   "onOpenHome","onToggleParity","onReturnArrived","doubleTapRef.current",
+   "world.stepMutationHalos(dt)","worldRef.current?.pulseMutations",
   "RC_RAPIER_FIXED_STEP","rotateModels","onKeyDown"]){
   assert(boardCode.includes(phrase),"Missing native 3D board feature: "+phrase);
  }
@@ -919,7 +932,8 @@ try{
   "homeShape=makeHexGeometry","homeParticles","initHomePhysics",
   "RAPIER.World","RAPIER.ColliderDesc.ball","body.addForce",
    "transferToHome","transferParityToHome","startHomeReturns",
-   "cancelHomeReturns","stepHome(dt:number"]){
+   "cancelHomeReturns","stepHome(dt:number",
+   "pulseMutations","stepMutationHalos(dt:number"]){
   assert(modelCode.includes(phrase),"Missing 3D architecture: "+phrase);
  }
  // RC01 inspector must use the very same canonical energy rule as the
