@@ -224,17 +224,22 @@ try{
   assert(model.pawnName(pawn).length>=3);
  }
  assert(model.validateRCGame(sceneGame,board));
- // MUTATRON: every evolution is a simultaneous frozen-board tick.
+ // The very same immutable forecast drives the visual preview and tick.
  assert.equal(sceneGame.mutatron.generation,0);
+ assert.equal(sceneGame.mutatron.energyReserve,48);
  assert.equal(mutatron.mutatronSymmetry(sceneGame,board),87);
  assert.deepEqual(mutatron.mutatronCounts(sceneGame),[60,6,6,0,0]);
  const startingPositions=new Map(sceneGame.pawns.map(p=>[p.seal,p.cellKey]));
+ const startingBudget=mutatron.mutatronEnergyTotal(sceneGame);
  let growing=sceneGame;
  const observed=[];
- for(let generation=1;generation<=8;generation++){
-  const previous=growing,next=mutatron.evolveRCMutatron(previous,board);
-  assert.equal(previous.mutatron.generation,generation-1,
-   "A synchronous evolution must NOT mutate its input snapshot");
+ for(let generation=1;generation<=45;generation++){
+  const previous=growing;
+  const forecast=mutatron.forecastRCMutatron(previous,board);
+  const next=mutatron.evolveRCMutatron(previous,board);
+  assert.deepEqual(forecast.next,next,"Preview must equal actual evolution");
+  assert.deepEqual(forecast.transforms,next.mutatron.changes);
+  assert.equal(previous.mutatron.generation,generation-1);
   assert(model.validateRCGame(next,board));
   assert.equal(next.mutatron.generation,generation);
   assert.equal(next.pawns.length,72);
@@ -244,49 +249,58 @@ try{
   assert.equal(next.score,100);
   assert(next.pawns.every(p=>startingPositions.get(p.seal)===p.cellKey));
   assert(next.pawns.every(p=>p.manifestations.includes(p.number)));
-  assert(next.mutatron.changes.length<=2,
-   "At most one opposite pair may change per generation");
-  assert(next.mutatron.symmetry>=previous.mutatron.symmetry,
-   "Evolution must not break bilateral symmetries it has already achieved");
+  assert.equal(mutatron.mutatronEnergyTotal(next),startingBudget,
+   "Intrinsic E plus reserve must be conserved at every tick");
+  assert(next.mutatron.changes.length<=2);
+  assert(next.mutatron.symmetry>=previous.mutatron.symmetry);
+  assert.deepEqual(new Set(forecast.cells.filter(p=>p.status==="evolve").map(p=>p.key)),
+   new Set(next.mutatron.changes.map(m=>m.cellKey)));
   for(const change of next.mutatron.changes){
    const pawn=next.pawns.find(p=>p.seal===change.seal);
    const old=previous.pawns.find(p=>p.seal===change.seal);
-   assert.equal(old.number,change.from);
-   assert.equal(pawn.number,change.to);
+   assert.equal(change.from,old.number);
+   assert.equal(change.to,pawn.number);
    const cell=board.cells.find(c=>c.key===pawn.cellKey);
    const opposite=model.pawnAt(next,grid.rcKey(-cell.q,-cell.r));
    assert(opposite&&opposite.number===pawn.number&&
-    opposite.row===pawn.row&&opposite.col===pawn.col,
-    "New manifestations AND colors must be symmetrically paired");
+    opposite.row===pawn.row&&opposite.col===pawn.col);
+   const groupStep=Math.abs((pawn.number-1)%5-(old.number-1)%5);
+   const periodStep=Math.abs(Math.floor((pawn.number-1)/5)-
+    Math.floor((old.number-1)/5));
+   assert(groupStep+periodStep<=1,
+    "Only one adjacent group OR one adjacent period jump per tick");
   }
   const counts=mutatron.mutatronCounts(next);
-  observed.push({generation,forms:counts.slice(3),
-   symmetry:next.mutatron.symmetry,
-   affected:next.mutatron.changes.map(m=>m.seal)});
+  observed.push({gen:generation,groups:counts,
+   max:Math.max(...next.pawns.map(p=>p.number)),
+   E:next.mutatron.energyReserve,sym:next.mutatron.symmetry,
+   changes:next.mutatron.changes.map(m=>m.seal)});
   growing=next;
  }
- assert.deepEqual(observed[0].forms,[0,0],
-  "New forms must require accumulation, never a hard-coded turn reward");
- assert(observed.some(x=>x.forms[0]>=2),"Dodecahedral seeds must emerge");
- assert(observed.some(x=>x.forms[1]>=2),"Icosahedral seeds must emerge after D");
- assert(observed.some(x=>x.forms[0]>=4&&x.forms[1]>=4),
-  "Stable geometric crystallization must preserve BOTH rare families");
- assert.deepEqual(observed.slice(-2).map(x=>x.affected),[[],[]],
-  "A symmetric stable field must not oscillate D and I forever");
- assert(growing.mutatron.symmetry>sceneGame.mutatron.symmetry);
- assert(new Set(growing.pawns.map(p=>p.row+","+p.col)).size>=3,
-  "The board must develop multiple chromatic regions");
+ console.log("RC01 MUTATRON ENERGY-GROWTH",JSON.stringify(observed));
+ assert(observed[0].changes.length===0,"Resonance must accumulate");
+ assert(observed.some(x=>x.groups[3]>=2),"Dodecahedral seeds must emerge");
+ assert(observed.some(x=>x.groups[4]>=2),"Icosahedral seeds must emerge");
+ assert(observed.some(x=>x.max>5),"Numbers beyond the first period must emerge");
+ assert(observed.some(x=>x.sym>sceneGame.mutatron.symmetry));
  let twice=sceneGame;
- for(let i=0;i<8;i++)twice=mutatron.evolveRCMutatron(twice,board);
- assert.deepEqual(growing,twice,"Evolution must be perfectly deterministic");
- const same={...sceneGame,pawns:sceneGame.pawns.map(p=>({
+ for(let i=0;i<45;i++)twice=mutatron.evolveRCMutatron(twice,board);
+ assert.deepEqual(growing,twice,"No randomness or mutation order dependency");
+ const uniform={...sceneGame,pawns:sceneGame.pawns.map(p=>({
   ...p,number:1,manifestations:[1]}))};
- let quiet=same;
- for(let i=0;i<8;i++)quiet=mutatron.evolveRCMutatron(quiet,board);
- assert.deepEqual(mutatron.mutatronCounts(quiet),[72,0,0,0,0],
-  "A uniform board with no local diversity must not generate D/I");
- assert.deepEqual(quiet.mutatron.changes,[]);
- const isolated=mutatron.evolveRCMutatron(model.rc01CenterDiagnostic(board),board);
+ let quiet=uniform;
+ for(let i=0;i<12;i++)quiet=mutatron.evolveRCMutatron(quiet,board);
+ assert.deepEqual(mutatron.mutatronCounts(quiet),[72,0,0,0,0]);
+ assert.deepEqual(quiet.mutatron.changes,[],
+  "Without diverse neighbours, no spontaneous mutations");
+ const starved={...sceneGame,mutatron:{...sceneGame.mutatron,energyReserve:0}};
+ const energyPreview=mutatron.forecastRCMutatron(starved,board);
+ assert(energyPreview.cells.some(x=>x.status==="energy"),
+  "Energy-starved candidate cells must be visibly orange");
+ assert.equal(mutatron.mutatronEnergyTotal(energyPreview.next),
+  mutatron.mutatronEnergyTotal(starved));
+ const isolated=mutatron.evolveRCMutatron(
+  model.rc01CenterDiagnostic(board),board);
  assert.equal(isolated.pawns[0].number,1);
  assert.equal(isolated.mutatron.symmetry,100);
  const evolvedSource=growing.pawns.find(p=>p.number===4);
@@ -295,10 +309,8 @@ try{
  const captureAfterEvolution=model.moveRCPawn(growing,
   evolvedSource.cellKey,targetPawn.cellKey,board);
  assert(captureAfterEvolution&&model.validateRCGame(captureAfterEvolution.game,board));
- assert.equal(captureAfterEvolution.game.mutatron.generation,8);
+ assert.equal(captureAfterEvolution.game.mutatron.generation,45);
  assert.equal(captureAfterEvolution.game.home.length,1);
- console.log("RC01 MUTATRON RESONANCE",JSON.stringify(observed));
-
  for(const [n,expected] of [[1,1],[2,1],[5,4],[6,1],[7,1],[13,7],[18,12]])
   assert.equal(model.rcHomeRegression(n),expected);
  const diag=model.rc01CenterDiagnostic(board);
@@ -878,7 +890,7 @@ try{
   "Production must restore the fixed 72-Polytron opening");
  assert(!tsx.includes("<svg")&&!tsx.includes("<polygon"));
  assert(!tsx.includes("LifePolytron3D"));
- assert(tsx.includes("evolveRCMutatron(previous,board)")&&
+ assert(tsx.includes("forecastRCMutatron(previous,board).next")&&
   tsx.includes("disabled={!game||physicsBusy}"),
   "Mutatron evolution must be manual and must never interrupt Rapier");
  assert(tsx.includes("RC01ThreeBoard")&&tsx.includes("RC01ThreeInspector"));
@@ -916,6 +928,7 @@ try{
   "flight.detachVictimToHome()","world.stepHome(dt,!isBusy())",
   "onOpenHome","onToggleParity","onReturnArrived","doubleTapRef.current",
    "world.stepMutationHalos(dt)","worldRef.current?.pulseMutations",
+   "world.setEvolutionPreview(previewRef.current)",
   "RC_RAPIER_FIXED_STEP","rotateModels","onKeyDown"]){
   assert(boardCode.includes(phrase),"Missing native 3D board feature: "+phrase);
  }
@@ -933,7 +946,8 @@ try{
   "RAPIER.World","RAPIER.ColliderDesc.ball","body.addForce",
    "transferToHome","transferParityToHome","startHomeReturns",
    "cancelHomeReturns","stepHome(dt:number",
-   "pulseMutations","stepMutationHalos(dt:number"]){
+   "pulseMutations","stepMutationHalos(dt:number",
+   "setEvolutionPreview","previewRingGeometry"]){
   assert(modelCode.includes(phrase),"Missing 3D architecture: "+phrase);
  }
  // RC01 inspector must use the very same canonical energy rule as the
@@ -961,6 +975,7 @@ try{
  assert(css.includes("height:100dvh")&&css.includes("touch-action:none"));
  assert(css.includes(".rc01-three-board")&&!css.includes(".rc01-status{"));
  assert(css.includes(".rc01-evolve-panel")&&css.includes(".rc01-evolve-button"));
+ assert(css.includes(".rc01-preview-legend")&&css.includes(".rc01-legend-gold"));
  assert(css.includes(".rc01-fusion-notice")&&css.includes(".rc01-home-button"),
   "A visible Fusion notice and Home inventory must exist");
  const app=await readFile("src/App.tsx","utf8");
