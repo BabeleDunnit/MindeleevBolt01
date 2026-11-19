@@ -38,10 +38,23 @@ export type RCPawn={
  seal:number;number:number;row:number;col:number;cellKey:string;
  manifestations:number[];
 };
+export type RCMutatronChange={
+ seal:number;cellKey:string;from:number;to:number;
+ kind:"emergence"|"symmetry"|"chromatic";
+};
+export type RCMutatronState={
+ generation:number;
+ /** Pair-coherence is stored on the GRID, never on a permanent identity. */
+ resonance:Record<string,number>;
+ symmetry:number;
+ changes:RCMutatronChange[];
+ lastNote:string;
+};
 export type RCGame={
  pawns:RCPawn[];home:RCPawn[];score:number;moves:number;
  fusions:number;lastAction:string;
  homeTestPhase:{odd:"board"|"home";even:"board"|"home"};
+ mutatron:RCMutatronState;
 };
 export const pawnDNA=(p:RCPawn)=>dnaFromPolitronNumber(p.number);
 export const pawnPalette=(p:RCPawn)=>gradientPair(p.row,p.col);
@@ -93,6 +106,8 @@ export function initialRCGame(board:RCBoard,_rng:()=>number=Math.random):RCGame{
  });
  return {pawns,home:[],score:RC01_START_SCORE,moves:0,fusions:0,
   homeTestPhase:{odd:"board",even:"board"},
+  mutatron:{generation:0,resonance:{},symmetry:87,changes:[],
+   lastNote:"The symmetry field is at rest; evolve to test geometrical resonance."},
   lastAction:"Metatron opening: Ring 1 C/O alternating, Ring 2 C-T-O-T repeating; all outer Polytrons #1."};
 }
 
@@ -105,6 +120,8 @@ export function rc01CenterDiagnostic(board:RCBoard):RCGame{
    manifestations:[1]}],
   home:[],score:RC01_START_SCORE,moves:0,fusions:0,
   homeTestPhase:{odd:"board",even:"board"},
+  mutatron:{generation:0,resonance:{},symmetry:100,changes:[],
+   lastNote:"Single-body centering diagnostic."},
   lastAction:"Centering diagnostic: a single Polytron #1 at the nucleus (0,0)."
  };
 }
@@ -244,6 +261,11 @@ export function validateRCGame(game:RCGame,board:RCBoard):boolean{
     !Number.isInteger(game.moves)||game.moves<0||
     !Number.isInteger(game.fusions)||game.fusions<0||
     game.fusions>game.moves||
+    !game.mutatron||!Number.isSafeInteger(game.mutatron.generation)||
+    game.mutatron.generation<0||
+    !Number.isFinite(game.mutatron.symmetry)||
+    game.mutatron.symmetry<0||game.mutatron.symmetry>100||
+    !game.mutatron.resonance||!Array.isArray(game.mutatron.changes)||
     !game.homeTestPhase||
     !["board","home"].includes(game.homeTestPhase.odd)||
     !["board","home"].includes(game.homeTestPhase.even))return false;
