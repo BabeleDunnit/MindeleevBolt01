@@ -7,6 +7,7 @@ import {pawnAt,type RCGame,type RCPawn,type RCHomeParity,
 import {RC01RapierFlight,RC_RAPIER_FIXED_STEP}
  from "@/experiments/rc01RapierFlight";
 import {createRC3DWorld} from "@/experiments/rc01ThreeScene";
+import type {RCMutatronForecastCell} from "@/polytron/rc01Mutatron";
 
 const MIN_DRAG_PIXELS=9;
 type Press={
@@ -16,9 +17,10 @@ type Press={
 type ThreeWorld=ReturnType<typeof createRC3DWorld>;
 
 export default function RC01ThreeBoard({
- board,game,onSelect,onCommitMove,onOpenHome,onToggleParity,onReturnArrived,onBusyChange
+ board,game,preview,onSelect,onCommitMove,onOpenHome,onToggleParity,onReturnArrived,onBusyChange
 }:{
  board:RCBoard;game:RCGame|null;
+ preview:readonly RCMutatronForecastCell[];
  onSelect:(cell:RCCell,pawn:RCPawn|null)=>void;
  onCommitMove:(source:string,target:string)=>void;
  onOpenHome:(parity?:RCHomeParity)=>void;
@@ -29,6 +31,7 @@ export default function RC01ThreeBoard({
  const canvasRef=useRef<HTMLCanvasElement>(null);
  const worldRef=useRef<ThreeWorld|null>(null);
  const gameRef=useRef(game);
+ const previewRef=useRef(preview);
  const selectRef=useRef(onSelect);
  const commitRef=useRef(onCommitMove);
  const homeRef=useRef(onOpenHome);
@@ -46,6 +49,7 @@ export default function RC01ThreeBoard({
  const epochRef=useRef(0);
  const focusKey=useRef("0,0");
  gameRef.current=game;
+ previewRef.current=preview;
  selectRef.current=onSelect;
  commitRef.current=onCommitMove;
  homeRef.current=onOpenHome;
@@ -219,6 +223,7 @@ export default function RC01ThreeBoard({
   void world.initHomePhysics().catch(error=>
    console.error("Home Rapier initialization failed",error));
   world.setPawns(gameRef.current?.pawns??[],gameRef.current?.home??[]);
+  world.setEvolutionPreview(previewRef.current);
   const resumed=(gameRef.current?.home??[]).filter(
    pawn=>activeReturnsRef.current.has(pawn.seal));
   if(resumed.length)world.startHomeReturns(resumed);
@@ -303,6 +308,9 @@ export default function RC01ThreeBoard({
     worldRef.current?.pulseMutations(game.mutatron.changes);
   }
  },[game]);
+ useEffect(()=>{
+  worldRef.current?.setEvolutionPreview(preview);
+ },[preview]);
  return <canvas ref={canvasRef} className="rc01-three-board"
   role="img" aria-label="3D Mutatron: 72 Polytrons across five hexagonal rings. Drag to move or fuse; captures return Home. Double-tap an odd/even Home to recall its Polytrons; double-tap again to return them to their opening cells with capture on occupation."
   tabIndex={0} onPointerDown={onPointerDown} onPointerMove={onPointerMove}
