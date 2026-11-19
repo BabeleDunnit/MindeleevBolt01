@@ -149,7 +149,7 @@ try{
   Array.from({length:72},(_,i)=>i+1));
  assert.equal(new Set(sceneGame.pawns.map(p=>p.cellKey)).size,72);
  assert.deepEqual([...new Set(sceneGame.pawns.map(p=>p.number))].sort(),
-  [1,2,3],"Ring 1 and ring 2 indices 0..5 alternate #2/#3; all others #1");
+  [1,2,3],"The hand-drawn opening contains exactly the three first-period solids");
  assert.deepEqual([...new Set(sceneGame.pawns.map(p=>p.row+','+p.col))],
   [model.RC01_OPENING_PALETTE.row+','+model.RC01_OPENING_PALETTE.col],
   "All 72 opening Polytrons retain the same Chromatica palette");
@@ -161,6 +161,30 @@ try{
  const ring2=sceneGame.pawns.slice(6,18);
  const ring4=sceneGame.pawns.slice(18,42);
  const ring5=sceneGame.pawns.slice(42,72);
+ // Independent expected ordering transcribed from the original
+ // handwritten pattern, after rotating it into the north-first board.
+ // Index 0 is the northernmost position in BOTH rings (a cube).
+ const sketchRing1=[2,3,2,3,2,3];
+ const sketchRing2=[2,1,3,1,2,1,3,1,2,1,3,1];
+ assert.deepEqual(ring1.map(p=>p.number),sketchRing1,
+  "Ring 1 must be C O C O C O clockwise");
+ assert.deepEqual(ring2.map(p=>p.number),sketchRing2,
+  "Ring 2 must be C T O T C T O T C T O T clockwise");
+ assert.equal(ring1[0].number,2);
+ assert.equal(ring2[0].number,2);
+ assert.equal(ring1[0].seal,1);
+ assert.equal(ring2[0].seal,7);
+ // These are the axial coordinates of all eighteen handwritten letters.
+ const sketchByAxial=[
+  ["1,0",2],["0,1",3],["-1,1",2],["-1,0",3],
+  ["0,-1",2],["1,-1",3],
+  ["2,0",2],["1,1",1],["0,2",3],["-1,2",1],
+  ["-2,2",2],["-2,1",1],["-2,0",3],["-1,-1",1],
+  ["0,-2",2],["1,-2",1],["2,-2",3],["2,-1",1]
+ ];
+ for(const [key,n] of sketchByAxial)
+  assert.equal(model.pawnAt(sceneGame,key)?.number,n,
+   "Incorrect handwritten T/C/O mapping at axial cell "+key);
  for(const [ring,pawns] of [[1,ring1],[2,ring2],[4,ring4],[5,ring5]]){
   assert.equal(pawns.length,ring*6);
   const coords=grid.rcRingCells(ring);
@@ -169,9 +193,10 @@ try{
    assert.equal(model.openingCellKeyForSeal(pawns[i].seal),pawns[i].cellKey);
    assert.equal(board.cells.find(c=>c.key===pawns[i].cellKey)?.ring,ring);
    assert.equal(board.cells.find(c=>c.key===pawns[i].cellKey)?.idxInRing,i);
-   const expected=ring<=2&&i<6?(i%2===0?2:3):1;
+   const expected=ring===1?sketchRing1[i]:
+    ring===2?sketchRing2[i]:1;
    assert.equal(pawns[i].number,expected,
-    "Only (1,0..5) and (2,0..5) alternate #2/#3; all others #1");
+    "Exact opening pattern from the hand-drawn board must be preserved");
    assert.equal(model.rcOpeningNumber(ring,i),expected);
    assert.deepEqual(pawns[i].manifestations,[expected]);
   }
@@ -332,7 +357,8 @@ try{
   assert.equal(oddGame.fusions,0);
   assert(oddGame.home.every(p=>p.manifestations[0]===p.number));
   assert.equal(oddGame.home.filter(p=>p.number===2).length,6);
-  assert.equal(oddGame.home.filter(p=>p.number===1).length,30);
+  assert.equal(oddGame.home.filter(p=>p.number===3).length,3);
+  assert.equal(oddGame.home.filter(p=>p.number===1).length,27);
   homeScene.transferParityToHome(odd);
   homeScene.setPawns(oddGame.pawns,oddGame.home);
   assert.deepEqual(homeScene.homeStats(),
@@ -746,7 +772,8 @@ try{
  const markup=renderToString(React.createElement(ui.default));
  assert(markup.includes("RELEASE CANDIDATE 01"));
  assert(markup.includes("FUSIONS"));
- assert(markup.includes("RING 1 + RING 2 (0–5): #2/#3")&&markup.includes("HOME"),
+ assert(markup.includes("RING 1: C/O ×3")&&
+  markup.includes("RING 2: C/T/O/T ×3")&&markup.includes("HOME"),
   "The default UI must show the full 72-Seal opening and Home zone");
  assert(markup.includes("0"),"Fusion counter starts at zero");
  assert(markup.includes('class="rc01-three-board"'));
@@ -847,5 +874,5 @@ try{
   pawns:sceneGame.pawns.length,score:sceneGame.score,
   camera:"orthographic",picking:"raycasting",capture:"Rapier impact with inherited manifestation and Home regression"
  }));
- console.log("PASS RC01: six #2 and six #3 at (1,0..5)/(2,0..5), 60 remaining #1, Home toggle, capture-on-return and Rapier collisions");
+ console.log("PASS RC01: hand-drawn C/O first ring, C/T/O/T second ring, 60 tetrahedra total, Home toggle and Rapier collisions");
 }finally{await rm(temporary,{recursive:true,force:true});}
