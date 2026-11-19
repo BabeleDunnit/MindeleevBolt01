@@ -117,8 +117,14 @@ const paletteFor=(number:number)=>({
  */
 function targetFor(p:RCPawn,q:RCPawn,a:Local,b:Local,diversity:number){
  const low=Math.min(p.number,q.number),high=Math.max(p.number,q.number);
- if(high-low>1)return {
-  target:high,needed:2,reason:"Opposite Polytrons differ by more than one group."
+ const adjacent=low===high||
+  (mutatronPeriod(low)===mutatronPeriod(high)&&
+   mutatronGroup(high)===mutatronGroup(low)+1)||
+  (mutatronGroup(low)===mutatronGroup(high)&&
+   mutatronPeriod(high)===mutatronPeriod(low)+1);
+ if(!adjacent)return {
+  target:high,needed:2,
+  reason:"Opposed cells differ by more than one group or period."
  };
  if(low!==high)return {
   target:high,needed:MUTATRON_GROUP_CHARGE,
@@ -159,7 +165,11 @@ export function forecastRCMutatron(game:RCGame,board:RCBoard):RCMutatronForecast
   // The players must create more seed sites before pushing farther.
   const rarePreserved=!(p.number===q.number&&mutatronGroup(p.number)>=4&&
    counts[mutatronGroup(p.number)-1]<=2);
-  const adjacent=Math.abs(p.number-q.number)<=1;
+  const adjacent=p.number===q.number||
+   (mutatronPeriod(p.number)===mutatronPeriod(q.number)&&
+    Math.abs(mutatronGroup(p.number)-mutatronGroup(q.number))===1)||
+   (mutatronGroup(p.number)===mutatronGroup(q.number)&&
+    Math.abs(mutatronPeriod(p.number)-mutatronPeriod(q.number))===1);
   const localMax=Math.max(0,...a.near.map(p=>p.number),
    ...b.near.map(p=>p.number));
   // A player cannot farm arbitrarily large N by repeatedly clicking on
