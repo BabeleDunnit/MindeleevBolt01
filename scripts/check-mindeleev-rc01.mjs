@@ -16,13 +16,14 @@ async function load(entry,name,ui=false){
  return import(pathToFileURL(out).href);
 }
 try{
- const [grid,model,physics,ui,worldModule,life]=await Promise.all([
+ const [grid,model,physics,ui,worldModule,life,mutatron]=await Promise.all([
   load("src/polytron/rc01Board.ts","board"),
   load("src/polytron/rc01Game.ts","game"),
   load("src/experiments/rc01RapierFlight.ts","rapier-motion"),
   load("src/experiments/MindeleevRC01.tsx","ui",true),
   load("src/experiments/rc01ThreeScene.ts","scene"),
-  load("src/polytron/mindeleevLife.ts","energy")
+  load("src/polytron/mindeleevLife.ts","energy"),
+  load("src/polytron/rc01Mutatron.ts","mutatron")
  ]);
  const board=grid.makeRCBoard(390,760);
  const nucleus=board.cells.find(c=>c.nucleus);
@@ -211,6 +212,77 @@ try{
   assert(model.pawnName(pawn).length>=3);
  }
  assert(model.validateRCGame(sceneGame,board));
+ // MUTATRON: every evolution is a simultaneous frozen-board tick.
+ assert.equal(sceneGame.mutatron.generation,0);
+ assert.equal(mutatron.mutatronSymmetry(sceneGame,board),87);
+ assert.deepEqual(mutatron.mutatronCounts(sceneGame),[60,6,6,0,0]);
+ const startingPositions=new Map(sceneGame.pawns.map(p=>[p.seal,p.cellKey]));
+ let growing=sceneGame;
+ const observed=[];
+ for(let generation=1;generation<=8;generation++){
+  const previous=growing,next=mutatron.evolveRCMutatron(previous,board);
+  assert.equal(previous.mutatron.generation,generation-1,
+   "A synchronous evolution must NOT mutate its input snapshot");
+  assert(model.validateRCGame(next,board));
+  assert.equal(next.mutatron.generation,generation);
+  assert.equal(next.pawns.length,72);
+  assert.equal(next.home.length,0);
+  assert.equal(next.moves,0);
+  assert.equal(next.fusions,0);
+  assert.equal(next.score,100);
+  assert(next.pawns.every(p=>startingPositions.get(p.seal)===p.cellKey));
+  assert(next.pawns.every(p=>p.manifestations.includes(p.number)));
+  assert(next.mutatron.changes.length<=2,
+   "At most one opposite pair may change per generation");
+  assert(next.mutatron.symmetry>=previous.mutatron.symmetry,
+   "Evolution must not break bilateral symmetries it has already achieved");
+  for(const change of next.mutatron.changes){
+   const pawn=next.pawns.find(p=>p.seal===change.seal);
+   const old=previous.pawns.find(p=>p.seal===change.seal);
+   assert.equal(old.number,change.from);
+   assert.equal(pawn.number,change.to);
+   const cell=board.cells.find(c=>c.key===pawn.cellKey);
+   const opposite=model.pawnAt(next,grid.rcKey(-cell.q,-cell.r));
+   assert(opposite&&opposite.number===pawn.number&&
+    opposite.row===pawn.row&&opposite.col===pawn.col,
+    "New manifestations AND colors must be symmetrically paired");
+  }
+  const counts=mutatron.mutatronCounts(next);
+  observed.push({generation,forms:counts.slice(3),
+   symmetry:next.mutatron.symmetry,
+   affected:next.mutatron.changes.map(m=>m.seal)});
+  growing=next;
+ }
+ assert.deepEqual(observed[0].forms,[0,0],
+  "New forms must require accumulation, never a hard-coded turn reward");
+ assert(observed.some(x=>x.forms[0]>=2),"Dodecahedral seeds must emerge");
+ assert(observed.some(x=>x.forms[1]>=2),"Icosahedral seeds must emerge after D");
+ assert(growing.mutatron.symmetry>sceneGame.mutatron.symmetry);
+ assert(new Set(growing.pawns.map(p=>p.row+","+p.col)).size>=3,
+  "The board must develop multiple chromatic regions");
+ let twice=sceneGame;
+ for(let i=0;i<8;i++)twice=mutatron.evolveRCMutatron(twice,board);
+ assert.deepEqual(growing,twice,"Evolution must be perfectly deterministic");
+ const same={...sceneGame,pawns:sceneGame.pawns.map(p=>({
+  ...p,number:1,manifestations:[1]}))};
+ let quiet=same;
+ for(let i=0;i<8;i++)quiet=mutatron.evolveRCMutatron(quiet,board);
+ assert.deepEqual(mutatron.mutatronCounts(quiet),[72,0,0,0,0],
+  "A uniform board with no local diversity must not generate D/I");
+ assert.deepEqual(quiet.mutatron.changes,[]);
+ const isolated=mutatron.evolveRCMutatron(model.rc01CenterDiagnostic(board),board);
+ assert.equal(isolated.pawns[0].number,1);
+ assert.equal(isolated.mutatron.symmetry,100);
+ const evolvedSource=growing.pawns.find(p=>p.number===4);
+ assert(evolvedSource);
+ const targetPawn=growing.pawns.find(p=>p.seal!==evolvedSource.seal);
+ const captureAfterEvolution=model.moveRCPawn(growing,
+  evolvedSource.cellKey,targetPawn.cellKey,board);
+ assert(captureAfterEvolution&&model.validateRCGame(captureAfterEvolution.game,board));
+ assert.equal(captureAfterEvolution.game.mutatron.generation,8);
+ assert.equal(captureAfterEvolution.game.home.length,1);
+ console.log("RC01 MUTATRON RESONANCE",JSON.stringify(observed));
+
  for(const [n,expected] of [[1,1],[2,1],[5,4],[6,1],[7,1],[13,7],[18,12]])
   assert.equal(model.rcHomeRegression(n),expected);
  const diag=model.rc01CenterDiagnostic(board);
@@ -772,6 +844,9 @@ try{
  const markup=renderToString(React.createElement(ui.default));
  assert(markup.includes("RELEASE CANDIDATE 01"));
  assert(markup.includes("FUSIONS"));
+ assert(markup.includes("Evolve Mutatron")&&
+  markup.includes("GEN")&&markup.includes("SYM"),
+  "A visible manual evolution control and state counters are required");
  assert(markup.includes("RING 1: C/O ×3")&&
   markup.includes("RING 2: C/T/O/T ×3")&&markup.includes("HOME"),
   "The default UI must show the full 72-Seal opening and Home zone");
@@ -787,6 +862,9 @@ try{
   "Production must restore the fixed 72-Polytron opening");
  assert(!tsx.includes("<svg")&&!tsx.includes("<polygon"));
  assert(!tsx.includes("LifePolytron3D"));
+ assert(tsx.includes("evolveRCMutatron(previous,board)")&&
+  tsx.includes("disabled={!game||physicsBusy}"),
+  "Mutatron evolution must be manual and must never interrupt Rapier");
  assert(tsx.includes("RC01ThreeBoard")&&tsx.includes("RC01ThreeInspector"));
  for(const phrase of ["aria-modal","onClick={()=>setSheet(null)}",
   "pawnPalette(selectedPawn).name","idxInRing","moveRCPawn",
@@ -864,6 +942,7 @@ try{
  const css=await readFile("src/experiments/MindeleevRC01.css","utf8");
  assert(css.includes("height:100dvh")&&css.includes("touch-action:none"));
  assert(css.includes(".rc01-three-board")&&!css.includes(".rc01-status{"));
+ assert(css.includes(".rc01-evolve-panel")&&css.includes(".rc01-evolve-button"));
  assert(css.includes(".rc01-fusion-notice")&&css.includes(".rc01-home-button"),
   "A visible Fusion notice and Home inventory must exist");
  const app=await readFile("src/App.tsx","utf8");
