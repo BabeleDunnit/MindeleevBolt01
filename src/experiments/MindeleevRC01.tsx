@@ -104,7 +104,7 @@ export default function MindeleevRC01(){
     onBusyChange={onPhysicsBusy}/>
    <div className="rc01-fusion-notice" role="status">
     {game?.fusions?game.lastAction:
-     "RING 1 + RING 2 (0–5): #2/#3 · OTHER CELLS: #1"}
+     "RING 1: C/O ×3 · RING 2: C/T/O/T ×3 · OUTER: T"}
    </div>
    <div className="rc01-board-footer">
     <div className="rc01-scene-count" aria-label="Polytrons on Mutatron">
