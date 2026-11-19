@@ -44,6 +44,9 @@ export type RCMutatronChange={
 };
 export type RCMutatronState={
  generation:number;
+ /** Finite intrinsic-energy reserve: evolutions transfer E from here to
+  * Polytrons. The sum of intrinsic energies + reserve is unchanged per tick. */
+ energyReserve:number;
  /** Pair-coherence is stored on the GRID, never on a permanent identity. */
  resonance:Record<string,number>;
  symmetry:number;
@@ -126,7 +129,7 @@ export function initialRCGame(board:RCBoard,_rng:()=>number=Math.random):RCGame{
  });
  return {pawns,home:[],score:RC01_START_SCORE,moves:0,fusions:0,
   homeTestPhase:{odd:"board",even:"board"},
-  mutatron:{generation:0,resonance:{},
+  mutatron:{generation:0,energyReserve:48,resonance:{},
    symmetry:rcBoardSymmetry(pawns,board),changes:[],
    lastNote:"The symmetry field is at rest; evolve to test geometrical resonance."},
   lastAction:"Metatron opening: Ring 1 C/O alternating, Ring 2 C-T-O-T repeating; all outer Polytrons #1."};
@@ -141,7 +144,7 @@ export function rc01CenterDiagnostic(board:RCBoard):RCGame{
    manifestations:[1]}],
   home:[],score:RC01_START_SCORE,moves:0,fusions:0,
   homeTestPhase:{odd:"board",even:"board"},
-  mutatron:{generation:0,resonance:{},symmetry:100,changes:[],
+  mutatron:{generation:0,energyReserve:48,resonance:{},symmetry:100,changes:[],
    lastNote:"Single-body centering diagnostic."},
   lastAction:"Centering diagnostic: a single Polytron #1 at the nucleus (0,0)."
  };
@@ -289,6 +292,8 @@ export function validateRCGame(game:RCGame,board:RCBoard):boolean{
     !Number.isInteger(game.fusions)||game.fusions<0||
     game.fusions>game.moves||
     !game.mutatron||!Number.isSafeInteger(game.mutatron.generation)||
+    !Number.isSafeInteger(game.mutatron.energyReserve)||
+    game.mutatron.energyReserve<0||
     game.mutatron.generation<0||
     !Number.isFinite(game.mutatron.symmetry)||
     game.mutatron.symmetry<0||game.mutatron.symmetry>100||
