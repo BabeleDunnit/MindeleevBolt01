@@ -3,7 +3,7 @@ import {makeRCBoard,type RCCell} from "@/polytron/rc01Board";
 import {initialRCGame,moveRCPawn,toggleRCParityHome,returnRCPawnHome,rcParity,
  pawnDNA,pawnName,pawnPalette,
  type RCGame,type RCPawn,type RCHomeParity,type RCHomeToggleResult} from "@/polytron/rc01Game";
-import {evolveRCMutatron,mutatronCounts} from "@/polytron/rc01Mutatron";
+import {forecastRCMutatron,mutatronCounts} from "@/polytron/rc01Mutatron";
 import RC01ThreeBoard from "@/experiments/RC01ThreeBoard";
 import RC01ThreeInspector from "@/experiments/RC01ThreeInspector";
 import {intrinsicEnergy} from "@/polytron/mindeleevLife";
@@ -57,6 +57,9 @@ export default function MindeleevRC01(){
  const isSelectedHome=selectedPawn!==undefined&&
   (game?.home.some(p=>p.seal===selectedPawn.seal)??false);
  const selectedCell=sheet?.kind==="cell"?cells.get(sheet.key):undefined;
+ const forecast=useMemo(()=>game?forecastRCMutatron(game,board):null,[game,board]);
+ const selectedForecast=forecast?.cells.find(p=>p.key===
+  (selectedPawn?.cellKey||selectedCell?.key));
  const select=(cell:RCCell,pawn:RCPawn|null)=>{
   setSheet(pawn?{kind:"polytron",seal:pawn.seal}:{kind:"cell",key:cell.key});
  };
@@ -78,7 +81,7 @@ export default function MindeleevRC01(){
  };
  const evolve=()=>{
   if(physicsBusyRef.current)return;
-  setGame(previous=>previous?evolveRCMutatron(previous,board):previous);
+  setGame(previous=>previous?forecastRCMutatron(previous,board).next:previous);
  };
  const groups=game?mutatronCounts(game):[0,0,0,0,0];
  const reset=()=>{
@@ -103,6 +106,7 @@ export default function MindeleevRC01(){
   <section className="rc01-board-stage" ref={stageRef}
    aria-label="3D Mutatron board">
    <RC01ThreeBoard board={board} game={game}
+    preview={forecast?.cells??[]}
     onSelect={select} onCommitMove={commitMove}
     onOpenHome={parity=>setSheet({kind:"home",parity})}
     onToggleParity={toggleParity}
@@ -121,6 +125,15 @@ export default function MindeleevRC01(){
     <span className="rc01-evolve-meta" aria-live="polite">
      GEN {game?.mutatron.generation??0} · SYM {game?.mutatron.symmetry??87}%
      {' · '} D {groups[3]} · I {groups[4]}
+     {' · '} FIELD {game?.mutatron.energyReserve??48} E
+    </span>
+    <div className="rc01-preview-legend" aria-label="Next-evolution forecast">
+     <span><i className="rc01-legend-gold"/> Next mutation</span>
+     <span><i className="rc01-legend-teal"/> Resonating</span>
+     <span><i className="rc01-legend-orange"/> Energy blocked</span>
+    </div>
+    <span className="rc01-forecast-outcome" aria-live="polite">
+     {forecast?.summary??"Reading the Mutatron…"}
     </span>
    </div>
    <div className="rc01-board-footer">
@@ -167,6 +180,15 @@ export default function MindeleevRC01(){
       <div><dt>Permanent Identity</dt>
        <dd>{pawnName(selectedPawn)} · {selectedPawn.seal}/72</dd></div>
       <div><dt>Manifestations</dt><dd>{selectedPawn.manifestations.map(n=>"#"+n).join(" → ")}</dd></div>
+      {selectedForecast&&<div><dt>Mutatron Forecast</dt>
+       <dd>{selectedForecast.status.toUpperCase()} · #{
+        selectedForecast.number} → #{selectedForecast.target}
+        {' · '}{selectedForecast.neighbours}/6 neighbours
+        {' · '}{selectedForecast.axes}/3 balanced axes
+        {' · '}{selectedForecast.groups} groups
+        {' · '}charge {selectedForecast.charge}/{selectedForecast.needed}
+        {' · '}cost {selectedForecast.energyCost} E</dd>
+      </div>}
      </dl>
     </div>}
     {sheet.kind==="home"&&<div className="rc01-home-sheet">
