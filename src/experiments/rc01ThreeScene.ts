@@ -402,6 +402,43 @@ export function createRC3DWorld(board:RCBoard){
   }));
  }
 
+ // Temporary gold rings show exactly which cells were transmuted.
+ // They fade without affecting full-size 3D actors or Rapier physics.
+ const mutationHaloGeometry=new THREE.RingGeometry(
+  board.size*.65,board.size*.91,6);
+ const mutationHalos=new Map<number,{mesh:THREE.Mesh;age:number}>();
+ function clearMutationHalo(seal:number){
+  const halo=mutationHalos.get(seal);if(!halo)return;
+  scene.remove(halo.mesh);
+  (halo.mesh.material as THREE.MeshBasicMaterial).dispose();
+  mutationHalos.delete(seal);
+ }
+ function pulseMutations(changes:readonly {seal:number;cellKey:string}[]){
+  for(const change of changes){
+   const cell=cellsByKey.get(change.cellKey);if(!cell)continue;
+   clearMutationHalo(change.seal);
+   const material=new THREE.MeshBasicMaterial({
+    color:0xe0a433,transparent:true,opacity:.82,
+    depthTest:false,depthWrite:false,side:THREE.DoubleSide
+   });
+   const mesh=new THREE.Mesh(mutationHaloGeometry,material);
+   mesh.position.copy(rcScreenWorld(board,cell,RC_TILE_SURFACE_Z+1.4));
+   mesh.renderOrder=75;
+   scene.add(mesh);
+   mutationHalos.set(change.seal,{mesh,age:0});
+  }
+ }
+ function stepMutationHalos(dt:number){
+  for(const [seal,halo] of mutationHalos){
+   halo.age+=Math.max(0,dt);
+   if(halo.age>=1.7){clearMutationHalo(seal);continue;}
+   const t=halo.age/1.7;
+   (halo.mesh.material as THREE.MeshBasicMaterial).opacity=
+    .82*(1-t)*(0.82+0.18*Math.cos(t*Math.PI*8));
+   halo.mesh.scale.setScalar(1+.15*t);
+  }
+ }
+
  let actors=new Map<number,RCWorldModel>();
  const selection=new THREE.Raycaster(),mouse=new THREE.Vector2();
  const pointerRay=(x:number,y:number)=>{
@@ -562,6 +599,8 @@ export function createRC3DWorld(board:RCBoard){
   }
  }
  function dispose(){
+  for(const seal of [...mutationHalos.keys()])clearMutationHalo(seal);
+  mutationHaloGeometry.dispose();
   clearActors();
   shape.tile.dispose();shape.line.dispose();
   tileMaterial.dispose();nucleusMaterial.dispose();
@@ -585,5 +624,5 @@ export function createRC3DWorld(board:RCBoard){
   setPawns,moveActor,actorOrientation,physicalPose,dragPreview,
   initHomePhysics,stepHome,transferToHome,transferParityToHome,
    startHomeReturns,cancelHomeReturns,homeStats,homeSnapshot,
-  hover,rotateModels,dispose};
+  hover,rotateModels,pulseMutations,stepMutationHalos,dispose};
 }
