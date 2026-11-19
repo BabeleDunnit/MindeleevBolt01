@@ -146,6 +146,27 @@ try{
  assert.equal(world.scene.children.filter(x=>
   x.isMesh&&x.geometry?.type==="RingGeometry").length,ringsBefore,
   "Temporary evolution halos must disappear after fading");
+ const previewSource=model.initialRCGame(board);
+ const forecast=mutatron.forecastRCMutatron(previewSource,board);
+ assert(forecast.cells.some(c=>c.status==="charge"));
+ world.setEvolutionPreview(forecast.cells);
+ assert.equal(world.scene.children.filter(x=>
+  x.isMesh&&x.geometry?.type==="RingGeometry").length,
+  ringsBefore+forecast.cells.length,
+  "Each forecasting hex must be overlaid IN the 3D board scene");
+ const starvedSource={...previewSource,mutatron:{
+  ...previewSource.mutatron,energyReserve:0
+ }};
+ const starvedForecast=mutatron.forecastRCMutatron(starvedSource,board);
+ assert(starvedForecast.cells.some(c=>c.status==="energy"));
+ world.setEvolutionPreview(starvedForecast.cells);
+ assert(world.scene.children.some(x=>x.isMesh&&
+  x.geometry?.type==="RingGeometry"&&x.material?.color?.getHex()===0xd7773d),
+  "Energy-insufficient cells must be orange in the actual Three scene");
+ world.setEvolutionPreview([]);
+ assert.equal(world.scene.children.filter(x=>
+  x.isMesh&&x.geometry?.type==="RingGeometry").length,ringsBefore,
+  "Preview must be cleared cleanly without leaving stale hex highlights");
  world.dispose();
  // All 72 permanent identities: 1..6 at ring 1, 7..18 at ring 2,
  // 19..42 at ring 4, 43..72 at ring 5. Ring 3 and Nucleus stay empty.
@@ -986,5 +1007,5 @@ try{
   pawns:sceneGame.pawns.length,score:sceneGame.score,
   camera:"orthographic",picking:"raycasting",capture:"Rapier impact with inherited manifestation and Home regression"
  }));
- console.log("PASS RC01: hand-drawn C/O first ring, C/T/O/T second ring, 60 tetrahedra total, Home toggle and Rapier collisions");
+ console.log("PASS RC01: live 3D forecast, stepwise high-number Mutatron, intrinsic energy conservation, Home toggle and Rapier collisions");
 }finally{await rm(temporary,{recursive:true,force:true});}
