@@ -3,6 +3,7 @@ import * as RAPIER from "@dimforge/rapier3d-compat";
 import {polytronGeometry} from "@/polytron/polytron";
 import {openingCellKeyForSeal,pawnDNA,pawnPalette,rcParity,type RCPawn} from "@/polytron/rc01Game";
 import {RC_HOME_ROTATION,type RCBoard,type RCCell,type RCPoint} from "@/polytron/rc01Board";
+import type {RCMutatronForecastCell,RCPreviewStatus} from "@/polytron/rc01Mutatron";
 
 // The same resting height is used by the Three.js display and Rapier bodies.
 // A bounding-sphere radius guarantees that even rotated convex Polytrons sit
@@ -183,6 +184,43 @@ export function createRC3DWorld(board:RCBoard){
  if(core){
   const loc=rcScreenWorld(board,core,4.2);
   ring.position.copy(loc);scene.add(ring);
+ }
+ // Colored 3D overlays are rendered directly on the hex cells, not in
+ // screen-space CSS. They have no collider and never enter picking.
+ const previewGeometry=new THREE.CircleGeometry(board.size*.80,6);
+ const previewRingGeometry=new THREE.RingGeometry(
+  board.size*.76,board.size*.90,6);
+ const forecastColors:Record<RCPreviewStatus,number>={
+  evolve:0xe5ae29,charge:0x31aaa2,energy:0xd7773d,blocked:0x8e97a0
+ };
+ const previewMaterials={} as Record<RCPreviewStatus,THREE.MeshBasicMaterial>;
+ const previewRingMaterials={} as Record<RCPreviewStatus,THREE.MeshBasicMaterial>;
+ for(const kind of ["evolve","charge","energy","blocked"] as const){
+  previewMaterials[kind]=new THREE.MeshBasicMaterial({
+   color:forecastColors[kind],transparent:true,opacity:.15,
+   depthTest:false,depthWrite:false,side:THREE.DoubleSide
+  });
+  previewRingMaterials[kind]=new THREE.MeshBasicMaterial({
+   color:forecastColors[kind],transparent:true,opacity:.82,
+   depthTest:false,depthWrite:false,side:THREE.DoubleSide
+  });
+ }
+ const forecastMeshes:THREE.Mesh[]=[];
+ function setEvolutionPreview(cells:readonly RCMutatronForecastCell[]){
+  for(const mesh of forecastMeshes)scene.remove(mesh);
+  forecastMeshes.length=0;
+  for(const state of cells){
+   const cell=cellsByKey.get(state.key);if(!cell)continue;
+   for(const [geometry,material,order] of [
+    [previewGeometry,previewMaterials[state.status],18],
+    [previewRingGeometry,previewRingMaterials[state.status],28]
+   ] as const){
+    const mesh=new THREE.Mesh(geometry,material);
+    mesh.position.copy(rcScreenWorld(board,cell,RC_TILE_SURFACE_Z+1.2));
+    mesh.renderOrder=order;
+    scene.add(mesh);forecastMeshes.push(mesh);
+   }
+  }
  }
  // Tiles must be pickable immediately, even before the first render frame.
  scene.updateMatrixWorld(true);
@@ -599,6 +637,10 @@ export function createRC3DWorld(board:RCBoard){
   }
  }
  function dispose(){
+  setEvolutionPreview([]);
+  previewGeometry.dispose();previewRingGeometry.dispose();
+  for(const material of [...Object.values(previewMaterials),
+   ...Object.values(previewRingMaterials)])material.dispose();
   for(const seal of [...mutationHalos.keys()])clearMutationHalo(seal);
   mutationHaloGeometry.dispose();
   clearActors();
@@ -624,5 +666,6 @@ export function createRC3DWorld(board:RCBoard){
   setPawns,moveActor,actorOrientation,physicalPose,dragPreview,
   initHomePhysics,stepHome,transferToHome,transferParityToHome,
    startHomeReturns,cancelHomeReturns,homeStats,homeSnapshot,
-  hover,rotateModels,pulseMutations,stepMutationHalos,dispose};
+  hover,rotateModels,setEvolutionPreview,
+  pulseMutations,stepMutationHalos,dispose};
 }
