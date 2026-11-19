@@ -257,6 +257,10 @@ try{
   "New forms must require accumulation, never a hard-coded turn reward");
  assert(observed.some(x=>x.forms[0]>=2),"Dodecahedral seeds must emerge");
  assert(observed.some(x=>x.forms[1]>=2),"Icosahedral seeds must emerge after D");
+ assert(observed.some(x=>x.forms[0]>=4&&x.forms[1]>=4),
+  "Stable geometric crystallization must preserve BOTH rare families");
+ assert.deepEqual(observed.slice(-2).map(x=>x.affected),[[],[]],
+  "A symmetric stable field must not oscillate D and I forever");
  assert(growing.mutatron.symmetry>sceneGame.mutatron.symmetry);
  assert(new Set(growing.pawns.map(p=>p.row+","+p.col)).size>=3,
   "The board must develop multiple chromatic regions");
