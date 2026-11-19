@@ -3,6 +3,7 @@ import {makeRCBoard,type RCCell} from "@/polytron/rc01Board";
 import {initialRCGame,moveRCPawn,toggleRCParityHome,returnRCPawnHome,rcParity,
  pawnDNA,pawnName,pawnPalette,
  type RCGame,type RCPawn,type RCHomeParity,type RCHomeToggleResult} from "@/polytron/rc01Game";
+import {evolveRCMutatron,mutatronCounts} from "@/polytron/rc01Mutatron";
 import RC01ThreeBoard from "@/experiments/RC01ThreeBoard";
 import RC01ThreeInspector from "@/experiments/RC01ThreeInspector";
 import {intrinsicEnergy} from "@/polytron/mindeleevLife";
@@ -75,6 +76,11 @@ export default function MindeleevRC01(){
   setGame(previous=>previous?
    returnRCPawnHome(previous,seal,board)?.game??previous:previous);
  };
+ const evolve=()=>{
+  if(physicsBusyRef.current)return;
+  setGame(previous=>previous?evolveRCMutatron(previous,board):previous);
+ };
+ const groups=game?mutatronCounts(game):[0,0,0,0,0];
  const reset=()=>{
   if(physicsBusy)return;
   setSheet(null);
@@ -103,8 +109,19 @@ export default function MindeleevRC01(){
     onReturnArrived={returnArrived}
     onBusyChange={onPhysicsBusy}/>
    <div className="rc01-fusion-notice" role="status">
-    {game?.fusions?game.lastAction:
+    {game&&(game.moves||game.mutatron.generation)?game.lastAction:
      "RING 1: C/O ×3 · RING 2: C/T/O/T ×3 · OUTER: T"}
+   </div>
+   <div className="rc01-evolve-panel">
+    <button type="button" className="rc01-evolve-button"
+     disabled={!game||physicsBusy}
+     onClick={evolve} aria-label="Evolve Mutatron one generation">
+     <span aria-hidden="true">✳</span> Evolve Mutatron
+    </button>
+    <span className="rc01-evolve-meta" aria-live="polite">
+     GEN {game?.mutatron.generation??0} · SYM {game?.mutatron.symmetry??87}%
+     {' · '} D {groups[3]} · I {groups[4]}
+    </span>
    </div>
    <div className="rc01-board-footer">
     <div className="rc01-scene-count" aria-label="Polytrons on Mutatron">
