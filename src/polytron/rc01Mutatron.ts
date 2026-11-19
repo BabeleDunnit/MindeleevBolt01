@@ -125,6 +125,9 @@ export function evolveRCMutatron(game:RCGame,board:RCBoard):RCGame{
  for(const group of absentOrRare){
   const found=candidates.find(c=>{
    if(c.resonance<(group===5?3:2))return false;
+   // CRUCIAL: never recycle rare emergent D/I into each other.
+   // Innovations persist; find another geometrically supported seed.
+   if([c.p,c.q].some(p=>mutatronGroup(p.number)>=4))return false;
    if(group===5){
     // Icosahedra need a preceding dodecahedral seed nearby.
     const vicinity=[c.p,c.q,...c.a.near,...c.b.near];
@@ -183,6 +186,8 @@ export function evolveRCMutatron(game:RCGame,board:RCBoard):RCGame{
   else if(kind==="symmetry")
    note="Symmetry repair: opposite Polytrons adopt the rarer supported manifestation.";
   else note="Chromatic repair: opposite Polytrons adopt a shared palette.";
+ }else if(absentOrRare.length===0){
+  note="Symmetric equilibrium: no locally supported mutations remain.";
  }else if(candidates.length){
   note="Resonance accumulating in "+candidates.length+
    " balanced local pairs; no crystallization yet.";
