@@ -16,7 +16,7 @@ async function load(entry,name,ui=false){
  return import(pathToFileURL(out).href);
 }
 try{
- const [grid,model,physics,ui,worldModule,life,mutatron,cameraRig]=await Promise.all([
+ const [grid,model,physics,ui,worldModule,life,mutatron,cameraRig,touchInput]=await Promise.all([
   load("src/polytron/rc01Board.ts","board"),
   load("src/polytron/rc01Game.ts","game"),
   load("src/experiments/rc01RapierFlight.ts","rapier-motion"),
@@ -24,9 +24,23 @@ try{
   load("src/experiments/rc01ThreeScene.ts","scene"),
   load("src/polytron/mindeleevLife.ts","energy"),
   load("src/polytron/rc01Mutatron.ts","mutatron"),
-  load("src/experiments/rc01Camera.ts","camera")
+  load("src/experiments/rc01Camera.ts","camera"),
+  load("src/experiments/rc01TouchInput.ts","touch")
  ]);
  const board=grid.makeRCBoard(390,760);
+ // Mouse & pen must keep exact targets. TOUCH previews and releases use
+ // the same shifted aim, even on a CSS-resized HiDPI canvas.
+ const finger={x:170,y:310},offset=touchInput.rcTouchOffsetPx(760);
+ assert(offset>=62&&offset<=88);
+ const touchAim=touchInput.rcDragAim(finger,"touch",760,760);
+ assert.deepEqual(touchAim,{x:170,y:310-offset});
+ assert.deepEqual(touchInput.rcDragAim(finger,"mouse",760,760),finger);
+ assert.deepEqual(touchInput.rcDragAim(finger,"pen",760,760),finger);
+ assert.equal(touchInput.rcIsTouch("touch"),true);
+ assert.equal(touchInput.rcIsTouch("mouse"),false);
+ const scaledTouch=touchInput.rcDragAim(finger,"touch",760,380);
+ assert.equal(scaledTouch.y,
+  finger.y-2*touchInput.rcTouchOffsetPx(380));
  const nucleus=board.cells.find(c=>c.nucleus);
  assert(nucleus);
  assert.equal(nucleus.key,"0,0");
@@ -175,6 +189,30 @@ try{
  assert.equal(world.scene.children.filter(x=>
   x.isMesh&&x.geometry?.type==="RingGeometry").length,ringsBefore,
   "Preview must be cleared cleanly without leaving stale hex highlights");
+ // A selected touch Polytron highlights its real opening tile, and the
+ // selection can be moved/cleared WITHOUT opening the inspector.
+ const one=model.initialRCGame(board).pawns.find(p=>p.cellKey==="1,0");
+ assert(one);
+ world.setPawns([one]);
+ const oneCell=board.cells.find(c=>c.key===one.cellKey);
+ assert(oneCell);
+ const oneNdc=worldModule.rcScreenWorld(board,oneCell,
+  worldModule.rcVisualPawnHeight(board)).project(world.camera);
+ const oneHit=world.raycastPawn(
+  (oneNdc.x+1)*board.width/2,(1-oneNdc.y)*board.height/2);
+ assert.equal(oneHit?.pawn.seal,one.seal,
+  "Select the visible elevated 3D mesh before the tile behind it");
+ world.setSelectedCell(one.cellKey);
+ const selectedMarker=world.scene.children.find(x=>x.isGroup&&
+  x.children.some(y=>y.isMesh&&y.material?.color?.getHex()===0x398ac9));
+ assert(selectedMarker?.visible,
+  "Touch selection must be a persistent blue hexagon");
+ const oldSelected=selectedMarker.position.clone();
+ world.setSelectedCell("2,0");
+ assert(selectedMarker.position.distanceTo(oldSelected)>board.size);
+ world.setSelectedCell(null);
+ assert(!selectedMarker.visible);
+ world.setPawns([]);
  // Tactical perspective must still raycast accurately after camera motion.
  const focus=board.cells.find(c=>c.key==="2,0");
  assert(focus);
@@ -199,11 +237,15 @@ try{
  for(let i=0;i<120;i++)world.view.step(1/60);
  assert.equal(world.view.getMode(),"subjective");
  assert(world.view.getTargetTilt()>1.1);
+ assert(world.camera.up.z>.999&&Math.abs(world.camera.up.y)<.001,
+  "Subjective orbit must have Z-up horizon, never Y-up camera roll");
  const beforeOrbit=world.camera.position.clone();
  world.view.orbit(35,-12);
  for(let i=0;i<120;i++)world.view.step(1/60);
  assert(beforeOrbit.distanceTo(world.camera.position)>board.size,
   "A subjective view must genuinely orbit around the selected Polytron");
+ assert(world.camera.up.z>.999,
+  "Yawing and pitching cannot roll the subjective view horizon");
  const subjectiveSnapshot=world.view.snapshot();
  const resizedWorld=worldModule.createRC3DWorld(
   grid.makeRCBoard(360,680),subjectiveSnapshot);
@@ -979,6 +1021,21 @@ try{
  );
  assert(dragHandler.includes("world.dragPreview(worldPoint)"),
   "Finger must move ONLY the 3D hex ghost");
+ assert(dragHandler.includes("rcDragAim(point,press.pointerType,board.height"),
+  "Touch drag preview and highlighted target must use offset aiming");
+ const releaseHandler=boardCode.slice(boardCode.indexOf("const onPointerUp="),
+  boardCode.indexOf("const onPointerCancel="));
+ assert(releaseHandler.includes("rcDragAim(point,press.pointerType,board.height"),
+  "Drop must use the same aim position as the highlighted target");
+ assert(dragHandler.includes("touchSelectRef.current(press.pawn.seal)"),
+  "Dragging a pawn must select its permanent identity");
+ assert(releaseHandler.includes("rcIsTouch(press.pointerType)")&&
+  releaseHandler.includes("touchSelectRef.current(press.pawn?.seal??null)"),
+  "Touch tap should select instead of launching the Inspector");
+ assert(releaseHandler.includes("selectRef.current(press.cell"),
+  "Desktop mouse clicks must still open the Inspector");
+ assert(boardCode.includes("world.raycastPawn(point.x,point.y)"),
+  "Pointer down needs correct 3D-mesh picking in tilted perspective");
  assert(!dragHandler.includes("world.moveActor("),
   "Polytron cannot follow the finger: physical movement begins ONLY on drop");
  assert(boardCode.includes("world.dragPreview(null)"),
@@ -1054,6 +1111,14 @@ try{
  assert(css.includes(".rc01-three-board")&&!css.includes(".rc01-status{"));
  assert(css.includes(".rc01-evolve-panel")&&css.includes(".rc01-evolve-button"));
  assert(css.includes(".rc01-preview-legend")&&css.includes(".rc01-legend-gold"));
+ assert(css.includes(".rc01-touch-selection")&&
+  css.includes(".rc01-touch-drag-hint")&&
+  css.includes(".rc01-selection-info"),
+  "Touch selected-pawn Info and offset-drag guidance are required");
+ assert(tsx.includes("onTouchSelect={setSelectedSeal}")&&
+  tsx.includes("Inspect Polytron ")&&
+  tsx.includes("setSelectedSeal(null)"),
+  "Touch selection must be distinct from the Inspector modal");
  assert(css.includes(".rc01-camera-controls")&&
   css.includes(".rc01-camera-option")&&css.includes(".rc01-inspect-3d"),
   "Mobile MAP/AREA/3D control and Polytron focus are required");
