@@ -33,7 +33,7 @@ export function createRC01CameraRig(board:RCBoard,saved?:RCViewSnapshot){
  const camera=new THREE.PerspectiveCamera(
   FOV,board.width/board.height,.1,Math.max(6000,board.height*24));
  camera.up.set(0,1,0);
- const overviewDistance=board.height/(2*Math.tan(FOV*DEG/2))*1.015;
+ const overviewDistance=board.height/(2*Math.tan(FOV*DEG/2));
  const start:Pose={
   zoom:clamp(saved?.zoom??1,RC_CAMERA_ZOOM_MIN,RC_CAMERA_ZOOM_MAX),
   x:clamp((saved?.focusQ??0)*board.size,-board.width*.58,board.width*.58),
