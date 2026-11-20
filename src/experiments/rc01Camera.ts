@@ -8,9 +8,10 @@ import type {RCBoard,RCCell,RCPoint} from "@/polytron/rc01Board";
  */
 export type RCViewMode="map"|"area"|"subjective";
 export type RCViewSnapshot={
- zoom:number;focusQ:number;focusR:number;azimuth:number;tilt:number
+ zoom:number;focusQ:number;focusR:number;focusZ:number;
+ azimuth:number;tilt:number
 };
-type Pose={zoom:number;x:number;y:number;azimuth:number;tilt:number};
+type Pose={zoom:number;x:number;y:number;z:number;azimuth:number;tilt:number};
 const FOV=35;
 const DEG=Math.PI/180;
 export const RC_CAMERA_ZOOM_MIN=1;
@@ -39,6 +40,7 @@ export function createRC01CameraRig(board:RCBoard,saved?:RCViewSnapshot){
   zoom:clamp(saved?.zoom??1,RC_CAMERA_ZOOM_MIN,RC_CAMERA_ZOOM_MAX),
   x:clamp((saved?.focusQ??0)*board.size,-board.width*.58,board.width*.58),
   y:clamp((saved?.focusR??0)*board.size,-board.height*.58,board.height*.58),
+  z:clamp((saved?.focusZ??0)*board.size,0,board.size*3),
   tilt:clamp(saved?.tilt??0,0,78*DEG),
   azimuth:saved?.azimuth??-Math.PI/2
  };
@@ -47,11 +49,11 @@ export function createRC01CameraRig(board:RCBoard,saved?:RCViewSnapshot){
  function applyCamera(){
   const distance=overviewDistance/current.zoom;
   const radial=distance*Math.sin(current.tilt);
-  pivot.set(current.x,current.y,0);
+  pivot.set(current.x,current.y,current.z);
   camera.position.set(
    current.x+radial*Math.cos(current.azimuth),
    current.y+radial*Math.sin(current.azimuth),
-   distance*Math.cos(current.tilt)
+   current.z+distance*Math.cos(current.tilt)
   );
   camera.lookAt(pivot);
   camera.updateMatrixWorld(true);
@@ -62,6 +64,7 @@ export function createRC01CameraRig(board:RCBoard,saved?:RCViewSnapshot){
   current.zoom=Math.exp(lerp(Math.log(current.zoom),Math.log(target.zoom),t));
   current.x=lerp(current.x,target.x,t);
   current.y=lerp(current.y,target.y,t);
+  current.z=lerp(current.z,target.z,t);
   current.tilt=lerp(current.tilt,target.tilt,t);
   current.azimuth+=angleDelta(current.azimuth,target.azimuth)*t;
   applyCamera();
@@ -73,11 +76,14 @@ export function createRC01CameraRig(board:RCBoard,saved?:RCViewSnapshot){
  function focusOnCell(cell:RCCell,mode:"area"|"subjective"="area"){
   focus(cell.x-board.width/2,board.height/2-cell.y);
   target.zoom=mode==="subjective"?8.2:3.2;
+  // In subjective mode look at the Polytron's center, not through its
+  // supporting tile. Keep the same world-space size and true Rapier pose.
+  target.z=mode==="subjective"?board.size*.59+4.75:0;
   target.tilt=mode==="subjective"?71*DEG:rcCameraTiltForZoom(target.zoom);
   if(mode==="subjective")target.azimuth=-Math.PI/2;
  }
  function overview(){
-  target.zoom=1;target.x=0;target.y=0;target.tilt=0;
+  target.zoom=1;target.x=0;target.y=0;target.z=0;target.tilt=0;
   target.azimuth=-Math.PI/2;
  }
  function zoomAt(factor:number,around?:RCPoint){
@@ -92,6 +98,8 @@ export function createRC01CameraRig(board:RCBoard,saved?:RCViewSnapshot){
     target.y+(ay-target.y)*(1-1/actualFactor));
   }
   target.tilt=rcCameraTiltForZoom(target.zoom);
+  const focusHeight=board.size*.59+4.75;
+  target.z=focusHeight*clamp((target.zoom-4)/4,0,1);
  }
  function panWorld(dx:number,dy:number){
   // The full-board overview is deliberately fixed: every cell and both
@@ -106,7 +114,8 @@ export function createRC01CameraRig(board:RCBoard,saved?:RCViewSnapshot){
  }
  function snapshot():RCViewSnapshot{
   return {zoom:target.zoom,focusQ:target.x/board.size,
-   focusR:target.y/board.size,tilt:target.tilt,
+   focusR:target.y/board.size,focusZ:target.z/board.size,
+   tilt:target.tilt,
    azimuth:target.azimuth};
  }
  return {
