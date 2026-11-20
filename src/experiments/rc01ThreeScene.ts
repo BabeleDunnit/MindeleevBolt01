@@ -137,6 +137,28 @@ export function createRC3DWorld(board:RCBoard,priorView?:RCViewSnapshot){
  targetMarker.add(targetFill,targetOutline);
  targetMarker.visible=false;
  scene.add(targetMarker);
+ // Touch selection persists independently of both drag target and inspector.
+ const selectedFillMaterial=new THREE.MeshBasicMaterial({
+  color:0x398ac9,transparent:true,opacity:.24,
+  depthTest:false,depthWrite:false,side:THREE.DoubleSide
+ });
+ const selectedBorderMaterial=new THREE.LineBasicMaterial({
+  color:0x196aaf,depthTest:false,depthWrite:false
+ });
+ const selectedMarker=new THREE.Group();
+ const selectedFill=new THREE.Mesh(shape.tile,selectedFillMaterial);
+ selectedFill.renderOrder=65;
+ const selectedBorder=new THREE.LineLoop(shape.line,selectedBorderMaterial);
+ selectedBorder.position.z=4.1;selectedBorder.renderOrder=66;
+ selectedMarker.add(selectedFill,selectedBorder);
+ selectedMarker.visible=false;
+ scene.add(selectedMarker);
+ function setSelectedCell(key:string|null){
+  const cell=key?cellsByKey.get(key):null;
+  selectedMarker.visible=!!cell;
+  if(cell)selectedMarker.position.copy(
+   rcScreenWorld(board,cell,RC_TILE_SURFACE_Z+.45));
+ }
  // Only THIS translucent hex follows the finger. The pawn and the original
  // tile remain exactly where they were until pointer-up starts Rapier.
  const dragMaterial=new THREE.MeshStandardMaterial({
@@ -486,6 +508,19 @@ export function createRC3DWorld(board:RCBoard,priorView?:RCViewSnapshot){
   const hit=selection.intersectObjects(tiles,false)[0];
   return hit?cellsByKey.get(hit.object.userData.cellKey as string)??null:null;
  }
+ function raycastPawn(x:number,y:number):{pawn:RCPawn;cell:RCCell}|null{
+  // Click/touch the actual elevated mesh: under a tilted camera the
+  // Polytron projects to different pixels than the tile it sits on.
+  pointerRay(x,y);
+  let closest:{pawn:RCPawn;cell:RCCell;distance:number}|null=null;
+  for(const actor of actors.values()){
+   const hit=selection.intersectObject(actor.spin,true)[0];
+   if(!hit||closest&&hit.distance>=closest.distance)continue;
+   const cell=cellsByKey.get(actor.pawn.cellKey);
+   if(cell)closest={pawn:actor.pawn,cell,distance:hit.distance};
+  }
+  return closest?{pawn:closest.pawn,cell:closest.cell}:null;
+ }
  const plane=new THREE.Plane(new THREE.Vector3(0,0,1),0);
  function raycastBoardPlane(x:number,y:number):RCPoint|null{
   pointerRay(x,y);
@@ -595,7 +630,10 @@ export function createRC3DWorld(board:RCBoard,priorView?:RCViewSnapshot){
  }
  function dragPreview(point:RCPoint|null){
   dragProxy.visible=point!==null;
-  if(point)dragProxy.position.copy(rcScreenWorld(board,point,48));
+  // The previous z=48 displaced the ghost relative to the target tile
+  // as soon as the perspective camera was tilted.
+  if(point)dragProxy.position.copy(
+   rcScreenWorld(board,point,RC_TILE_SURFACE_Z+5));
  }
  let lastHoverKey:string|null=null,lastHoverOccupied=false;
  function hover(key:string|null,occupied:boolean,dragTarget=false){
@@ -648,6 +686,7 @@ export function createRC3DWorld(board:RCBoard,priorView?:RCViewSnapshot){
   hoverEdgeMaterial.dispose();captureEdgeMaterial.dispose();
   targetFreeMaterial.dispose();targetCaptureMaterial.dispose();
   targetFreeBorder.dispose();targetCaptureBorder.dispose();
+  selectedFillMaterial.dispose();selectedBorderMaterial.dispose();
   dragMaterial.dispose();dragOutlineMaterial.dispose();
   ringGeometry.dispose();ringMaterial.dispose();
   shadowGeometry.dispose();shadowMaterial.dispose();
@@ -660,7 +699,8 @@ export function createRC3DWorld(board:RCBoard,priorView?:RCViewSnapshot){
   homeShape.tile.dispose();homeShape.line.dispose();
   for(const material of [...homeMaterials,...homeEdgeMaterials])material.dispose();
  }
- return {scene,camera,view,cellsByKey,raycastCell,raycastBoardPlane,
+ return {scene,camera,view,cellsByKey,raycastCell,raycastPawn,
+  raycastBoardPlane,setSelectedCell,
   setPawns,moveActor,actorOrientation,physicalPose,dragPreview,
   initHomePhysics,stepHome,transferToHome,transferParityToHome,
    startHomeReturns,cancelHomeReturns,homeStats,homeSnapshot,
