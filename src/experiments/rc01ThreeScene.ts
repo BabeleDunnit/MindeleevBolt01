@@ -514,6 +514,9 @@ export function createRC3DWorld(board:RCBoard,priorView?:RCViewSnapshot){
   pointerRay(x,y);
   let closest:{pawn:RCPawn;cell:RCCell;distance:number}|null=null;
   for(const actor of actors.values()){
+   // Newly created/moved Polytrons can be picked before the next render
+   // frame. Force the hierarchical world matrix up to date for Raycaster.
+   actor.root.updateWorldMatrix(true,true);
    const hit=selection.intersectObject(actor.spin,true)[0];
    if(!hit||closest&&hit.distance>=closest.distance)continue;
    const cell=cellsByKey.get(actor.pawn.cellKey);
