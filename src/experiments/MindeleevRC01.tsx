@@ -4,7 +4,8 @@ import {initialRCGame,moveRCPawn,toggleRCParityHome,returnRCPawnHome,rcParity,
  pawnDNA,pawnName,pawnPalette,
  type RCGame,type RCPawn,type RCHomeParity,type RCHomeToggleResult} from "@/polytron/rc01Game";
 import {forecastRCMutatron,mutatronCounts} from "@/polytron/rc01Mutatron";
-import RC01ThreeBoard from "@/experiments/RC01ThreeBoard";
+import RC01ThreeBoard,{type RCCameraCommand} from "@/experiments/RC01ThreeBoard";
+import type {RCViewMode} from "@/experiments/rc01Camera";
 import RC01ThreeInspector from "@/experiments/RC01ThreeInspector";
 import {intrinsicEnergy} from "@/polytron/mindeleevLife";
 import "./MindeleevRC01.css";
@@ -20,6 +21,8 @@ export default function MindeleevRC01(){
  const [game,setGame]=useState<RCGame|null>(null);
  const [sheet,setSheet]=useState<Sheet>(null);
  const [physicsBusy,setPhysicsBusy]=useState(false);
+ const [cameraCommand,setCameraCommand]=useState<RCCameraCommand|null>(null);
+ const [viewMode,setViewMode]=useState<RCViewMode>("map");
  const physicsBusyRef=useRef(false);
  const measureRef=useRef<(()=>void)|null>(null);
  const onPhysicsBusy=(busy:boolean)=>{
@@ -84,6 +87,11 @@ export default function MindeleevRC01(){
   setGame(previous=>previous?forecastRCMutatron(previous,board).next:previous);
  };
  const groups=game?mutatronCounts(game):[0,0,0,0,0];
+ const setView=(mode:RCViewMode,cellKey?:string)=>{
+  setCameraCommand(prev=>({id:(prev?.id??0)+1,mode,cellKey}));
+  setViewMode(mode);
+  setSheet(null);
+ };
  const reset=()=>{
   if(physicsBusy)return;
   setSheet(null);
@@ -107,6 +115,7 @@ export default function MindeleevRC01(){
    aria-label="3D Mutatron board">
    <RC01ThreeBoard board={board} game={game}
     preview={forecast?.cells??[]}
+    cameraCommand={cameraCommand} onViewModeChange={setViewMode}
     onSelect={select} onCommitMove={commitMove}
     onOpenHome={parity=>setSheet({kind:"home",parity})}
     onToggleParity={toggleParity}
@@ -115,6 +124,23 @@ export default function MindeleevRC01(){
    <div className="rc01-fusion-notice" role="status">
     {game&&(game.moves||game.mutatron.generation)?game.lastAction:
      "RING 1: C/O ×3 · RING 2: C/T/O/T ×3 · OUTER: T"}
+   </div>
+   <div className="rc01-camera-controls" role="group" aria-label="Camera navigation">
+    {(["map","area","subjective"] as const).map(mode=>
+     <button type="button" key={mode}
+      className={"rc01-camera-option"+(viewMode===mode?" is-active":"")}
+      aria-pressed={viewMode===mode}
+      aria-label={mode==="map"?"View entire Mutatron":
+       mode==="area"?"Zoom to tactical area":"View Polytron in subjective 3D"}
+      onClick={()=>setView(mode)}>
+      {mode==="map"?"MAP":mode==="area"?"AREA":"3D"}
+     </button>
+    )}
+    <span className="rc01-camera-hint" aria-live="polite">
+     {viewMode==="subjective"?"Drag to orbit · pinch to zoom":
+      viewMode==="area"?"Pinch to zoom · drag empty tiles to pan":
+      "Pinch to explore"}
+    </span>
    </div>
    <div className="rc01-evolve-panel">
     <button type="button" className="rc01-evolve-button"
@@ -144,7 +170,7 @@ export default function MindeleevRC01(){
      aria-label={"Home reserve: "+(game?.home.length??0)+" Polytrons"}
      onClick={()=>setSheet({kind:"home"})}>HOME · {game?.home.length??0}</button>
    </div>
-   <div className="rc01-home-labels" aria-hidden="true">
+   {viewMode==="map"&&<div className="rc01-home-labels" aria-hidden="true">
     {(["odd","even"] as const).map(parity=>
      <span key={parity} style={{
       left:board.homes[parity].x/board.width*100+"%",
@@ -152,7 +178,7 @@ export default function MindeleevRC01(){
      }}>{parity==="odd"?"ODD":"EVEN"} · {game?.home.filter(
       p=>rcParity(p.seal)===parity).length??0}</span>
     )}
-   </div>
+   </div>}
   </section>
   {/* Announcement for assistive technologies, not a visible status strip. */}
   <p className="rc01-visually-hidden" role="status" aria-live="polite">
@@ -171,6 +197,10 @@ export default function MindeleevRC01(){
     {selectedPawn&&<div className="rc01-poly-sheet">
      <RC01ThreeInspector pawn={selectedPawn}/>
      <h2>Polytron - {pawnName(selectedPawn)}</h2>
+     {!isSelectedHome&&<button type="button" className="rc01-inspect-3d"
+      onClick={()=>setView("subjective",selectedPawn.cellKey)}>
+      View this Polytron in 3D
+     </button>}
      {isSelectedHome&&<div className="rc01-home-indicator">AT HOME</div>}
      <dl className="rc01-details">
       <div><dt>Polytronic Number</dt><dd>{selectedPawn.number}</dd></div>
