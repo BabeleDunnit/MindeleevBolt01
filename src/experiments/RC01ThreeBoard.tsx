@@ -278,7 +278,22 @@ export default function RC01ThreeBoard({
  };
  const onKeyDown=(e:ReactKeyboardEvent<HTMLCanvasElement>)=>{
   const world=worldRef.current;
-  if(!world||isBusy())return;
+  if(!world)return;
+  if(e.key==="0"||e.key==="Home"||e.key==="Escape"){
+   e.preventDefault();world.view.overview();notifyView();return;
+  }
+  if(e.key==="+"||e.key==="="||e.key==="-"){
+   e.preventDefault();
+   world.view.zoomAt(e.key==="-"?1/1.3:1.3);
+   notifyView();return;
+  }
+  if(e.key.toLowerCase()==="v"){
+   e.preventDefault();
+   const focus=world.cellsByKey.get(focusKey.current)??world.cellsByKey.get("0,0");
+   if(focus)world.view.focusOnCell(focus,"subjective");
+   notifyView();return;
+  }
+  if(isBusy())return;
   const active=world.cellsByKey.get(focusKey.current)??world.cellsByKey.get("0,0");
   if(!active)return;
   const dir=e.key==="ArrowRight"?[0,1]:
@@ -307,8 +322,9 @@ export default function RC01ThreeBoard({
   renderer.setPixelRatio(Math.min(1.5,window.devicePixelRatio||1));
   renderer.setSize(board.width,board.height,false);
   renderer.outputColorSpace=THREE.SRGBColorSpace;
-  const world=createRC3DWorld(board);
+  const world=createRC3DWorld(board,viewSavedRef.current??undefined);
   worldRef.current=world;
+  modeRef.current(world.view.getMode());
   void world.initHomePhysics().catch(error=>
    console.error("Home Rapier initialization failed",error));
   world.setPawns(gameRef.current?.pawns??[],gameRef.current?.home??[]);
@@ -365,6 +381,7 @@ export default function RC01ThreeBoard({
     if(running.victimSeal!==null)active.add(running.victimSeal);
     for(const seal of running.otherSeals)active.add(seal);
    }
+   world.view.step(dt);
    world.rotateModels(now,active);
    world.stepMutationHalos(dt);
    const arrived=world.stepHome(dt,!isBusy());
@@ -378,6 +395,9 @@ export default function RC01ThreeBoard({
   return ()=>{
    alive=false;cancelAnimationFrame(raf);
    epochRef.current=epoch+1;
+   viewSavedRef.current=world.view.snapshot();
+   pointersRef.current.clear();gestureRef.current=null;
+   suppressTapRef.current=false;
    pressRef.current=null;launchingRef.current=false;
    pendingVictimRef.current=null;doubleTapRef.current=null;
    flightRef.current?.dispose();flightRef.current=null;
@@ -400,10 +420,31 @@ export default function RC01ThreeBoard({
  useEffect(()=>{
   worldRef.current?.setEvolutionPreview(preview);
  },[preview]);
+ useEffect(()=>{
+  if(!cameraCommand)return;
+  const world=worldRef.current;
+  if(!world)return;
+  if(cameraCommand.mode==="map")world.view.overview();
+  else{
+   const target=world.cellsByKey.get(cameraCommand.cellKey??focusKey.current)
+    ??world.cellsByKey.get("0,0");
+   if(target){
+    focusKey.current=target.key;
+    world.view.focusOnCell(target,cameraCommand.mode==="subjective"?
+     "subjective":"area");
+   }
+  }
+  notifyView();
+ },[cameraCommand]);
  return <canvas ref={canvasRef} className="rc01-three-board"
   role="img" aria-label="3D Mutatron: 72 Polytrons across five hexagonal rings. Drag to move or fuse; captures return Home. Double-tap an odd/even Home to recall its Polytrons; double-tap again to return them to their opening cells with capture on occupation."
   tabIndex={0} onPointerDown={onPointerDown} onPointerMove={onPointerMove}
   onPointerUp={onPointerUp} onPointerCancel={onPointerCancel}
-  onLostPointerCapture={()=>{if(pressRef.current)cancelPointer();}}
-  onKeyDown={onKeyDown}/>;
+  onLostPointerCapture={e=>{
+   if(pressRef.current?.pointerId===e.pointerId)cancelPointer();
+   pointersRef.current.delete(e.pointerId);
+   if(pointersRef.current.size<2)gestureRef.current=null;
+   if(!pointersRef.current.size)suppressTapRef.current=false;
+  }}
+  onWheel={onWheel} onKeyDown={onKeyDown}/>;
 }
