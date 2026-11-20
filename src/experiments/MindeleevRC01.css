@@ -78,6 +78,45 @@
  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
  box-shadow:0 4px 16px #24483a18;pointer-events:none;
 }
+/* Selected touch pawn: selection does not itself invoke the inspector.
+ * On narrow mobiles the compact chip sits opposite the 3D controls.
+ */
+.rc01-touch-selection{
+ position:absolute;top:91px;left:8px;z-index:8;
+ display:flex;align-items:center;gap:5px;
+ max-width:min(285px,calc(100% - 16px));
+ padding:5px 6px;border:1px solid #80b7d5;border-radius:13px;
+ background:#edf8ffef;color:#254f6d;
+ box-shadow:0 3px 14px #1c587e24;backdrop-filter:blur(8px);
+ pointer-events:auto
+}
+.rc01-selection-hex{font-size:21px;font-weight:750;color:#2874a6}
+.rc01-selection-name{display:flex;flex-direction:column;gap:0;min-width:0}
+.rc01-selection-name strong{
+ font-size:11px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis
+}
+.rc01-selection-name small{font-size:9px;color:#53768d;font-weight:700;white-space:nowrap}
+.rc01-selection-info,.rc01-selection-clear{
+ flex-shrink:0;min-height:31px;border-radius:9px;padding:4px 9px;
+ border:1px solid #abc6d5;background:#fff;color:#22577c;
+ font-size:11px!important;font-weight:800!important
+}
+.rc01-selection-clear{font-size:17px!important;padding:2px 9px}
+.rc01-touch-drag-hint{
+ position:absolute;top:138px;left:50%;transform:translateX(-50%);
+ z-index:9;max-width:min(335px,90%);white-space:normal;
+ pointer-events:none;text-align:center;
+ border:1px solid #3b9e87;border-radius:999px;
+ background:#155e4ff0;color:#fff;
+ font-size:11px;font-weight:830;letter-spacing:.015em;
+ padding:7px 13px;box-shadow:0 3px 15px #185b4d40
+}
+@media(max-width:390px){
+ .rc01-touch-selection{top:86px;gap:3px;padding:4px 5px}
+ .rc01-selection-name strong{font-size:10px}
+ .rc01-selection-info{padding:3px 7px}
+ .rc01-touch-drag-hint{top:132px;font-size:10px}
+}
 /* One small view selector on mobile; it floats clear of both the
  * Mutatron gesture surface and the bottom Home/Evolve controls. */
 .rc01-camera-controls{
