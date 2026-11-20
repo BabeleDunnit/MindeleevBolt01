@@ -16,14 +16,15 @@ async function load(entry,name,ui=false){
  return import(pathToFileURL(out).href);
 }
 try{
- const [grid,model,physics,ui,worldModule,life,mutatron]=await Promise.all([
+ const [grid,model,physics,ui,worldModule,life,mutatron,cameraRig]=await Promise.all([
   load("src/polytron/rc01Board.ts","board"),
   load("src/polytron/rc01Game.ts","game"),
   load("src/experiments/rc01RapierFlight.ts","rapier-motion"),
   load("src/experiments/MindeleevRC01.tsx","ui",true),
   load("src/experiments/rc01ThreeScene.ts","scene"),
   load("src/polytron/mindeleevLife.ts","energy"),
-  load("src/polytron/rc01Mutatron.ts","mutatron")
+  load("src/polytron/rc01Mutatron.ts","mutatron"),
+  load("src/experiments/rc01Camera.ts","camera")
  ]);
  const board=grid.makeRCBoard(390,760);
  const nucleus=board.cells.find(c=>c.nucleus);
@@ -91,7 +92,14 @@ try{
  }
  // Both tile and Conway geometry are in the exact same 3D world.
  const world=worldModule.createRC3DWorld(board);
- assert.equal(world.camera.isOrthographicCamera,true);
+ assert.equal(world.camera.isPerspectiveCamera,true);
+ assert.equal(world.view.getMode(),"map");
+ assert(Math.abs(world.camera.position.z-
+  board.height/(2*Math.tan(35*Math.PI/180/2)))<1e-5);
+ assert.equal(cameraRig.rcCameraMode(3),"area");
+ assert.equal(cameraRig.rcCameraMode(8),"subjective");
+ assert.equal(cameraRig.rcCameraTiltForZoom(1),0);
+ assert(cameraRig.rcCameraTiltForZoom(8)>1.1);
  assert(world.scene.children.length>board.cells.length);
  assert(world.scene.children.some(x=>x.isMesh&&x.geometry?.type==="ExtrudeGeometry"),
   "Actual extruded 3D hexagons, not SVG polygons or 2D substitutes");
@@ -167,6 +175,48 @@ try{
  assert.equal(world.scene.children.filter(x=>
   x.isMesh&&x.geometry?.type==="RingGeometry").length,ringsBefore,
   "Preview must be cleared cleanly without leaving stale hex highlights");
+ // Tactical perspective must still raycast accurately after camera motion.
+ const focus=board.cells.find(c=>c.key==="2,0");
+ assert(focus);
+ world.view.focusOnCell(focus,"area");
+ for(let i=0;i<120;i++)world.view.step(1/60);
+ assert.equal(world.view.getMode(),"area");
+ assert.equal(world.view.snapshot().zoom,3.2);
+ const focusPx=(worldModule.rcScreenWorld(board,focus).project(world.camera).x+1)*board.width/2;
+ const focusPy=(1-worldModule.rcScreenWorld(board,focus).project(world.camera).y)*board.height/2;
+ assert(Math.hypot(focusPx-board.width/2,focusPy-board.height/2)<.005,
+  "Tactical mode centers the selected cell");
+ assert.equal(world.raycastCell(focusPx,focusPy)?.key,focus.key,
+  "Raycasting must follow the tactical perspective camera");
+ world.view.panWorld(board.size*2,-board.size);
+ for(let i=0;i<120;i++)world.view.step(1/60);
+ const afterPan=world.view.snapshot();
+ assert(Math.abs(afterPan.focusQ-(focus.x-board.width/2)/board.size-2)<1e-6,
+  "Touch panning moves the camera pivot, never a board cell");
+ world.view.zoomAt(1.25);
+ assert(world.view.getTargetZoom()>3.9);
+ world.view.focusOnCell(focus,"subjective");
+ for(let i=0;i<120;i++)world.view.step(1/60);
+ assert.equal(world.view.getMode(),"subjective");
+ assert(world.view.getTargetTilt()>1.1);
+ const beforeOrbit=world.camera.position.clone();
+ world.view.orbit(35,-12);
+ for(let i=0;i<120;i++)world.view.step(1/60);
+ assert(beforeOrbit.distanceTo(world.camera.position)>board.size,
+  "A subjective view must genuinely orbit around the selected Polytron");
+ const subjectiveSnapshot=world.view.snapshot();
+ const resizedWorld=worldModule.createRC3DWorld(
+  grid.makeRCBoard(360,680),subjectiveSnapshot);
+ assert(Math.abs(resizedWorld.view.snapshot().focusQ-
+  subjectiveSnapshot.focusQ)<1e-6,
+  "A mobile viewport resize must preserve the selected camera region");
+ assert.equal(resizedWorld.view.getMode(),"subjective");
+ resizedWorld.dispose();
+ world.view.overview();
+ for(let i=0;i<120;i++)world.view.step(1/60);
+ assert.equal(world.view.getMode(),"map");
+ assert.equal(world.raycastCell(nucleus.x,nucleus.y)?.key,"0,0",
+  "Overview restores exact original raycasting");
  world.dispose();
  // All 72 permanent identities: 1..6 at ring 1, 7..18 at ring 2,
  // 19..42 at ring 4, 43..72 at ring 5. Ring 3 and Nucleus stay empty.
@@ -893,6 +943,9 @@ try{
  const markup=renderToString(React.createElement(ui.default));
  assert(markup.includes("RELEASE CANDIDATE 01"));
  assert(markup.includes("FUSIONS"));
+ assert(markup.includes("MAP")&&markup.includes("AREA")&&
+  markup.includes(">3D<"),
+  "Visible camera controls must provide MAP/AREA/3D");
  assert(markup.includes("Evolve Mutatron")&&
   markup.includes("GEN")&&markup.includes("SYM"),
   "A visible manual evolution control and state counters are required");
@@ -950,6 +1003,10 @@ try{
   "onOpenHome","onToggleParity","onReturnArrived","doubleTapRef.current",
    "world.stepMutationHalos(dt)","worldRef.current?.pulseMutations",
    "world.setEvolutionPreview(previewRef.current)",
+   "pointersRef.current","gestureRef.current","world.view.zoomAt",
+   "world.view.orbit","panBetween","world.view.step(dt)",
+   "viewSavedRef.current=world.view.snapshot()",
+   "onWheel={onWheel}","cameraCommand",
   "RC_RAPIER_FIXED_STEP","rotateModels","onKeyDown"]){
   assert(boardCode.includes(phrase),"Missing native 3D board feature: "+phrase);
  }
@@ -958,7 +1015,7 @@ try{
  for(const phrase of ["dragProxy","dragMaterial","opacity:.5",
    "targetMarker","targetFill","targetCaptureMaterial",
    "rcVisualPawnHeight","scene.add(shadow)",
-  "THREE.ExtrudeGeometry","THREE.OrthographicCamera",
+  "THREE.ExtrudeGeometry","createRC01CameraRig",
   "THREE.Raycaster","THREE.Plane","THREE.MeshStandardMaterial",
   "makeRC3DPolytron","polytronGeometry","pawnPalette(pawn)",
   "solid.position.copy(centre)","spin.rotation","scene.add(mesh)",
@@ -997,6 +1054,9 @@ try{
  assert(css.includes(".rc01-three-board")&&!css.includes(".rc01-status{"));
  assert(css.includes(".rc01-evolve-panel")&&css.includes(".rc01-evolve-button"));
  assert(css.includes(".rc01-preview-legend")&&css.includes(".rc01-legend-gold"));
+ assert(css.includes(".rc01-camera-controls")&&
+  css.includes(".rc01-camera-option")&&css.includes(".rc01-inspect-3d"),
+  "Mobile MAP/AREA/3D control and Polytron focus are required");
  assert(css.includes(".rc01-fusion-notice")&&css.includes(".rc01-home-button"),
   "A visible Fusion notice and Home inventory must exist");
  const app=await readFile("src/App.tsx","utf8");
@@ -1005,7 +1065,7 @@ try{
   native3dHexes:board.cells.length,occupied:sceneGame.pawns.length,
    homeCapacity:"two parity Rapier crowds, full-size",
   pawns:sceneGame.pawns.length,score:sceneGame.score,
-  camera:"orthographic",picking:"raycasting",capture:"Rapier impact with inherited manifestation and Home regression"
+  camera:"smooth perspective MAP/AREA/3D",picking:"raycasting",capture:"Rapier impact with inherited manifestation and Home regression"
  }));
  console.log("PASS RC01: live 3D forecast, stepwise high-number Mutatron, intrinsic energy conservation, Home toggle and Rapier collisions");
 }finally{await rm(temporary,{recursive:true,force:true});}
