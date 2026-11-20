@@ -59,7 +59,8 @@ export default function RC01ThreeBoard({
  const flightRef=useRef<RC01RapierFlight|null>(null);
  const launchingRef=useRef(false);
  const epochRef=useRef(0);
- const focusKey=useRef("0,0");
+ // Subjective view defaults to the opening cube, never an empty Nucleus.
+ const focusKey=useRef("1,0");
  gameRef.current=game;
  previewRef.current=preview;
  selectRef.current=onSelect;
@@ -437,7 +438,7 @@ export default function RC01ThreeBoard({
   notifyView();
  },[cameraCommand]);
  return <canvas ref={canvasRef} className="rc01-three-board"
-  role="img" aria-label="3D Mutatron: 72 Polytrons across five hexagonal rings. Drag to move or fuse; captures return Home. Double-tap an odd/even Home to recall its Polytrons; double-tap again to return them to their opening cells with capture on occupation."
+  role="img" aria-label="3D Mutatron with MAP, AREA and subjective 3D views. Use two fingers to pinch and pan. Drag empty tiles to navigate while zoomed; drag occupied tiles to move or fuse. In subjective view drag to orbit the selected Polytron. Double-tap a Home to recall or return its Polytrons."
   tabIndex={0} onPointerDown={onPointerDown} onPointerMove={onPointerMove}
   onPointerUp={onPointerUp} onPointerCancel={onPointerCancel}
   onLostPointerCapture={e=>{
