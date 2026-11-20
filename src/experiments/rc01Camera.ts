@@ -27,7 +27,7 @@ export function rcCameraTiltForZoom(zoom:number){
  return lerp(69*DEG,78*DEG,clamp((zoom-8)/5,0,1));
 }
 export function rcCameraMode(zoom:number):RCViewMode{
- return zoom<1.4?"map":zoom<5.5?"area":"subjective";
+ return zoom<1.06?"map":zoom<5.5?"area":"subjective";
 }
 export function createRC01CameraRig(board:RCBoard,saved?:RCViewSnapshot){
  const camera=new THREE.PerspectiveCamera(
@@ -94,6 +94,10 @@ export function createRC01CameraRig(board:RCBoard,saved?:RCViewSnapshot){
   target.tilt=rcCameraTiltForZoom(target.zoom);
  }
  function panWorld(dx:number,dy:number){
+  // The full-board overview is deliberately fixed: every cell and both
+  // Home labels are already visible, so dragging empty tiles cannot
+  // accidentally desynchronize the CSS labels from the world.
+  if(target.zoom<=1.05)return;
   focus(target.x+dx,target.y+dy);
  }
  function orbit(dxPixels:number,dyPixels:number){
