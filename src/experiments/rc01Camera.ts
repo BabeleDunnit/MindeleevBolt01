@@ -31,7 +31,8 @@ export function rcCameraMode(zoom:number):RCViewMode{
 }
 export function createRC01CameraRig(board:RCBoard,saved?:RCViewSnapshot){
  const camera=new THREE.PerspectiveCamera(
-  FOV,board.width/board.height,.1,Math.max(6000,board.height*24));
+  FOV,board.width/board.height,Math.max(1,board.size*.20),
+  Math.max(6000,board.height*24));
  camera.up.set(0,1,0);
  const overviewDistance=board.height/(2*Math.tan(FOV*DEG/2));
  const start:Pose={
