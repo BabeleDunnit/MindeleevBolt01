@@ -4,6 +4,7 @@ import {polytronGeometry} from "@/polytron/polytron";
 import {openingCellKeyForSeal,pawnDNA,pawnPalette,rcParity,type RCPawn} from "@/polytron/rc01Game";
 import {RC_HOME_ROTATION,type RCBoard,type RCCell,type RCPoint} from "@/polytron/rc01Board";
 import type {RCMutatronForecastCell,RCPreviewStatus} from "@/polytron/rc01Mutatron";
+import {createRC01CameraRig,type RCViewSnapshot} from "@/experiments/rc01Camera";
 
 // The same resting height is used by the Three.js display and Rapier bodies.
 // A bounding-sphere radius guarantees that even rotated convex Polytrons sit
@@ -90,16 +91,13 @@ function makeHexGeometry(radius:number){
  line.setAttribute("position",new THREE.Float32BufferAttribute(positions,3));
  return {tile,line};
 }
-export function createRC3DWorld(board:RCBoard){
+export function createRC3DWorld(board:RCBoard,priorView?:RCViewSnapshot){
  const scene=new THREE.Scene();
  scene.background=new THREE.Color("#edf0ee");
- const camera=new THREE.OrthographicCamera(
-  -board.width/2,board.width/2,board.height/2,-board.height/2,.1,2600
- );
- camera.position.set(0,0,1200);camera.lookAt(0,0,0);
- camera.updateProjectionMatrix();camera.updateMatrixWorld(true);
- // The camera is an explicit Three.js camera: a future zoom-to-3D view can
- // animate its pose instead of replacing a flat SVG layer.
+ // One perspective projection, from near-orthographic strategic framing to
+ // a ground-hugging subjective view. Raycasting follows this SAME camera.
+ const view=createRC01CameraRig(board,priorView);
+ const camera=view.camera;
  scene.add(new THREE.HemisphereLight(0xf8fff7,0x7e969a,2.0));
  const sun=new THREE.DirectionalLight(0xffffff,2.7);
  sun.position.set(-160,260,530);scene.add(sun);
@@ -662,7 +660,7 @@ export function createRC3DWorld(board:RCBoard){
   homeShape.tile.dispose();homeShape.line.dispose();
   for(const material of [...homeMaterials,...homeEdgeMaterials])material.dispose();
  }
- return {scene,camera,cellsByKey,raycastCell,raycastBoardPlane,
+ return {scene,camera,view,cellsByKey,raycastCell,raycastBoardPlane,
   setPawns,moveActor,actorOrientation,physicalPose,dragPreview,
   initHomePhysics,stepHome,transferToHome,transferParityToHome,
    startHomeReturns,cancelHomeReturns,homeStats,homeSnapshot,
