@@ -55,6 +55,13 @@ export function createRC01CameraRig(board:RCBoard,saved?:RCViewSnapshot){
    current.y+radial*Math.sin(current.azimuth),
    current.z+distance*Math.cos(current.tilt)
   );
+  // The board is XY with Z UP. A fixed Y-up camera creates an apparent
+  // camera roll while yawing around Z in subjective mode. Blend to a
+  // Z-up horizon only once the camera leaves the zenith: at the zenith
+  // Z-up would be parallel to the view ray and is undefined.
+  const transition=clamp((current.tilt-10*DEG)/(30*DEG),0,1);
+  const horizon=transition*transition*(3-2*transition);
+  camera.up.set(0,1-horizon,horizon).normalize();
   camera.lookAt(pivot);
   camera.updateMatrixWorld(true);
  }
