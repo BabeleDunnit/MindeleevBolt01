@@ -88,17 +88,38 @@ export default function RC01ThreeBoard({
   pressRef.current=null;
   worldRef.current?.hover(null,false);
  };
+ const notifyView=()=>{
+  const mode=worldRef.current?.view.getMode();
+  if(mode)modeRef.current(mode);
+ };
+ const panBetween=(from:RCPoint,to:RCPoint)=>{
+  const world=worldRef.current;if(!world)return;
+  const a=world.raycastBoardPlane(from.x,from.y);
+  const b=world.raycastBoardPlane(to.x,to.y);
+  if(a&&b)world.view.panWorld(a.x-b.x,b.y-a.y);
+ };
  const onPointerDown=(e:ReactPointerEvent<HTMLCanvasElement>)=>{
-  if(e.button!==0||isBusy()||!gameRef.current)return;
+  if(e.pointerType==="mouse"&&e.button!==0)return;
   const world=worldRef.current,point=screenPoint(e);
   if(!world||!point)return;
-  // Hex hit-test matches the actual flat-top Home shapes, not a
-  // circular proxy. A second tap of the SAME parity triggers the
-  // high-density stress test without ever pausing board interaction.
-  const parity=(["odd","even"] as const).find(side=>{
-   return rcHomeContains(board,side,point);
-  });
-  if(parity){
+  pointersRef.current.set(e.pointerId,point);
+  e.currentTarget.setPointerCapture(e.pointerId);
+  if(pointersRef.current.size>=2){
+   cancelPointer();doubleTapRef.current=null;
+   suppressTapRef.current=true;
+   const ps=[...pointersRef.current.values()].slice(0,2);
+   gestureRef.current={
+    mid:{x:(ps[0].x+ps[1].x)/2,y:(ps[0].y+ps[1].y)/2},
+    distance:Math.max(1,Math.hypot(ps[0].x-ps[1].x,ps[0].y-ps[1].y))
+   };
+   e.preventDefault();return;
+  }
+  // A second touch is NOT a second tap of the parity Home.
+  if(suppressTapRef.current)return;
+  const boardPoint=world.raycastBoardPlane(point.x,point.y);
+  const parity=boardPoint?(["odd","even"] as const).find(side=>
+   rcHomeContains(board,side,boardPoint)):undefined;
+  if(parity&&gameRef.current&&!isBusy()&&world.view.getMode()!=="subjective"){
    const now=performance.now(),previous=doubleTapRef.current;
    if(previous?.parity===parity&&now-previous.at<390){
     doubleTapRef.current=null;
@@ -114,26 +135,59 @@ export default function RC01ThreeBoard({
      world.startHomeReturns(outcome.pawns);
     }
    }else doubleTapRef.current={parity,at:now};
-   e.preventDefault();
-   return;
+   e.preventDefault();return;
   }
   const cell=world.raycastCell(point.x,point.y);
-  if(!cell)return;
-  pressRef.current={pointerId:e.pointerId,startX:e.clientX,
-   startY:e.clientY,cell,
-   pawn:pawnAt(gameRef.current,cell.key)??null,dragging:false};
-  focusKey.current=cell.key;
-  e.currentTarget.setPointerCapture(e.pointerId);
+  if(cell)focusKey.current=cell.key;
+  const orbiting=world.view.getMode()==="subjective";
+  pressRef.current={
+   pointerId:e.pointerId,startX:e.clientX,startY:e.clientY,
+   cell,pawn:!orbiting&&!isBusy()&&cell&&gameRef.current?
+    pawnAt(gameRef.current,cell.key)??null:null,
+   dragging:false,panning:false,orbiting,last:point
+  };
   e.preventDefault();
  };
  const onPointerMove=(e:ReactPointerEvent<HTMLCanvasElement>)=>{
-  const press=pressRef.current,world=worldRef.current;
-  if(!press||press.pointerId!==e.pointerId||!world||isBusy())return;
-  if(!press.pawn)return;
+  const world=worldRef.current,point=screenPoint(e);
+  if(!world||!point||!pointersRef.current.has(e.pointerId))return;
+  pointersRef.current.set(e.pointerId,point);
+  const ps=[...pointersRef.current.values()];
+  if(ps.length>=2){
+   const [a,b]=ps;
+   const mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+   const distance=Math.max(1,Math.hypot(a.x-b.x,a.y-b.y));
+   const last=gestureRef.current;
+   if(last){
+    // Two fingers always pan/zoom -- never initiate a Polytron move.
+    panBetween(last.mid,mid);
+    const at=world.raycastBoardPlane(mid.x,mid.y);
+    world.view.zoomAt(distance/last.distance,at??undefined);
+    notifyView();
+   }
+   gestureRef.current={mid,distance};
+   e.preventDefault();return;
+  }
+  if(suppressTapRef.current)return;
+  const press=pressRef.current;
+  if(!press||press.pointerId!==e.pointerId)return;
   const distance=Math.hypot(e.clientX-press.startX,e.clientY-press.startY);
   if(distance<MIN_DRAG_PIXELS&&!press.dragging)return;
-  press.dragging=true;
-  const point=screenPoint(e);if(!point)return;
+  const previous=press.last;
+  press.last=point;press.dragging=true;
+  if(press.orbiting){
+   world.view.orbit(point.x-previous.x,point.y-previous.y);
+   e.preventDefault();return;
+  }
+  if(!press.pawn){
+   press.panning=true;
+   panBetween(previous,point);
+   notifyView();
+   e.preventDefault();return;
+  }
+  if(isBusy()||!press.cell)return;
+  // A pawn still never follows the finger. Only its translucent tile ghost
+  // moves, even when the tactical camera has been panned and zoomed.
   const worldPoint=world.raycastBoardPlane(point.x,point.y);
   world.dragPreview(worldPoint);
   const target=world.raycastCell(point.x,point.y);
@@ -141,9 +195,10 @@ export default function RC01ThreeBoard({
    pawnAt(gameRef.current,target.key));
   world.hover(target?.key??null,occupied,
    !!target&&target.key!==press.cell.key);
+  e.preventDefault();
  };
  const launchPhysicalMove=(press:Press,target:RCCell)=>{
-  if(!press.pawn||isBusy()||!gameRef.current)return;
+  if(!press.pawn||!press.cell||isBusy()||!gameRef.current)return;
   const world=worldRef.current;if(!world)return;
   const victim=pawnAt(gameRef.current,target.key)??null;
   pendingVictimRef.current=victim;
@@ -183,6 +238,13 @@ export default function RC01ThreeBoard({
   });
  };
  const onPointerUp=(e:ReactPointerEvent<HTMLCanvasElement>)=>{
+  pointersRef.current.delete(e.pointerId);
+  if(pointersRef.current.size<2)gestureRef.current=null;
+  if(suppressTapRef.current){
+   cancelPointer();
+   if(!pointersRef.current.size)suppressTapRef.current=false;
+   return;
+  }
   const press=pressRef.current,world=worldRef.current;
   if(!press||press.pointerId!==e.pointerId||!world)return;
   const point=screenPoint(e);
@@ -190,16 +252,30 @@ export default function RC01ThreeBoard({
   const wasDragging=press.dragging||
    Math.hypot(e.clientX-press.startX,e.clientY-press.startY)>=MIN_DRAG_PIXELS;
   cancelPointer(e.currentTarget,e.pointerId);
-  if(isBusy())return;
+  if(isBusy()||press.orbiting&&wasDragging)return;
   if(!wasDragging){
-   selectRef.current(press.cell,press.pawn);
+   if(press.cell)selectRef.current(press.cell,
+    gameRef.current?pawnAt(gameRef.current,press.cell.key)??null:null);
    return;
   }
-  if(!press.pawn||!target||target.key===press.cell.key)return;
+  if(!press.pawn||!press.cell||press.panning||
+   !target||target.key===press.cell.key)return;
   launchPhysicalMove(press,target);
  };
- const onPointerCancel=(e:ReactPointerEvent<HTMLCanvasElement>)=>
-  cancelPointer(e.currentTarget,e.pointerId);
+ const onPointerCancel=(e:ReactPointerEvent<HTMLCanvasElement>)=>{
+  pointersRef.current.delete(e.pointerId);
+  if(pointersRef.current.size<2)gestureRef.current=null;
+  if(!pointersRef.current.size)suppressTapRef.current=false;
+  if(pressRef.current?.pointerId===e.pointerId)cancelPointer();
+ };
+ const onWheel=(e:ReactWheelEvent<HTMLCanvasElement>)=>{
+  const world=worldRef.current,point=screenPoint(e);
+  if(!world)return;
+  const anchor=point?world.raycastBoardPlane(point.x,point.y):null;
+  world.view.zoomAt(Math.exp(-Math.max(-180,Math.min(180,e.deltaY))*.002),
+   anchor??undefined);
+  notifyView();e.preventDefault();
+ };
  const onKeyDown=(e:ReactKeyboardEvent<HTMLCanvasElement>)=>{
   const world=worldRef.current;
   if(!world||isBusy())return;
