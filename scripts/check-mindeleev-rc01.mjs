@@ -193,6 +193,12 @@ try{
  // selection can be moved/cleared WITHOUT opening the inspector.
  const one=model.initialRCGame(board).pawns.find(p=>p.cellKey==="1,0");
  assert(one);
+ // CI is headless; use the same one-canvas stub as the existing Rapier
+ // Home stress test. The actual THREE.Mesh and Raycaster stay real.
+ const priorDOM=globalThis.document;
+ globalThis.document={createElement:tag=>tag==="canvas"?{
+  width:128,height:64,getContext:()=>null
+ }:{}};
  world.setPawns([one]);
  const oneCell=board.cells.find(c=>c.key===one.cellKey);
  assert(oneCell);
@@ -213,6 +219,8 @@ try{
  world.setSelectedCell(null);
  assert(!selectedMarker.visible);
  world.setPawns([]);
+ if(priorDOM===undefined)delete globalThis.document;
+ else globalThis.document=priorDOM;
  // Tactical perspective must still raycast accurately after camera motion.
  const focus=board.cells.find(c=>c.key==="2,0");
  assert(focus);
