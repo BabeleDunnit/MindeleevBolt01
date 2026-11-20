@@ -1,5 +1,6 @@
 import {useEffect,useRef} from "react";
-import type {PointerEvent as ReactPointerEvent,KeyboardEvent as ReactKeyboardEvent} from "react";
+import type {PointerEvent as ReactPointerEvent,KeyboardEvent as ReactKeyboardEvent,
+ WheelEvent as ReactWheelEvent} from "react";
 import * as THREE from "three";
 import {rcHomeContains,type RCBoard,type RCCell,type RCPoint} from "@/polytron/rc01Board";
 import {pawnAt,type RCGame,type RCPawn,type RCHomeParity,
@@ -7,20 +8,26 @@ import {pawnAt,type RCGame,type RCPawn,type RCHomeParity,
 import {RC01RapierFlight,RC_RAPIER_FIXED_STEP}
  from "@/experiments/rc01RapierFlight";
 import {createRC3DWorld} from "@/experiments/rc01ThreeScene";
+import type {RCViewMode,RCViewSnapshot} from "@/experiments/rc01Camera";
 import type {RCMutatronForecastCell} from "@/polytron/rc01Mutatron";
 
 const MIN_DRAG_PIXELS=9;
 type Press={
  pointerId:number;startX:number;startY:number;
- cell:RCCell;pawn:RCPawn|null;dragging:boolean;
+ cell:RCCell|null;pawn:RCPawn|null;dragging:boolean;
+ panning:boolean;orbiting:boolean;last:RCPoint;
 };
 type ThreeWorld=ReturnType<typeof createRC3DWorld>;
+export type RCCameraCommand={id:number;mode:RCViewMode;cellKey?:string};
 
 export default function RC01ThreeBoard({
- board,game,preview,onSelect,onCommitMove,onOpenHome,onToggleParity,onReturnArrived,onBusyChange
+ board,game,preview,cameraCommand,onViewModeChange,
+ onSelect,onCommitMove,onOpenHome,onToggleParity,onReturnArrived,onBusyChange
 }:{
  board:RCBoard;game:RCGame|null;
  preview:readonly RCMutatronForecastCell[];
+ cameraCommand:RCCameraCommand|null;
+ onViewModeChange:(mode:RCViewMode)=>void;
  onSelect:(cell:RCCell,pawn:RCPawn|null)=>void;
  onCommitMove:(source:string,target:string)=>void;
  onOpenHome:(parity?:RCHomeParity)=>void;
@@ -29,6 +36,11 @@ export default function RC01ThreeBoard({
  onBusyChange?:(busy:boolean)=>void;
 }){
  const canvasRef=useRef<HTMLCanvasElement>(null);
+ const viewSavedRef=useRef<RCViewSnapshot|null>(null);
+ const modeRef=useRef(onViewModeChange);
+ const pointersRef=useRef(new Map<number,RCPoint>());
+ const gestureRef=useRef<{mid:RCPoint;distance:number}|null>(null);
+ const suppressTapRef=useRef(false);
  const worldRef=useRef<ThreeWorld|null>(null);
  const gameRef=useRef(game);
  const previewRef=useRef(preview);
@@ -56,8 +68,9 @@ export default function RC01ThreeBoard({
  toggleRef.current=onToggleParity;
  arrivalRef.current=onReturnArrived;
  busyRef.current=onBusyChange;
+ modeRef.current=onViewModeChange;
  const isBusy=()=>launchingRef.current||flightRef.current!==null;
- const screenPoint=(e:ReactPointerEvent<HTMLCanvasElement>):RCPoint|null=>{
+ const screenPoint=(e:{clientX:number;clientY:number;currentTarget:HTMLCanvasElement}):RCPoint|null=>{
   const rect=e.currentTarget.getBoundingClientRect();
   if(rect.width<=0||rect.height<=0)return null;
   return {
