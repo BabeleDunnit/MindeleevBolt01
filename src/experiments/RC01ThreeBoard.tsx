@@ -1,4 +1,4 @@
-import {useEffect,useRef} from "react";
+import {useEffect,useRef,useState} from "react";
 import type {PointerEvent as ReactPointerEvent,KeyboardEvent as ReactKeyboardEvent,
  WheelEvent as ReactWheelEvent} from "react";
 import * as THREE from "three";
@@ -10,10 +10,11 @@ import {RC01RapierFlight,RC_RAPIER_FIXED_STEP}
 import {createRC3DWorld} from "@/experiments/rc01ThreeScene";
 import type {RCViewMode,RCViewSnapshot} from "@/experiments/rc01Camera";
 import type {RCMutatronForecastCell} from "@/polytron/rc01Mutatron";
+import {rcDragAim,rcIsTouch} from "@/experiments/rc01TouchInput";
 
 const MIN_DRAG_PIXELS=9;
 type Press={
- pointerId:number;startX:number;startY:number;
+ pointerId:number;pointerType:string;startX:number;startY:number;
  cell:RCCell|null;pawn:RCPawn|null;dragging:boolean;
  panning:boolean;orbiting:boolean;last:RCPoint;
 };
@@ -22,12 +23,15 @@ export type RCCameraCommand={id:number;mode:RCViewMode;cellKey?:string};
 
 export default function RC01ThreeBoard({
  board,game,preview,cameraCommand,onViewModeChange,
+ selectedSeal,onTouchSelect,
  onSelect,onCommitMove,onOpenHome,onToggleParity,onReturnArrived,onBusyChange
 }:{
  board:RCBoard;game:RCGame|null;
  preview:readonly RCMutatronForecastCell[];
  cameraCommand:RCCameraCommand|null;
  onViewModeChange:(mode:RCViewMode)=>void;
+ selectedSeal:number|null;
+ onTouchSelect:(seal:number|null)=>void;
  onSelect:(cell:RCCell,pawn:RCPawn|null)=>void;
  onCommitMove:(source:string,target:string)=>void;
  onOpenHome:(parity?:RCHomeParity)=>void;
@@ -36,6 +40,9 @@ export default function RC01ThreeBoard({
  onBusyChange?:(busy:boolean)=>void;
 }){
  const canvasRef=useRef<HTMLCanvasElement>(null);
+ const [dragHint,setDragHint]=useState<string|null>(null);
+ const touchSelectRef=useRef(onTouchSelect);
+ const selectedSealRef=useRef(selectedSeal);
  const viewSavedRef=useRef<RCViewSnapshot|null>(null);
  const modeRef=useRef(onViewModeChange);
  const pointersRef=useRef(new Map<number,RCPoint>());
@@ -64,6 +71,8 @@ export default function RC01ThreeBoard({
  gameRef.current=game;
  previewRef.current=preview;
  selectRef.current=onSelect;
+ touchSelectRef.current=onTouchSelect;
+ selectedSealRef.current=selectedSeal;
  commitRef.current=onCommitMove;
  homeRef.current=onOpenHome;
  toggleRef.current=onToggleParity;
@@ -86,6 +95,7 @@ export default function RC01ThreeBoard({
   // Cancel only the translucent selection proxy. The real pawn was never
   // moved, so there is no teleport-back or visual reset.
   worldRef.current?.dragPreview(null);
+  setDragHint(null);
   pressRef.current=null;
   worldRef.current?.hover(null,false);
  };
@@ -138,13 +148,16 @@ export default function RC01ThreeBoard({
    }else doubleTapRef.current={parity,at:now};
    e.preventDefault();return;
   }
-  const cell=world.raycastCell(point.x,point.y);
-  if(cell)focusKey.current=cell.key;
   const orbiting=world.view.getMode()==="subjective";
+  const picked=!orbiting&&!isBusy()?
+   world.raycastPawn(point.x,point.y):null;
+  const cell=picked?.cell??world.raycastCell(point.x,point.y);
+  if(cell)focusKey.current=cell.key;
   pressRef.current={
-   pointerId:e.pointerId,startX:e.clientX,startY:e.clientY,
+   pointerId:e.pointerId,pointerType:e.pointerType,
+   startX:e.clientX,startY:e.clientY,
    cell,pawn:!orbiting&&!isBusy()&&cell&&gameRef.current?
-    pawnAt(gameRef.current,cell.key)??null:null,
+    picked?.pawn??pawnAt(gameRef.current,cell.key)??null:null,
    dragging:false,panning:false,orbiting,last:point
   };
   e.preventDefault();
@@ -187,15 +200,26 @@ export default function RC01ThreeBoard({
    e.preventDefault();return;
   }
   if(isBusy()||!press.cell)return;
-  // A pawn still never follows the finger. Only its translucent tile ghost
-  // moves, even when the tactical camera has been panned and zoomed.
-  const worldPoint=world.raycastBoardPlane(point.x,point.y);
+  // A TOUCH pointer aims ABOVE the finger. Mouse/pen stay exact.
+  // The same 'aim' will be used on pointer-up, preventing a mismatch
+  // between the highlighted target and the actual Rapier destination.
+  const aim=rcDragAim(point,press.pointerType,board.height,
+   e.currentTarget.getBoundingClientRect().height);
+  const worldPoint=world.raycastBoardPlane(aim.x,aim.y);
   world.dragPreview(worldPoint);
-  const target=world.raycastCell(point.x,point.y);
-  const occupied=!!(target&&gameRef.current&&
-   pawnAt(gameRef.current,target.key));
-  world.hover(target?.key??null,occupied,
-   !!target&&target.key!==press.cell.key);
+  const target=world.raycastCell(aim.x,aim.y);
+  const valid=!!target&&target.key!==press.cell.key;
+  const occupied=!!(valid&&gameRef.current&&
+   pawnAt(gameRef.current,target!.key));
+  world.hover(valid?target!.key:null,occupied,valid);
+  if(rcIsTouch(press.pointerType)){
+   touchSelectRef.current(press.pawn.seal);
+   const text=valid?
+    (occupied?"FUSE":"MOVE")+" · ring "+target!.ring+
+    " / "+target!.idxInRing:
+    "Move finger to aim · release on highlighted cell";
+   setDragHint(last=>last===text?last:text);
+  }
   e.preventDefault();
  };
  const launchPhysicalMove=(press:Press,target:RCCell)=>{
@@ -249,13 +273,19 @@ export default function RC01ThreeBoard({
   const press=pressRef.current,world=worldRef.current;
   if(!press||press.pointerId!==e.pointerId||!world)return;
   const point=screenPoint(e);
-  const target=point?world.raycastCell(point.x,point.y):null;
+  const aim=point?rcDragAim(point,press.pointerType,board.height,
+   e.currentTarget.getBoundingClientRect().height):null;
+  const target=aim?world.raycastCell(aim.x,aim.y):null;
   const wasDragging=press.dragging||
    Math.hypot(e.clientX-press.startX,e.clientY-press.startY)>=MIN_DRAG_PIXELS;
   cancelPointer(e.currentTarget,e.pointerId);
-  if(isBusy()||press.orbiting&&wasDragging)return;
+  if(isBusy()||press.orbiting)return;
   if(!wasDragging){
-   if(press.cell)selectRef.current(press.cell,
+   if(rcIsTouch(press.pointerType)){
+    // Touch tap selects without opening the modal; explicit Info is the
+    // only path to inspector. A tap on an empty tile clears selection.
+    touchSelectRef.current(press.pawn?.seal??null);
+   }else if(press.cell)selectRef.current(press.cell,
     gameRef.current?pawnAt(gameRef.current,press.cell.key)??null:null);
    return;
   }
@@ -329,6 +359,8 @@ export default function RC01ThreeBoard({
   void world.initHomePhysics().catch(error=>
    console.error("Home Rapier initialization failed",error));
   world.setPawns(gameRef.current?.pawns??[],gameRef.current?.home??[]);
+  world.setSelectedCell(gameRef.current?.pawns.find(
+   pawn=>pawn.seal===selectedSealRef.current)?.cellKey??null);
   world.setEvolutionPreview(previewRef.current);
   const resumed=(gameRef.current?.home??[]).filter(
    pawn=>activeReturnsRef.current.has(pawn.seal));
@@ -411,6 +443,8 @@ export default function RC01ThreeBoard({
   if(game?.pawns.length===72&&game.home.length===0)
    activeReturnsRef.current.clear();
   if(!isBusy())worldRef.current?.setPawns(game?.pawns??[],game?.home??[]);
+  worldRef.current?.setSelectedCell(game?.pawns.find(
+   pawn=>pawn.seal===selectedSealRef.current)?.cellKey??null);
   const generation=game?.mutatron.generation??0;
   if(generation!==lastMutationGenerationRef.current){
    lastMutationGenerationRef.current=generation;
@@ -421,6 +455,10 @@ export default function RC01ThreeBoard({
  useEffect(()=>{
   worldRef.current?.setEvolutionPreview(preview);
  },[preview]);
+ useEffect(()=>{
+  worldRef.current?.setSelectedCell(gameRef.current?.pawns.find(
+   pawn=>pawn.seal===selectedSeal)?.cellKey??null);
+ },[selectedSeal]);
  useEffect(()=>{
   if(!cameraCommand)return;
   const world=worldRef.current;
@@ -437,7 +475,8 @@ export default function RC01ThreeBoard({
   }
   notifyView();
  },[cameraCommand]);
- return <canvas ref={canvasRef} className="rc01-three-board"
+ return <>
+ <canvas ref={canvasRef} className="rc01-three-board"
   role="img" aria-label="3D Mutatron with MAP, AREA and subjective 3D views. Use two fingers to pinch and pan. Drag empty tiles to navigate while zoomed; drag occupied tiles to move or fuse. In subjective view drag to orbit the selected Polytron. Double-tap a Home to recall or return its Polytrons."
   tabIndex={0} onPointerDown={onPointerDown} onPointerMove={onPointerMove}
   onPointerUp={onPointerUp} onPointerCancel={onPointerCancel}
@@ -447,5 +486,8 @@ export default function RC01ThreeBoard({
    if(pointersRef.current.size<2)gestureRef.current=null;
    if(!pointersRef.current.size)suppressTapRef.current=false;
   }}
-  onWheel={onWheel} onKeyDown={onKeyDown}/>;
+  onWheel={onWheel} onKeyDown={onKeyDown}/>
+ {dragHint&&<div className="rc01-touch-drag-hint" role="status"
+  aria-live="polite">{dragHint}</div>}
+ </>;
 }
