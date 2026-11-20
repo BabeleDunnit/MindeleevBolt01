@@ -20,6 +20,9 @@ export default function MindeleevRC01(){
   [viewport.width,viewport.height]);
  const [game,setGame]=useState<RCGame|null>(null);
  const [sheet,setSheet]=useState<Sheet>(null);
+ // Touch selection is persistent; only Info opens the modal. Mouse clicks
+ // keep their existing inspector behaviour.
+ const [selectedSeal,setSelectedSeal]=useState<number|null>(null);
  const [physicsBusy,setPhysicsBusy]=useState(false);
  const [cameraCommand,setCameraCommand]=useState<RCCameraCommand|null>(null);
  const [viewMode,setViewMode]=useState<RCViewMode>("map");
@@ -60,6 +63,10 @@ export default function MindeleevRC01(){
  const isSelectedHome=selectedPawn!==undefined&&
   (game?.home.some(p=>p.seal===selectedPawn.seal)??false);
  const selectedCell=sheet?.kind==="cell"?cells.get(sheet.key):undefined;
+ const touchSelectedPawn=game?.pawns.find(p=>p.seal===selectedSeal);
+ useEffect(()=>{
+  if(selectedSeal!==null&&game&&!touchSelectedPawn)setSelectedSeal(null);
+ },[game,selectedSeal,touchSelectedPawn]);
  const forecast=useMemo(()=>game?forecastRCMutatron(game,board):null,[game,board]);
  const selectedForecast=forecast?.cells.find(p=>p.key===
   (selectedPawn?.cellKey||selectedCell?.key));
@@ -95,6 +102,7 @@ export default function MindeleevRC01(){
  const reset=()=>{
   if(physicsBusy)return;
   setSheet(null);
+  setSelectedSeal(null);
   setGame(initialRCGame(board));
  };
  return <main className="rc01-page">
@@ -114,6 +122,7 @@ export default function MindeleevRC01(){
   <section className="rc01-board-stage" ref={stageRef}
    aria-label="3D Mutatron board">
    <RC01ThreeBoard board={board} game={game}
+    selectedSeal={selectedSeal} onTouchSelect={setSelectedSeal}
     preview={forecast?.cells??[]}
     cameraCommand={cameraCommand} onViewModeChange={setViewMode}
     onSelect={select} onCommitMove={commitMove}
@@ -138,10 +147,24 @@ export default function MindeleevRC01(){
     )}
     <span className="rc01-camera-hint" aria-live="polite">
      {viewMode==="subjective"?"Drag to orbit · pinch to zoom":
-      viewMode==="area"?"Pinch to zoom · drag empty tiles to pan":
-      "Pinch to explore"}
+      viewMode==="area"?"Touch pawn · drag with offset":
+      "Touch pawn to select · drag above finger"}
     </span>
    </div>
+   {touchSelectedPawn&&<div className="rc01-touch-selection"
+    role="group" aria-label="Selected Polytron for touch drag">
+    <span className="rc01-selection-hex" aria-hidden="true">⬡</span>
+    <span className="rc01-selection-name">
+     <strong>{pawnName(touchSelectedPawn)}</strong>
+     <small>#{touchSelectedPawn.number} · selected</small>
+    </span>
+    <button type="button" className="rc01-selection-info"
+     aria-label={"Inspect Polytron "+pawnName(touchSelectedPawn)}
+     onClick={()=>setSheet({kind:"polytron",seal:touchSelectedPawn.seal})}>Info</button>
+    <button type="button" className="rc01-selection-clear"
+     aria-label="Clear Polytron selection"
+     onClick={()=>setSelectedSeal(null)}>×</button>
+   </div>}
    <div className="rc01-evolve-panel">
     <button type="button" className="rc01-evolve-button"
      disabled={!game||physicsBusy}
