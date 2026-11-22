@@ -1117,12 +1117,18 @@ try{
   "Desktop mouse clicks must still open the Inspector");
  assert(boardCode.includes("world.raycastPawn(point.x,point.y)"),
   "Pointer down needs correct 3D-mesh picking in tilted perspective");
+ assert(boardCode.includes("world.transferToHome(dissociating,physical.attacker)"),
+  "Nucleus dissociation transfers the actual 3D actor to its Home");
+ assert(boardCode.includes("world.startHomeReturns([homePawn],{[returning]:chosen.key})"),
+  "Home return uses spring motion toward a chosen free cell");
+ assert(boardCode.includes("canRCReenter(gameRef.current,returning,chosen.key,board)"),
+  "Cooling, empty-tile restriction and nuclear exclusion are enforced");
  assert(!dragHandler.includes("world.moveActor("),
   "Polytron cannot follow the finger: physical movement begins ONLY on drop");
  assert(boardCode.includes("world.dragPreview(null)"),
   "Drop/cancel must remove the 3D hex proxy");
- assert(dragHandler.includes("target.key!==press.cell.key"),
-  "Drag must highlight a real destination, not the source cell");
+ assert(dragHandler.includes("assessRCMove(gameRef.current,press.cell.key,target.key,board)"),
+  "Drag highlight must reject energy-unaffordable and invalid targets");
  const finishHandler=boardCode.slice(boardCode.indexOf("if(physical.done){"),
   boardCode.indexOf("accumulator=0;",boardCode.indexOf("if(physical.done){")));
  assert(!finishHandler.includes("world.setPawns("),
