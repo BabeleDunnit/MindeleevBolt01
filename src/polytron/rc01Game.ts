@@ -2,6 +2,7 @@ import {dnaFromPolitronNumber} from "@/polytron/politronicNumber";
 import {gradientPair} from "@/polytron/gradientPalettes";
 import {sealName} from "@/polytron/spectralFutures";
 import {rcKey,rcRingCells,type RCBoard} from "@/polytron/rc01Board";
+import {intrinsicEnergy} from "@/polytron/mindeleevLife";
 
 export const RC01_SEAL_COUNT=72;
 export const RC01_OPENING_COUNT=72;
@@ -47,6 +48,7 @@ export type RCMutatronState={
  /** Finite intrinsic-energy reserve: evolutions transfer E from here to
   * Polytrons. The sum of intrinsic energies + reserve is unchanged per tick. */
  energyReserve:number;
+ dissipatedEnergy:number; // cumulative invocation heat, never recycled
  /** Pair-coherence is stored on the GRID, never on a permanent identity. */
  resonance:Record<string,number>;
  symmetry:number;
@@ -57,6 +59,7 @@ export type RCGame={
  pawns:RCPawn[];home:RCPawn[];score:number;moves:number;
  fusions:number;lastAction:string;
  homeTestPhase:{odd:"board"|"home";even:"board"|"home"};
+ homeCooling:Record<string,number>; // seal -> ready when moves >= value
  mutatron:RCMutatronState;
 };
 export const pawnDNA=(p:RCPawn)=>dnaFromPolitronNumber(p.number);
@@ -128,8 +131,8 @@ export function initialRCGame(board:RCBoard,_rng:()=>number=Math.random):RCGame{
   };
  });
  return {pawns,home:[],score:RC01_START_SCORE,moves:0,fusions:0,
-  homeTestPhase:{odd:"board",even:"board"},
-  mutatron:{generation:0,energyReserve:48,resonance:{},
+  homeTestPhase:{odd:"board",even:"board"},homeCooling:{},
+  mutatron:{generation:0,energyReserve:48,dissipatedEnergy:0,resonance:{},
    symmetry:rcBoardSymmetry(pawns,board),changes:[],
    lastNote:"The symmetry field is at rest; evolve to test geometrical resonance."},
   lastAction:"Metatron opening: Ring 1 C/O alternating, Ring 2 C-T-O-T repeating; all outer Polytrons #1."};
@@ -143,8 +146,8 @@ export function rc01CenterDiagnostic(board:RCBoard):RCGame{
   pawns:[{seal:1,number:1,row:2,col:4,cellKey:"0,0",
    manifestations:[1]}],
   home:[],score:RC01_START_SCORE,moves:0,fusions:0,
-  homeTestPhase:{odd:"board",even:"board"},
-  mutatron:{generation:0,energyReserve:48,resonance:{},symmetry:100,changes:[],
+  homeTestPhase:{odd:"board",even:"board"},homeCooling:{},
+  mutatron:{generation:0,energyReserve:48,dissipatedEnergy:0,resonance:{},symmetry:100,changes:[],
    lastNote:"Single-body centering diagnostic."},
   lastAction:"Centering diagnostic: a single Polytron #1 at the nucleus (0,0)."
  };
@@ -161,6 +164,87 @@ export function openingCellKeyForSeal(seal:number):string{
  const start=ring===1?1:ring===2?7:ring===4?19:43;
  const {q,r}=rcRingCells(ring)[seal-start];
  return rcKey(q,r);
+}
+/** Actual energy only; Mneme and past manifestations are NOT liquid. */
+export const rcIntrinsic=(n:number)=>intrinsicEnergy(n,0);
+export const rcTotalEnergy=(game:RCGame)=>
+ [...game.pawns,...game.home].reduce((sum,p)=>sum+rcIntrinsic(p.number),
+ game.mutatron.energyReserve+game.mutatron.dissipatedEnergy);
+export const RC_NUCLEUS_COOLING_MOVES=2;
+/** One level of intrinsic energy, not necessarily one polytronic number. */
+export function rcNucleusRegression(n:number):number|null{
+ if(!Number.isSafeInteger(n)||n<1)throw Error("Invalid number");
+ if(n===1)return null;
+ return (n-1)%5===0?n-5:n-1;
+}
+export function rcNucleusRecovery(n:number):number{
+ const lower=rcNucleusRegression(n);
+ return lower===null?0:rcIntrinsic(n)-rcIntrinsic(lower);
+}
+export type RCMoveAssessment={
+ allowed:boolean;kind:"move"|"capture"|"nucleus"|"invalid";
+ fieldDelta:number;reason:string
+};
+/** Shared pre-flight and commit predicate: no unaffordable physics flights. */
+export function assessRCMove(
+ game:RCGame,source:string,target:string,board:RCBoard
+):RCMoveAssessment{
+ const invalid=(reason:string):RCMoveAssessment=>({
+  allowed:false,kind:"invalid",fieldDelta:0,reason});
+ if(source===target||!board.cells.some(c=>c.key===target))
+  return invalid("Choose a different tile.");
+ const attacker=pawnAt(game,source);
+ if(!attacker)return invalid("No Polytron at source.");
+ const defender=pawnAt(game,target);
+ if(target==="0,0"){
+  if(defender)return invalid("The Nucleus must be empty.");
+  const gain=rcNucleusRecovery(attacker.number);
+  return gain?{allowed:true,kind:"nucleus",fieldDelta:gain,
+   reason:"Nucleus: +"+gain+" E; two moves cooling."}:
+   invalid("A Polytron #1 cannot enter the Nucleus.");
+ }
+ if(!defender)return {allowed:true,kind:"move",fieldDelta:0,
+  reason:"Empty tile."};
+ const delta=rcIntrinsic(attacker.number)-
+  rcIntrinsic(defender.number)*0-
+  rcIntrinsic(rcHomeRegression(defender.number));
+ // After inheritance attacker becomes defender's number. The original
+ // defender regresses; therefore the defender's original energy cancels.
+ if(game.mutatron.energyReserve+delta<0)
+  return invalid("Capture needs "+(-delta)+" E; available "+
+   game.mutatron.energyReserve+" E.");
+ return {allowed:true,kind:"capture",fieldDelta:delta,
+  reason:delta>=0?"Capture returns "+delta+" E.":
+   "Capture costs "+(-delta)+" E."};
+}
+export function rcHomeCooldown(game:RCGame,seal:number):number{
+ return Math.max(0,(game.homeCooling[String(seal)]??0)-game.moves);
+}
+export function canRCReenter(game:RCGame,seal:number,target:string,board:RCBoard){
+ return target!=="0,0"&&game.home.some(p=>p.seal===seal)&&
+  rcHomeCooldown(game,seal)===0&&
+  board.cells.some(c=>c.key===target)&&!pawnAt(game,target);
+}
+export function returnRCPawnToCell(
+ game:RCGame,seal:number,target:string,board:RCBoard
+):RCHomeArrivalResult|null{
+ if(!canRCReenter(game,seal,target,board))return null;
+ const incoming=game.home.find(p=>p.seal===seal)!;
+ const updated:RCGame={...game,
+  pawns:[...game.pawns,{...incoming,cellKey:target}],
+  home:game.home.filter(p=>p.seal!==seal),
+  homeCooling:Object.fromEntries(Object.entries(game.homeCooling)
+   .filter(([key])=>key!==String(seal))),
+  moves:game.moves+1,
+  lastAction:"HOME REENTRY · "+pawnName(incoming)+" returns to "+target+
+   " without capture or energy cost."
+ };
+ updated.mutatron={...updated.mutatron,
+  symmetry:rcBoardSymmetry(updated.pawns,board)};
+ if(!validateRCGame(updated,board)||
+    rcTotalEnergy(updated)!==rcTotalEnergy(game))
+  throw Error("Invalid voluntary Home return");
+ return {game:updated,attacker:incoming,captured:null,target};
 }
 /** One fusion rule shared by drag captures and Home return captures. */
 function inheritManifestation(attacker:RCPawn,captured:RCPawn,target:string){
@@ -179,28 +263,56 @@ export type RCMoveResult={game:RCGame;captured:RCPawn|null;attacker:RCPawn};
  * attacker has physically settled does this deterministic state transition
  * commit the fusion. No energy costs or ConwayDNA concatenation.
  */
-export function moveRCPawn(game:RCGame,source:string,target:string,board:RCBoard):RCMoveResult|null{
- if(source===target||!board.cells.some(c=>c.key===target))return null;
- const attacker=pawnAt(game,source);if(!attacker)return null;
+export function moveRCPawn(
+ game:RCGame,source:string,target:string,board:RCBoard
+):RCMoveResult|null{
+ const check=assessRCMove(game,source,target,board);
+ if(!check.allowed)return null;
+ const attacker=pawnAt(game,source)!;
+ if(check.kind==="nucleus"){
+  const lower=rcNucleusRegression(attacker.number)!;
+  const cooled={...attacker,cellKey:"",number:lower,
+   manifestations:appendManifestation(attacker.manifestations,lower)};
+  const updated:RCGame={...game,
+   pawns:game.pawns.filter(p=>p.seal!==attacker.seal),
+   home:[...game.home,cooled],
+   homeCooling:{...game.homeCooling,
+    [attacker.seal]:game.moves+1+RC_NUCLEUS_COOLING_MOVES},
+   moves:game.moves+1,
+   mutatron:{...game.mutatron,
+    energyReserve:game.mutatron.energyReserve+check.fieldDelta,
+    symmetry:0},
+   lastAction:"NUCLEUS · "+pawnName(attacker)+" #"+attacker.number+
+    " → #"+lower+"; +"+check.fieldDelta+" field E; cool for two moves."
+  };
+  updated.mutatron.symmetry=rcBoardSymmetry(updated.pawns,board);
+  if(!validateRCGame(updated,board)||
+     rcTotalEnergy(updated)!==rcTotalEnergy(game))
+   throw Error("Non-conservative nuclear dissociation");
+  return {game:updated,captured:null,attacker};
+ }
  const captured=pawnAt(game,target)??null;
- if(captured?.seal===attacker.seal)return null;
  const fused=captured?inheritManifestation(attacker,captured,target):null;
  const pawns=game.pawns.filter(p=>p.seal!==captured?.seal)
   .map(p=>p.seal===attacker.seal?
    fused?.attacker??{...p,cellKey:target}:p);
- const regressed=fused?.defender.number??null;
  const home=fused?[...game.home,fused.defender]:game.home;
  const updated:RCGame={...game,pawns,home,
+  homeCooling:captured?Object.fromEntries(Object.entries(game.homeCooling)
+   .filter(([key])=>key!==String(captured.seal))):game.homeCooling,
   moves:game.moves+1,fusions:game.fusions+(captured?1:0),
+  mutatron:{...game.mutatron,
+   energyReserve:game.mutatron.energyReserve+check.fieldDelta,
+   symmetry:0},
   lastAction:captured?
    "FUSION · "+pawnName(attacker)+" inherits #"+captured.number+
-   " (from #"+attacker.number+"). "+pawnName(captured)+
-   " returns Home as #"+regressed+".":
+   ". "+pawnName(captured)+" returns Home as #"+fused?.defender.number+
+   ". Field "+(check.fieldDelta>=0?"+":"")+check.fieldDelta+" E.":
    pawnName(attacker)+" moves to cell "+target+"."};
- updated.mutatron={...updated.mutatron,
-  symmetry:rcBoardSymmetry(updated.pawns,board)};
- if(!validateRCGame(updated,board))
-  throw Error("Fusion violates permanent identities, history or board exclusivity");
+ updated.mutatron.symmetry=rcBoardSymmetry(updated.pawns,board);
+ if(!validateRCGame(updated,board)||
+    rcTotalEnergy(updated)!==rcTotalEnergy(game))
+  throw Error("Non-conservative fusion");
  return {game:updated,captured,attacker};
 }
 
@@ -241,7 +353,9 @@ export function toggleRCParityHome(
 ):RCHomeToggleResult{
  const returning=game.homeTestPhase[parity]==="home";
  const pawns=(returning?game.home:game.pawns)
-  .filter(p=>rcParity(p.seal)===parity).sort((a,b)=>a.seal-b.seal);
+  .filter(p=>rcParity(p.seal)===parity&&
+    (!returning||rcHomeCooldown(game,p.seal)===0))
+   .sort((a,b)=>a.seal-b.seal);
  const next=returning?game:recallRCParity(game,parity,board);
  const updated:RCGame={
   ...next,homeTestPhase:{...game.homeTestPhase,[parity]:returning?"board":"home"},
@@ -260,27 +374,34 @@ export function returnRCPawnHome(
  game:RCGame,seal:number,board:RCBoard
 ):RCHomeArrivalResult|null{
  const incoming=game.home.find(p=>p.seal===seal);
- if(!incoming)return null;
+ if(!incoming||rcHomeCooldown(game,seal)>0)return null;
  const target=openingCellKeyForSeal(seal);
  if(!board.cells.some(c=>c.key===target))return null;
  const captured=pawnAt(game,target)??null;
+ const delta=captured?rcIntrinsic(incoming.number)-
+  rcIntrinsic(rcHomeRegression(captured.number)):0;
+ if(game.mutatron.energyReserve+delta<0)return null;
  const fused=captured?inheritManifestation(incoming,captured,target):null;
  const attacker=fused?.attacker??{...incoming,cellKey:target};
- const updated:RCGame={
-  ...game,
+ const updated:RCGame={...game,
   pawns:[...game.pawns.filter(p=>p.seal!==captured?.seal),attacker],
-  home:[...game.home.filter(p=>p.seal!==incoming.seal),
+  home:[...game.home.filter(p=>p.seal!==seal),
    ...(fused?[fused.defender]:[])],
+  homeCooling:Object.fromEntries(Object.entries(game.homeCooling)
+   .filter(([key])=>key!==String(seal)&&key!==String(captured?.seal))),
   moves:game.moves+1,fusions:game.fusions+(captured?1:0),
+  mutatron:{...game.mutatron,
+   energyReserve:game.mutatron.energyReserve+delta,symmetry:0},
   lastAction:captured?
    "HOME FUSION · "+pawnName(incoming)+" inherits #"+captured.number+
-   " from "+pawnName(captured)+". "+pawnName(captured)+
-   " returns Home as #"+fused?.defender.number+".":
+   " from "+pawnName(captured)+". Field "+
+   (delta>=0?"+":"")+delta+" E.":
    "HOME RETURN · "+pawnName(incoming)+" returns to "+target+"."
  };
- updated.mutatron={...updated.mutatron,
-  symmetry:rcBoardSymmetry(updated.pawns,board)};
- if(!validateRCGame(updated,board))throw Error("Invalid Home arrival");
+ updated.mutatron.symmetry=rcBoardSymmetry(updated.pawns,board);
+ if(!validateRCGame(updated,board)||
+    rcTotalEnergy(updated)!==rcTotalEnergy(game))
+  throw Error("Invalid or non-conservative Home arrival");
  return {game:updated,attacker,captured,target};
 }
 
@@ -294,6 +415,12 @@ export function validateRCGame(game:RCGame,board:RCBoard):boolean{
     !game.mutatron||!Number.isSafeInteger(game.mutatron.generation)||
     !Number.isSafeInteger(game.mutatron.energyReserve)||
     game.mutatron.energyReserve<0||
+    !Number.isSafeInteger(game.mutatron.dissipatedEnergy)||
+    game.mutatron.dissipatedEnergy<0||
+    !game.homeCooling||!Object.entries(game.homeCooling).every(
+     ([seal,m])=>Number.isInteger(Number(seal))&&
+      Number.isInteger(m)&&m>=0&&
+      game.home.some(p=>p.seal===Number(seal)))||
     game.mutatron.generation<0||
     !Number.isFinite(game.mutatron.symmetry)||
     game.mutatron.symmetry<0||game.mutatron.symmetry>100||
