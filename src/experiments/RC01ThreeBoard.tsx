@@ -3,7 +3,7 @@ import type {PointerEvent as ReactPointerEvent,KeyboardEvent as ReactKeyboardEve
  WheelEvent as ReactWheelEvent} from "react";
 import * as THREE from "three";
 import {rcHomeContains,type RCBoard,type RCCell,type RCPoint} from "@/polytron/rc01Board";
-import {pawnAt,type RCGame,type RCPawn,type RCHomeParity,
+import {pawnAt,assessRCMove,canRCReenter,type RCGame,type RCPawn,type RCHomeParity,
  type RCHomeToggleResult} from "@/polytron/rc01Game";
 import {RC01RapierFlight,RC_RAPIER_FIXED_STEP}
  from "@/experiments/rc01RapierFlight";
@@ -23,7 +23,7 @@ export type RCCameraCommand={id:number;mode:RCViewMode;cellKey?:string};
 
 export default function RC01ThreeBoard({
  board,game,preview,cameraCommand,onViewModeChange,
- selectedSeal,onTouchSelect,
+ selectedSeal,onTouchSelect,returningSeal,onHomeDestinationChosen,
  onSelect,onCommitMove,onOpenHome,onToggleParity,onReturnArrived,onBusyChange
 }:{
  board:RCBoard;game:RCGame|null;
@@ -32,16 +32,21 @@ export default function RC01ThreeBoard({
  onViewModeChange:(mode:RCViewMode)=>void;
  selectedSeal:number|null;
  onTouchSelect:(seal:number|null)=>void;
+ returningSeal:number|null;
+ onHomeDestinationChosen:()=>void;
  onSelect:(cell:RCCell,pawn:RCPawn|null)=>void;
  onCommitMove:(source:string,target:string)=>void;
  onOpenHome:(parity?:RCHomeParity)=>void;
  onToggleParity:(parity:RCHomeParity)=>RCHomeToggleResult;
-  onReturnArrived:(seal:number)=>void;
+  onReturnArrived:(seal:number,target?:string)=>void;
  onBusyChange?:(busy:boolean)=>void;
 }){
  const canvasRef=useRef<HTMLCanvasElement>(null);
  const [dragHint,setDragHint]=useState<string|null>(null);
  const touchSelectRef=useRef(onTouchSelect);
+ const returningSealRef=useRef(returningSeal);
+ const homeChosenRef=useRef(onHomeDestinationChosen);
+ const manualReturnTargetsRef=useRef(new Map<number,string>());
  const selectedSealRef=useRef(selectedSeal);
  const viewSavedRef=useRef<RCViewSnapshot|null>(null);
  const modeRef=useRef(onViewModeChange);
@@ -72,6 +77,8 @@ export default function RC01ThreeBoard({
  previewRef.current=preview;
  selectRef.current=onSelect;
  touchSelectRef.current=onTouchSelect;
+ returningSealRef.current=returningSeal;
+ homeChosenRef.current=onHomeDestinationChosen;
  selectedSealRef.current=selectedSeal;
  commitRef.current=onCommitMove;
  homeRef.current=onOpenHome;
@@ -139,6 +146,9 @@ export default function RC01ThreeBoard({
      for(const seal of activeReturnsRef.current)
       if((seal%2===0?"even":"odd")===parity)
        activeReturnsRef.current.delete(seal);
+     for(const seal of manualReturnTargetsRef.current.keys())
+      if((seal%2===0?"even":"odd")===parity)
+       manualReturnTargetsRef.current.delete(seal);
      world.cancelHomeReturns(parity);
      world.transferParityToHome(outcome.pawns);
     }else{
@@ -208,22 +218,30 @@ export default function RC01ThreeBoard({
   const worldPoint=world.raycastBoardPlane(aim.x,aim.y);
   world.dragPreview(worldPoint);
   const target=world.raycastCell(aim.x,aim.y);
-  const valid=!!target&&target.key!==press.cell.key;
+  const check=target&&gameRef.current?
+   assessRCMove(gameRef.current,press.cell.key,target.key,board):null;
+  const valid=!!check?.allowed&&!!target&&
+   ![...manualReturnTargetsRef.current.values()].includes(target.key);
   const occupied=!!(valid&&gameRef.current&&
    pawnAt(gameRef.current,target!.key));
   world.hover(valid?target!.key:null,occupied,valid);
   if(rcIsTouch(press.pointerType)){
    touchSelectRef.current(press.pawn.seal);
    const text=valid?
-    (occupied?"FUSE":"MOVE")+" · ring "+target!.ring+
-    " / "+target!.idxInRing:
-    "Move finger to aim · release on highlighted cell";
+    (check?.kind==="nucleus"?"NUCLEUS +"+check.fieldDelta+" E":
+     occupied?"FUSE · Field "+(check?.fieldDelta??0)+" E":
+      "MOVE")+" · ring "+target!.ring+" / "+target!.idxInRing:
+    check?.reason??"Move finger to aim · release on highlighted cell";
    setDragHint(last=>last===text?last:text);
   }
   e.preventDefault();
  };
  const launchPhysicalMove=(press:Press,target:RCCell)=>{
   if(!press.pawn||!press.cell||isBusy()||!gameRef.current)return;
+  const check=assessRCMove(gameRef.current,press.cell.key,target.key,board);
+  if(!check.allowed||
+     [...manualReturnTargetsRef.current.values()].includes(target.key))
+   return;
   const world=worldRef.current;if(!world)return;
   const victim=pawnAt(gameRef.current,target.key)??null;
   pendingVictimRef.current=victim;
