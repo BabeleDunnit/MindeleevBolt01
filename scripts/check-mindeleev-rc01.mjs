@@ -1088,7 +1088,7 @@ try{
  assert(!tsx.includes("<svg")&&!tsx.includes("<polygon"));
  assert(!tsx.includes("LifePolytron3D"));
  assert(tsx.includes("forecastRCMutatron(previous,board).next")&&
-  tsx.includes("disabled={!game||physicsBusy}"),
+  tsx.includes("disabled={!game||physicsBusy||game.mutatron.energyReserve<1}"),
   "Mutatron evolution must be manual and must never interrupt Rapier");
  assert(tsx.includes("RC01ThreeBoard")&&tsx.includes("RC01ThreeInspector"));
  for(const phrase of ["aria-modal","onClick={()=>setSheet(null)}",
