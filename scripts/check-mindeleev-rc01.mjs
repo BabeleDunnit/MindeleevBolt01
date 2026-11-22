@@ -220,6 +220,19 @@ try{
  assert.equal(world.scene.children.filter(x=>
   x.isMesh&&x.geometry?.type==="RingGeometry").length,ringsBefore,
   "Preview must be cleared cleanly without leaving stale hex highlights");
+ // Voluntary Home returns highlight only free, non-nuclear tile faces.
+ const reentryKeys=board.cells.filter(c=>c.ring===3).slice(0,2).map(c=>c.key);
+ world.setReentryTargets([...reentryKeys,"0,0"]);
+ const reentryOverlays=world.scene.children.filter(x=>x.isMesh&&
+  x.material?.color?.getHex()===0x149b70&&x.renderOrder<0);
+ assert.equal(reentryOverlays.length,reentryKeys.length*2,
+  "Nucleus must never be highlighted as a Home return destination");
+ assert(reentryOverlays.every(x=>x.material.depthTest===true&&
+  x.material.depthWrite===false&&x.geometry.type!=="ExtrudeGeometry"));
+ world.setReentryTargets([]);
+ assert.equal(world.scene.children.filter(x=>x.isMesh&&
+  x.material?.color?.getHex()===0x149b70&&x.renderOrder<0).length,0,
+  "Home target highlights must clear without leaking scene objects");
  // A selected touch Polytron highlights its real opening tile, and the
  // selection can be moved/cleared WITHOUT opening the inspector.
  const one=model.initialRCGame(board).pawns.find(p=>p.cellKey==="1,0");
@@ -1173,6 +1186,10 @@ try{
   "Pointer down needs correct 3D-mesh picking in tilted perspective");
  assert(boardCode.includes("world.transferToHome(dissociating,physical.attacker)"),
   "Nucleus dissociation transfers the actual 3D actor to its Home");
+ assert(boardCode.includes("world.setReentryTargets(targets)")&&
+  boardCode.includes("wasDragging?target:world.raycastCell(point.x,point.y)")&&
+  dragHandler.includes("HOME RETURN · release on highlighted tile"),
+  "Home return should preview eligible cells and support offset drag release");
  assert(boardCode.includes("world.startHomeReturns([homePawn],{[returning]:chosen.key})"),
   "Home return uses spring motion toward a chosen free cell");
  assert(boardCode.includes("canRCReenter(gameRef.current,returning,chosen.key,board)"),
@@ -1224,7 +1241,7 @@ try{
    "transferToHome","transferParityToHome","startHomeReturns",
    "cancelHomeReturns","stepHome(dt:number",
    "pulseMutations","stepMutationHalos(dt:number",
-   "setEvolutionPreview","previewRingGeometry"]){
+   "setEvolutionPreview","previewRingGeometry","setReentryTargets"]){
   assert(modelCode.includes(phrase),"Missing 3D architecture: "+phrase);
  }
  // RC01 inspector must use the very same canonical energy rule as the

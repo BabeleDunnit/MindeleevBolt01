@@ -192,7 +192,7 @@ export default function MindeleevRC01(){
     </span>
    </div>
    {returningSeal!==null&&<div className="rc01-reentry-instruction" role="status">
-    Choose an empty tile for Home Polytron #{returningSeal}.
+    Tap a highlighted empty tile, or drag to aim above your finger, to return Home Polytron #{returningSeal}.
     <button type="button" onClick={()=>setReturningSeal(null)}>Cancel</button>
    </div>}
    <div className="rc01-board-footer">

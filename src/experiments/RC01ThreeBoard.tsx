@@ -159,14 +159,15 @@ export default function RC01ThreeBoard({
    e.preventDefault();return;
   }
   const orbiting=world.view.getMode()==="subjective";
-  const picked=!orbiting&&!isBusy()?
+  const picked=!orbiting&&!isBusy()&&returningSealRef.current===null?
    world.raycastPawn(point.x,point.y):null;
   const cell=picked?.cell??world.raycastCell(point.x,point.y);
   if(cell)focusKey.current=cell.key;
   pressRef.current={
    pointerId:e.pointerId,pointerType:e.pointerType,
    startX:e.clientX,startY:e.clientY,
-   cell,pawn:!orbiting&&!isBusy()&&cell&&gameRef.current?
+   cell,pawn:!orbiting&&!isBusy()&&returningSealRef.current===null&&
+    cell&&gameRef.current?
     picked?.pawn??pawnAt(gameRef.current,cell.key)??null:null,
    dragging:false,panning:false,orbiting,last:point
   };
@@ -201,6 +202,22 @@ export default function RC01ThreeBoard({
   press.last=point;press.dragging=true;
   if(press.orbiting){
    world.view.orbit(point.x-previous.x,point.y-previous.y);
+   e.preventDefault();return;
+  }
+  if(returningSealRef.current!==null){
+   // In Home mode a finger can tap OR drag to aim above the fingertip.
+   // Do not pick up or move any on-board Polytron.
+   const aim=rcDragAim(point,press.pointerType,board.height,
+    e.currentTarget.getBoundingClientRect().height);
+   const target=world.raycastCell(aim.x,aim.y);
+   const seal=returningSealRef.current;
+   const valid=!!target&&!!gameRef.current&&
+    canRCReenter(gameRef.current,seal,target.key,board)&&
+    ![...manualReturnTargetsRef.current.values()].includes(target.key);
+   world.hover(valid?target!.key:null,false,valid);
+   if(rcIsTouch(press.pointerType))
+    setDragHint(valid?"HOME RETURN · release on highlighted tile":
+     "Choose a free highlighted tile");
    e.preventDefault();return;
   }
   if(!press.pawn){
@@ -301,8 +318,9 @@ export default function RC01ThreeBoard({
   // One tap on an empty tile designates a voluntary Home destination.
   // The Home actor remains physical until the spring flight arrives.
   const returning=returningSealRef.current;
-  if(returning!==null&&!wasDragging&&point&&gameRef.current){
-   const chosen=world.raycastCell(point.x,point.y);
+  if(returning!==null&&point&&gameRef.current){
+   // Tap is exact; dragging shares the shifted aim used for the preview.
+   const chosen=wasDragging?target:world.raycastCell(point.x,point.y);
    const homePawn=gameRef.current.home.find(p=>p.seal===returning);
    if(chosen&&homePawn&&
       canRCReenter(gameRef.current,returning,chosen.key,board)&&
@@ -399,6 +417,9 @@ export default function RC01ThreeBoard({
   world.setSelectedCell(gameRef.current?.pawns.find(
    pawn=>pawn.seal===selectedSealRef.current)?.cellKey??null);
   world.setEvolutionPreview(previewRef.current);
+  world.setReentryTargets(gameRef.current&&returningSealRef.current!==null?
+   board.cells.filter(cell=>canRCReenter(gameRef.current!,
+    returningSealRef.current!,cell.key,board)).map(cell=>cell.key):[]);
   const resumed=(gameRef.current?.home??[]).filter(
    pawn=>activeReturnsRef.current.has(pawn.seal));
   if(resumed.length)world.startHomeReturns(resumed,
@@ -509,6 +530,14 @@ export default function RC01ThreeBoard({
  useEffect(()=>{
   worldRef.current?.setEvolutionPreview(preview);
  },[preview]);
+ useEffect(()=>{
+  // Recompute on every capture, move, Home arrival, cooldown or cancel.
+  const targets=game&&returningSeal!==null?
+   board.cells.filter(cell=>canRCReenter(game,returningSeal,cell.key,board)&&
+    ![...manualReturnTargetsRef.current.values()].includes(cell.key))
+    .map(cell=>cell.key):[];
+  worldRef.current?.setReentryTargets(targets);
+ },[board,game,returningSeal]);
  useEffect(()=>{
   worldRef.current?.setSelectedCell(gameRef.current?.pawns.find(
    pawn=>pawn.seal===selectedSeal)?.cellKey??null);

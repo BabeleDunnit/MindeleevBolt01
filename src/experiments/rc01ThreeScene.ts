@@ -243,6 +243,34 @@ export function createRC3DWorld(board:RCBoard,priorView?:RCViewSnapshot){
    }
   }
  }
+ // Home reentry is distinct from capture. Flat, depth-tested hex overlays
+ // show only available empty destinations, without obscuring 3D Polytrons.
+ const reentryFillMaterial=new THREE.MeshBasicMaterial({
+  color:0x149b70,transparent:true,opacity:.14,
+  depthTest:true,depthWrite:false,side:THREE.DoubleSide
+ });
+ const reentryRingMaterial=new THREE.MeshBasicMaterial({
+  color:0x149b70,transparent:true,opacity:.86,
+  depthTest:true,depthWrite:false,side:THREE.DoubleSide
+ });
+ const reentryMeshes:THREE.Mesh[]=[];
+ function setReentryTargets(keys:readonly string[]){
+  for(const mesh of reentryMeshes)scene.remove(mesh);
+  reentryMeshes.length=0;
+  for(const key of keys){
+   const cell=cellsByKey.get(key);
+   if(!cell||cell.nucleus)continue;
+   for(const [geometry,material,order] of [
+    [previewGeometry,reentryFillMaterial,-20],
+    [previewRingGeometry,reentryRingMaterial,-19]
+   ] as const){
+    const mesh=new THREE.Mesh(geometry,material);
+    mesh.position.copy(rcScreenWorld(board,cell,RC_TILE_SURFACE_Z+.16));
+    mesh.renderOrder=order;
+    scene.add(mesh);reentryMeshes.push(mesh);
+   }
+  }
+ }
  // Tiles must be pickable immediately, even before the first render frame.
  scene.updateMatrixWorld(true);
  const shadowGeometry=new THREE.CircleGeometry(board.size*.58,36);
@@ -691,6 +719,8 @@ export function createRC3DWorld(board:RCBoard,priorView?:RCViewSnapshot){
   }
  }
  function dispose(){
+  setReentryTargets([]);
+  reentryFillMaterial.dispose();reentryRingMaterial.dispose();
   setEvolutionPreview([]);
   previewGeometry.dispose();previewRingGeometry.dispose();
   for(const material of [...Object.values(previewMaterials),
@@ -723,6 +753,6 @@ export function createRC3DWorld(board:RCBoard,priorView?:RCViewSnapshot){
   setPawns,moveActor,actorOrientation,physicalPose,dragPreview,
   initHomePhysics,stepHome,transferToHome,transferParityToHome,
    startHomeReturns,cancelHomeReturn,cancelHomeReturns,homeStats,homeSnapshot,
-  hover,rotateModels,setEvolutionPreview,
+  hover,rotateModels,setEvolutionPreview,setReentryTargets,
   pulseMutations,stepMutationHalos,dispose};
 }
