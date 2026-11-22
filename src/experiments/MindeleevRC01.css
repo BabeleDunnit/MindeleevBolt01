@@ -81,6 +81,20 @@
 /* Selected touch pawn: selection does not itself invoke the inspector.
  * On narrow mobiles the compact chip sits opposite the 3D controls.
  */
+/* Voluntary, cooling-gated Home reentry destination picker. */
+.rc01-reentry-instruction{
+ position:absolute;left:50%;top:174px;transform:translateX(-50%);
+ width:min(310px,88%);z-index:10;
+ border:1px solid #3e9c82;border-radius:12px;
+ padding:8px 10px;background:#e3f8eeed;color:#215c49;
+ box-shadow:0 4px 16px #255c4724;
+ display:flex;align-items:center;justify-content:space-between;
+ gap:10px;font-size:11px;font-weight:800;line-height:1.3
+}
+.rc01-reentry-instruction button{
+ color:#fff;border:0;border-radius:7px;
+ background:#397e62;padding:7px 8px;font-weight:800
+}
 .rc01-touch-selection{
  position:absolute;top:91px;left:8px;z-index:8;
  display:flex;align-items:center;gap:5px;
