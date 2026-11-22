@@ -565,6 +565,31 @@ try{
  assert.equal(second.game.home[1].number,12);
  assert.equal(model.moveRCPawn(sceneGame,source.cellKey,source.cellKey,board),null);
  assert.equal(model.moveRCPawn(sceneGame,source.cellKey,"99,99",board),null);
+ // A low-energy Polytron cannot capture a high-energy one by making
+ // the field go negative; preflight and commit must agree, with no Rapier.
+ const novice=ring2[1]; // permanent #1
+ const strong=ring1[1];
+ const expensive={...sceneGame,
+  pawns:sceneGame.pawns.map(p=>p.seal===strong.seal?{
+   ...p,number:5,manifestations:[p.number,5]}:p),
+  mutatron:{...sceneGame.mutatron,energyReserve:0}
+ };
+ const forbidden=model.assessRCMove(expensive,novice.cellKey,strong.cellKey,board);
+ assert(!forbidden.allowed&&forbidden.reason.includes("Capture needs 3 E"));
+ assert.equal(model.moveRCPawn(expensive,novice.cellKey,strong.cellKey,board),null,
+  "Insufficient energy prevents capture rather than producing negative field");
+ const fundedCapture={...expensive,mutatron:{
+  ...expensive.mutatron,energyReserve:3
+ }};
+ const affordable=model.moveRCPawn(
+  fundedCapture,novice.cellKey,strong.cellKey,board);
+ assert(affordable&&model.validateRCGame(affordable.game,board));
+ assert.equal(affordable.game.mutatron.energyReserve,0);
+ assert.equal(model.rcTotalEnergy(affordable.game),model.rcTotalEnergy(fundedCapture));
+ // The same return destination must remain genuinely empty on arrival.
+ assert(model.canRCReenter(reentry.game,source.seal,source.cellKey,board)===false,
+  "Already reentered Polytrons cannot be returned from Home twice");
+
  assert.equal(model.canRCReenter(moved.game,source.seal,"0,0",board),false);
  assert.equal(model.canRCReenter(moved.game,source.seal,source.cellKey,board),false);
  const stepOne=model.moveRCPawn(moved.game,victim.cellKey,source.cellKey,board);
@@ -1174,6 +1199,7 @@ try{
   "flight.detachVictimToHome()","world.stepHome(dt,!isBusy())",
   "onOpenHome","onToggleParity","onReturnArrived","doubleTapRef.current",
    "world.stepMutationHalos(dt)","worldRef.current?.pulseMutations",
+   "world.cancelHomeReturn(seal)",
    "world.setEvolutionPreview(previewRef.current)",
    "pointersRef.current","gestureRef.current","world.view.zoomAt",
    "world.view.orbit","panBetween","world.view.step(dt)",
