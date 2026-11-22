@@ -468,11 +468,17 @@ try{
  assert.equal(isolated.mutatron.symmetry,100);
  const evolvedSource=growing.pawns.find(p=>p.number===4);
  assert(evolvedSource);
- const targetPawn=growing.pawns.find(p=>p.seal!==evolvedSource.seal);
- const captureAfterEvolution=model.moveRCPawn(growing,
+ const funded={...growing,mutatron:{
+  ...growing.mutatron,energyReserve:Math.max(30,growing.mutatron.energyReserve)
+ }};
+ const targetPawn=funded.pawns.find(p=>p.seal!==evolvedSource.seal&&
+  model.assessRCMove(funded,evolvedSource.cellKey,p.cellKey,board).allowed);
+ assert(targetPawn);
+ const captureAfterEvolution=model.moveRCPawn(funded,
   evolvedSource.cellKey,targetPawn.cellKey,board);
  assert(captureAfterEvolution&&model.validateRCGame(captureAfterEvolution.game,board));
- assert.equal(captureAfterEvolution.game.mutatron.generation,45);
+ assert.equal(captureAfterEvolution.game.mutatron.generation,
+  growing.mutatron.generation);
  assert.equal(captureAfterEvolution.game.home.length,1);
  for(const [n,expected] of [[1,1],[2,1],[5,4],[6,1],[7,1],[13,7],[18,12]])
   assert.equal(model.rcHomeRegression(n),expected);
@@ -483,11 +489,21 @@ try{
  const source=ring1[0],victim=ring1[1];
  const empty=board.cells.find(c=>c.nucleus);
  assert(empty);
+ // The nucleus is a dissociation sink, not a normal empty tile.
  const moved=model.moveRCPawn(sceneGame,source.cellKey,empty.key,board);
  assert(moved&&model.validateRCGame(moved.game,board));
- assert.equal(moved.game.pawns.length,72);
- assert.equal(moved.game.home.length,0);
- assert.equal(model.pawnAt(moved.game,empty.key)?.seal,source.seal);
+ assert.equal(moved.game.pawns.length,71);
+ assert.equal(moved.game.home.length,1);
+ assert.equal(model.pawnAt(moved.game,empty.key),undefined);
+ assert.equal(moved.game.home[0].seal,source.seal);
+ assert.equal(moved.game.home[0].number,1);
+ assert.equal(moved.game.mutatron.energyReserve,49);
+ assert.equal(model.rcTotalEnergy(moved.game),model.rcTotalEnergy(sceneGame));
+ assert.equal(model.rcHomeCooldown(moved.game,source.seal),2);
+ assert.equal(model.assessRCMove(sceneGame,ring2[1].cellKey,empty.key,board).allowed,false);
+ assert.equal(model.rcNucleusRegression(1),null);
+ assert.equal(model.rcNucleusRegression(6),1);
+ assert.equal(model.rcNucleusRecovery(6),1);
  // Opening captures now demonstrate immediate #2 -> #3 inheritance
  // and defender Home regression from #3 to #2.
  const taken=model.moveRCPawn(sceneGame,source.cellKey,victim.cellKey,board);
@@ -521,6 +537,21 @@ try{
  assert.equal(second.game.home[1].number,12);
  assert.equal(model.moveRCPawn(sceneGame,source.cellKey,source.cellKey,board),null);
  assert.equal(model.moveRCPawn(sceneGame,source.cellKey,"99,99",board),null);
+ assert.equal(model.canRCReenter(moved.game,source.seal,"0,0",board),false);
+ assert.equal(model.canRCReenter(moved.game,source.seal,source.cellKey,board),false);
+ const stepOne=model.moveRCPawn(moved.game,victim.cellKey,source.cellKey,board);
+ assert(stepOne);
+ assert.equal(model.rcHomeCooldown(stepOne.game,source.seal),1);
+ assert.equal(model.returnRCPawnToCell(stepOne.game,source.seal,source.cellKey,board),null);
+ const stepTwo=model.moveRCPawn(stepOne.game,source.cellKey,victim.cellKey,board);
+ assert(stepTwo);
+ assert.equal(model.rcHomeCooldown(stepTwo.game,source.seal),0);
+ const ring3Free=board.cells.find(c=>c.ring===3);
+ assert(ring3Free);
+ const reentry=model.returnRCPawnToCell(stepTwo.game,source.seal,ring3Free.key,board);
+ assert(reentry&&model.validateRCGame(reentry.game,board));
+ assert.equal(model.pawnAt(reentry.game,ring3Free.key)?.seal,source.seal);
+ assert.equal(model.rcTotalEnergy(reentry.game),model.rcTotalEnergy(stepTwo.game));
  console.log("RC01 FULL OPENING",JSON.stringify({
   onBoard:sceneGame.pawns.length,home:sceneGame.home.length,
   rings:[6,12,0,24,30],nucleus:"empty",
