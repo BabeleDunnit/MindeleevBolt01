@@ -141,12 +141,25 @@ try{
  world.dragPreview(null);
  assert.equal(proxy.visible,false);
  const marker=world.scene.children.find(x=>x.isGroup&&x.children.some(y=>
-  y.isMesh&&y.material?.opacity===.34&&y.material?.depthTest===false));
+  y.isMesh&&y.material?.opacity===.34&&y.material?.depthTest===true));
  assert(marker&&!marker.visible,"Target marker starts hidden");
+ const targetFill=marker.children.find(x=>x.isMesh);
+ assert.equal(targetFill.geometry.type,"CircleGeometry",
+  "The target highlight must be a FLAT tile face, not a 3D raised prism");
+ for(const overlay of marker.children){
+  assert.equal(overlay.material.depthTest,true,
+   "Target highlight must be occluded by real solid geometry");
+  assert.equal(overlay.material.depthWrite,false);
+  assert(overlay.renderOrder<0,
+   "Tile highlight order must be below 3D Polytron details");
+ }
  const candidates=board.cells.filter(c=>!c.nucleus).slice(0,2);
  assert.equal(candidates.length,2);
  world.hover(candidates[0].key,false,true);
  assert(marker.visible,"Valid drag targets must display a filled hexagon");
+ assert(marker.position.z>worldModule.RC_TILE_SURFACE_Z&&
+  marker.position.z<worldModule.RC_TILE_SURFACE_Z+.4,
+  "Target highlight belongs on the TILE, not floating over the Polytron");
  const p0=marker.position.clone();
  const color0=marker.children.find(x=>x.isMesh).material.color.getHex();
  world.hover(candidates[1].key,true,true);
@@ -163,6 +176,13 @@ try{
  world.pulseMutations([{seal:1,cellKey:"1,0"},{seal:2,cellKey:"0,1"}]);
  assert.equal(world.scene.children.filter(x=>
   x.isMesh&&x.geometry?.type==="RingGeometry").length,ringsBefore+2);
+ for(const halo of world.scene.children.filter(x=>
+  x.isMesh&&x.material?.color?.getHex()===0xe0a433)){
+  assert.equal(halo.material.depthTest,true);
+  assert.equal(halo.material.depthWrite,false);
+  assert(halo.position.z<worldModule.RC_TILE_SURFACE_Z+.4);
+  assert(halo.renderOrder<0);
+ }
  world.stepMutationHalos(1);
  world.stepMutationHalos(1);
  assert.equal(world.scene.children.filter(x=>
@@ -176,6 +196,17 @@ try{
   x.isMesh&&x.geometry?.type==="RingGeometry").length,
   ringsBefore+forecast.cells.length,
   "Each forecasting hex must be overlaid IN the 3D board scene");
+ const forecastOverlays=world.scene.children.filter(x=>
+  x.isMesh&&x.renderOrder<0);
+ assert.equal(forecastOverlays.length,forecast.cells.length*2);
+ for(const mesh of forecastOverlays){
+  assert.equal(mesh.material.depthTest,true,
+   "Cell forecast color must be hidden by an intervening 3D Polytron");
+  assert.equal(mesh.material.depthWrite,false);
+  assert(mesh.position.z>worldModule.RC_TILE_SURFACE_Z&&
+   mesh.position.z<worldModule.RC_TILE_SURFACE_Z+.4,
+   "Forecast highlights stay immediately above the tile face");
+ }
  const starvedSource={...previewSource,mutatron:{
   ...previewSource.mutatron,energyReserve:0
  }};
@@ -213,6 +244,10 @@ try{
   x.children.some(y=>y.isMesh&&y.material?.color?.getHex()===0x398ac9));
  assert(selectedMarker?.visible,
   "Touch selection must be a persistent blue hexagon");
+ assert(selectedMarker.children.every(x=>x.material?.depthTest===true&&
+  x.material?.depthWrite===false&&x.renderOrder<0));
+ assert.equal(selectedMarker.children.find(x=>x.isMesh)?.geometry.type,
+  "CircleGeometry","Selection highlight must be flat, not raised");
  const oldSelected=selectedMarker.position.clone();
  world.setSelectedCell("2,0");
  assert(selectedMarker.position.distanceTo(oldSelected)>board.size);
