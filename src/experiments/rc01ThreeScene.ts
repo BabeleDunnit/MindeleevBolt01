@@ -361,11 +361,14 @@ export function createRC3DWorld(board:RCBoard,priorView?:RCViewSnapshot){
   * Home to their unique opening hex. The caller resolves occupancy and
   * inheritance ONLY upon physical arrival. There is no scene teleport.
   */
- function startHomeReturns(pawns:readonly RCPawn[]){
+ function startHomeReturns(
+  pawns:readonly RCPawn[],targets:Readonly<Record<string,string>>={}
+ ){
   for(const pawn of pawns){
    if(!homeParticles.has(pawn.seal))newHomeParticle(pawn);
    const particle=homeParticles.get(pawn.seal);
-   const cell=cellsByKey.get(openingCellKeyForSeal(pawn.seal));
+   const cell=cellsByKey.get(
+    targets[pawn.seal]??openingCellKeyForSeal(pawn.seal));
    if(!particle||!cell)continue;
    particle.returnTarget=rcScreenWorld(board,cell,rcVisualPawnHeight(board));
    particle.arrivalReported=false;
