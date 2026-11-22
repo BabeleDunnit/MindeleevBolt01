@@ -374,6 +374,17 @@ export function createRC3DWorld(board:RCBoard,priorView?:RCViewSnapshot){
    particle.arrivalReported=false;
   }
  }
+ /** If another move occupies a voluntary return destination while
+  * the physical Home actor is travelling, spring it back Home instead of
+  * leaving a body stranded above an illegally occupied board cell.
+  */
+ function cancelHomeReturn(seal:number){
+  const particle=homeParticles.get(seal);
+  if(particle){
+   particle.returnTarget=null;
+   particle.arrivalReported=false;
+  }
+ }
  /** Cancel unfinished returns when the next double-tap recalls this parity. */
  function cancelHomeReturns(parity:"odd"|"even"){
   for(const [seal,p] of homeParticles)if(rcParity(seal)===parity){
@@ -711,7 +722,7 @@ export function createRC3DWorld(board:RCBoard,priorView?:RCViewSnapshot){
   raycastBoardPlane,setSelectedCell,
   setPawns,moveActor,actorOrientation,physicalPose,dragPreview,
   initHomePhysics,stepHome,transferToHome,transferParityToHome,
-   startHomeReturns,cancelHomeReturns,homeStats,homeSnapshot,
+   startHomeReturns,cancelHomeReturn,cancelHomeReturns,homeStats,homeSnapshot,
   hover,rotateModels,setEvolutionPreview,
   pulseMutations,stepMutationHalos,dispose};
 }
