@@ -1,6 +1,7 @@
 import {useEffect,useMemo,useRef,useState} from "react";
 import {makeRCBoard,type RCCell} from "@/polytron/rc01Board";
-import {initialRCGame,moveRCPawn,toggleRCParityHome,returnRCPawnHome,rcParity,
+import {initialRCGame,moveRCPawn,toggleRCParityHome,returnRCPawnHome,
+ returnRCPawnToCell,rcHomeCooldown,rcParity,
  pawnDNA,pawnName,pawnPalette,
  type RCGame,type RCPawn,type RCHomeParity,type RCHomeToggleResult} from "@/polytron/rc01Game";
 import {forecastRCMutatron,mutatronCounts} from "@/polytron/rc01Mutatron";
@@ -23,6 +24,7 @@ export default function MindeleevRC01(){
  // Touch selection is persistent; only Info opens the modal. Mouse clicks
  // keep their existing inspector behaviour.
  const [selectedSeal,setSelectedSeal]=useState<number|null>(null);
+ const [returningSeal,setReturningSeal]=useState<number|null>(null);
  const [physicsBusy,setPhysicsBusy]=useState(false);
  const [cameraCommand,setCameraCommand]=useState<RCCameraCommand|null>(null);
  const [viewMode,setViewMode]=useState<RCViewMode>("map");
@@ -84,13 +86,13 @@ export default function MindeleevRC01(){
   setGame(result.game);
   return result;
  };
- const returnArrived=(seal:number)=>{
-  // Each arrival reads the live game, including any intervening moves.
+ const returnArrived=(seal:number,target?:string)=>{
   setGame(previous=>previous?
-   returnRCPawnHome(previous,seal,board)?.game??previous:previous);
+   (target?returnRCPawnToCell(previous,seal,target,board):
+    returnRCPawnHome(previous,seal,board))?.game??previous:previous);
  };
  const evolve=()=>{
-  if(physicsBusyRef.current)return;
+  if(physicsBusyRef.current||!game?.mutatron.energyReserve)return;
   setGame(previous=>previous?forecastRCMutatron(previous,board).next:previous);
  };
  const groups=game?mutatronCounts(game):[0,0,0,0,0];
@@ -103,6 +105,7 @@ export default function MindeleevRC01(){
   if(physicsBusy)return;
   setSheet(null);
   setSelectedSeal(null);
+  setReturningSeal(null);
   setGame(initialRCGame(board));
  };
  return <main className="rc01-page">
@@ -123,6 +126,8 @@ export default function MindeleevRC01(){
    aria-label="3D Mutatron board">
    <RC01ThreeBoard board={board} game={game}
     selectedSeal={selectedSeal} onTouchSelect={setSelectedSeal}
+    returningSeal={returningSeal}
+    onHomeDestinationChosen={()=>setReturningSeal(null)}
     preview={forecast?.cells??[]}
     cameraCommand={cameraCommand} onViewModeChange={setViewMode}
     onSelect={select} onCommitMove={commitMove}
@@ -167,7 +172,7 @@ export default function MindeleevRC01(){
    </div>}
    <div className="rc01-evolve-panel">
     <button type="button" className="rc01-evolve-button"
-     disabled={!game||physicsBusy}
+     disabled={!game||physicsBusy||game.mutatron.energyReserve<1}
      onClick={evolve} aria-label="Evolve Mutatron one generation">
      <span aria-hidden="true">✳</span> Evolve Mutatron
     </button>
@@ -175,6 +180,7 @@ export default function MindeleevRC01(){
      GEN {game?.mutatron.generation??0} · SYM {game?.mutatron.symmetry??87}%
      {' · '} D {groups[3]} · I {groups[4]}
      {' · '} FIELD {game?.mutatron.energyReserve??48} E
+     {' · '} HEAT {game?.mutatron.dissipatedEnergy??0} E
     </span>
     <div className="rc01-preview-legend" aria-label="Next-evolution forecast">
      <span><i className="rc01-legend-gold"/> Next mutation</span>
@@ -182,9 +188,13 @@ export default function MindeleevRC01(){
      <span><i className="rc01-legend-orange"/> Energy blocked</span>
     </div>
     <span className="rc01-forecast-outcome" aria-live="polite">
-     {forecast?.summary??"Reading the Mutatron…"}
+     {forecast?.summary??"Reading the Mutatron…"} · Invocation: 1 E
     </span>
    </div>
+   {returningSeal!==null&&<div className="rc01-reentry-instruction" role="status">
+    Choose an empty tile for Home Polytron #{returningSeal}.
+    <button type="button" onClick={()=>setReturningSeal(null)}>Cancel</button>
+   </div>}
    <div className="rc01-board-footer">
     <div className="rc01-scene-count" aria-label="Polytrons on Mutatron">
      <span className="rc01-scene-dot"/> {game?.pawns.length??72} / 72
@@ -224,7 +234,21 @@ export default function MindeleevRC01(){
       onClick={()=>setView("subjective",selectedPawn.cellKey)}>
       View this Polytron in 3D
      </button>}
-     {isSelectedHome&&<div className="rc01-home-indicator">AT HOME</div>}
+     {isSelectedHome&&<div className="rc01-home-indicator">
+      AT HOME · {rcHomeCooldown(game!,selectedPawn.seal)>0?
+       "COOLING "+rcHomeCooldown(game!,selectedPawn.seal)+" MOVES":"READY"}
+     </div>}
+     {isSelectedHome&&<button type="button" className="rc01-inspect-3d"
+      disabled={rcHomeCooldown(game!,selectedPawn.seal)>0||physicsBusy}
+      onClick={()=>{
+       setReturningSeal(selectedPawn.seal);
+       setSheet(null);
+       setView("map");
+      }}>
+      {rcHomeCooldown(game!,selectedPawn.seal)>0?
+       "Cooling · "+rcHomeCooldown(game!,selectedPawn.seal)+" moves remaining":
+       "Return to an empty tile"}
+     </button>}
      <dl className="rc01-details">
       <div><dt>Polytronic Number</dt><dd>{selectedPawn.number}</dd></div>
       <div><dt>Conway DNA</dt><dd>{pawnDNA(selectedPawn)}</dd></div>
@@ -257,13 +281,18 @@ export default function MindeleevRC01(){
        .map(p=><button type="button" key={p.seal}
        onClick={()=>setSheet({kind:"polytron",seal:p.seal})}>
        <span>{pawnName(p)} <small>· {p.seal}/72</small></span>
-       <strong>#{p.number}</strong>
+       <strong>#{p.number}{rcHomeCooldown(game!,p.seal)>0?
+        " · "+rcHomeCooldown(game!,p.seal)+" moves":""}</strong>
       </button>)}
      </div>
     </div>}
     {selectedCell&&<div className="rc01-cell-sheet">
      <div className="rc01-sheet-kicker">MUTATRON GEOMETRY</div>
      <h2>{selectedCell.nucleus?"Nucleus":"Empty cell"}</h2>
+     {selectedCell.nucleus&&<p>
+      Dissociate a Polytron above #1 here to recover 1 Field E.
+      It returns Home for two valid moves. A current #1 cannot enter.
+     </p>}
      <dl className="rc01-details">
       <div><dt>Axial coordinates (q, r)</dt>
        <dd>({selectedCell.q}, {selectedCell.r})</dd></div>
