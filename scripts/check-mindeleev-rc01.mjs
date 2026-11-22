@@ -516,6 +516,34 @@ try{
  assert.equal(taken.game.home[0].seal,victim.seal);
  assert.equal(taken.game.home[0].number,2);
  assert.deepEqual(taken.game.home[0].manifestations,[3,2]);
+ // A field with no spendable energy must reject expensive captures.
+ const broke={...sceneGame,
+  pawns:sceneGame.pawns.map(p=>p.seal===source.seal?
+   {...p,number:1,manifestations:[1]}:
+   p.seal===victim.seal?{...p,number:5,manifestations:[5]}:p),
+  mutatron:{...sceneGame.mutatron,energyReserve:0}
+ };
+ const priced=model.assessRCMove(broke,source.cellKey,victim.cellKey,board);
+ assert.equal(priced.allowed,false);
+ assert.equal(model.moveRCPawn(broke,source.cellKey,victim.cellKey,board),null);
+ assert.match(priced.reason,/needs 3 E/i);
+ const justFunded={...broke,mutatron:{...broke.mutatron,energyReserve:3}};
+ const fundedCapture=model.moveRCPawn(justFunded,
+  source.cellKey,victim.cellKey,board);
+ assert(fundedCapture);
+ assert.equal(fundedCapture.game.mutatron.energyReserve,0);
+ assert.equal(model.rcTotalEnergy(fundedCapture.game),model.rcTotalEnergy(justFunded));
+ // Low-energy inheritance by a powerful attacker gives its energy surplus
+ // back to the shared field instead of creating or destroying energy.
+ const harvest={...sceneGame,pawns:sceneGame.pawns.map(p=>
+  p.seal===source.seal?{...p,number:5,manifestations:[5]}:
+  p.seal===victim.seal?{...p,number:1,manifestations:[1]}:p)};
+ const release=model.moveRCPawn(harvest,source.cellKey,victim.cellKey,board);
+ assert(release);
+ assert.equal(release.game.mutatron.energyReserve,52);
+ assert.equal(model.rcTotalEnergy(release.game),model.rcTotalEnergy(harvest));
+ assert.equal(model.moveRCPawn(sceneGame,ring2[1].cellKey,"0,0",board),
+  null,"Current #1 cannot be used to farm Field E");
  // Distinct later manifestations must still transfer with persistent history.
  const changed=sceneGame.pawns.map(p=>p.seal===victim.seal?
   {...p,number:13,manifestations:[13]}:p.seal===ring1[2].seal?
