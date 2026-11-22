@@ -466,6 +466,12 @@ export default function RC01ThreeBoard({
     activeReturnsRef.current.delete(seal);
     const target=manualReturnTargetsRef.current.get(seal);
     manualReturnTargetsRef.current.delete(seal);
+    if(target&&!gameRef.current?.home.some(p=>p.seal===seal))continue;
+    if(target&&gameRef.current&&
+       !canRCReenter(gameRef.current,seal,target,board)){
+     world.cancelHomeReturn(seal);
+     continue;
+    }
     arrivalRef.current(seal,target);
    }
    renderer.render(world.scene,world.camera);
