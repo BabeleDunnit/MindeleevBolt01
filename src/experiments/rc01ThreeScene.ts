@@ -112,44 +112,45 @@ export function createRC3DWorld(board:RCBoard,priorView?:RCViewSnapshot){
  const nucleusEdgeMaterial=new THREE.LineBasicMaterial({color:"#318662",linewidth:2});
  const hoverEdgeMaterial=new THREE.LineBasicMaterial({color:"#3b9e7d"});
  const captureEdgeMaterial=new THREE.LineBasicMaterial({color:"#ba7155"});
- // An independently positioned hex marker is rendered over the pawn, too:
- // changing a thin WebGL line (often forced to 1px) was not readable.
+ // Every highlight is a flat TILE-FACE underlay. Opaque Polytron
+ // surfaces must occlude them from tactical and subjective 3D views.
+ const cellHighlightGeometry=new THREE.CircleGeometry(board.size-2.1,6);
  const targetFreeMaterial=new THREE.MeshBasicMaterial({
-  color:0x25b587,transparent:true,opacity:.34,depthTest:false,
+  color:0x25b587,transparent:true,opacity:.34,depthTest:true,
   depthWrite:false,side:THREE.DoubleSide
  });
  const targetCaptureMaterial=new THREE.MeshBasicMaterial({
-  color:0xe28b53,transparent:true,opacity:.39,depthTest:false,
+  color:0xe28b53,transparent:true,opacity:.39,depthTest:true,
   depthWrite:false,side:THREE.DoubleSide
  });
  const targetFreeBorder=new THREE.LineBasicMaterial({
-  color:0x0a875f,depthTest:false,depthWrite:false
+  color:0x0a875f,transparent:true,depthTest:true,depthWrite:false
  });
  const targetCaptureBorder=new THREE.LineBasicMaterial({
-  color:0xbb4b2a,depthTest:false,depthWrite:false
+  color:0xbb4b2a,transparent:true,depthTest:true,depthWrite:false
  });
  const targetMarker=new THREE.Group();
- const targetFill=new THREE.Mesh(shape.tile,targetFreeMaterial);
- targetFill.renderOrder=80;
+ const targetFill=new THREE.Mesh(cellHighlightGeometry,targetFreeMaterial);
+ targetFill.renderOrder=-12;
  const targetOutline=new THREE.LineLoop(shape.line,targetFreeBorder);
- targetOutline.position.z=3.85;
- targetOutline.renderOrder=81;
+ targetOutline.position.z=.045;
+ targetOutline.renderOrder=-11;
  targetMarker.add(targetFill,targetOutline);
  targetMarker.visible=false;
  scene.add(targetMarker);
  // Touch selection persists independently of both drag target and inspector.
  const selectedFillMaterial=new THREE.MeshBasicMaterial({
   color:0x398ac9,transparent:true,opacity:.24,
-  depthTest:false,depthWrite:false,side:THREE.DoubleSide
+  depthTest:true,depthWrite:false,side:THREE.DoubleSide
  });
  const selectedBorderMaterial=new THREE.LineBasicMaterial({
-  color:0x196aaf,depthTest:false,depthWrite:false
+  color:0x196aaf,transparent:true,depthTest:true,depthWrite:false
  });
  const selectedMarker=new THREE.Group();
- const selectedFill=new THREE.Mesh(shape.tile,selectedFillMaterial);
- selectedFill.renderOrder=65;
+ const selectedFill=new THREE.Mesh(cellHighlightGeometry,selectedFillMaterial);
+ selectedFill.renderOrder=-18;
  const selectedBorder=new THREE.LineLoop(shape.line,selectedBorderMaterial);
- selectedBorder.position.z=4.1;selectedBorder.renderOrder=66;
+ selectedBorder.position.z=.045;selectedBorder.renderOrder=-17;
  selectedMarker.add(selectedFill,selectedBorder);
  selectedMarker.visible=false;
  scene.add(selectedMarker);
@@ -157,7 +158,7 @@ export function createRC3DWorld(board:RCBoard,priorView?:RCViewSnapshot){
   const cell=key?cellsByKey.get(key):null;
   selectedMarker.visible=!!cell;
   if(cell)selectedMarker.position.copy(
-   rcScreenWorld(board,cell,RC_TILE_SURFACE_Z+.45));
+   rcScreenWorld(board,cell,RC_TILE_SURFACE_Z+.19));
  }
  // Only THIS translucent hex follows the finger. The pawn and the original
  // tile remain exactly where they were until pointer-up starts Rapier.
@@ -166,7 +167,7 @@ export function createRC3DWorld(board:RCBoard,priorView?:RCViewSnapshot){
   side:THREE.DoubleSide,roughness:.55
  });
  const dragOutlineMaterial=new THREE.LineBasicMaterial({
-  color:"#208b69",transparent:true,opacity:1,depthTest:false
+  color:"#208b69",transparent:true,opacity:1,depthTest:true,depthWrite:false
  });
  const dragProxy=new THREE.Group();
  const dragTile=new THREE.Mesh(shape.tile,dragMaterial);
@@ -218,11 +219,11 @@ export function createRC3DWorld(board:RCBoard,priorView?:RCViewSnapshot){
  for(const kind of ["evolve","charge","energy","blocked"] as const){
   previewMaterials[kind]=new THREE.MeshBasicMaterial({
    color:forecastColors[kind],transparent:true,opacity:.15,
-   depthTest:false,depthWrite:false,side:THREE.DoubleSide
+   depthTest:true,depthWrite:false,side:THREE.DoubleSide
   });
   previewRingMaterials[kind]=new THREE.MeshBasicMaterial({
    color:forecastColors[kind],transparent:true,opacity:.82,
-   depthTest:false,depthWrite:false,side:THREE.DoubleSide
+   depthTest:true,depthWrite:false,side:THREE.DoubleSide
   });
  }
  const forecastMeshes:THREE.Mesh[]=[];
@@ -232,11 +233,11 @@ export function createRC3DWorld(board:RCBoard,priorView?:RCViewSnapshot){
   for(const state of cells){
    const cell=cellsByKey.get(state.key);if(!cell)continue;
    for(const [geometry,material,order] of [
-    [previewGeometry,previewMaterials[state.status],18],
-    [previewRingGeometry,previewRingMaterials[state.status],28]
+    [previewGeometry,previewMaterials[state.status],-24],
+    [previewRingGeometry,previewRingMaterials[state.status],-23]
    ] as const){
     const mesh=new THREE.Mesh(geometry,material);
-    mesh.position.copy(rcScreenWorld(board,cell,RC_TILE_SURFACE_Z+1.2));
+    mesh.position.copy(rcScreenWorld(board,cell,RC_TILE_SURFACE_Z+.12));
     mesh.renderOrder=order;
     scene.add(mesh);forecastMeshes.push(mesh);
    }
@@ -477,11 +478,11 @@ export function createRC3DWorld(board:RCBoard,priorView?:RCViewSnapshot){
    clearMutationHalo(change.seal);
    const material=new THREE.MeshBasicMaterial({
     color:0xe0a433,transparent:true,opacity:.82,
-    depthTest:false,depthWrite:false,side:THREE.DoubleSide
+    depthTest:true,depthWrite:false,side:THREE.DoubleSide
    });
    const mesh=new THREE.Mesh(mutationHaloGeometry,material);
-   mesh.position.copy(rcScreenWorld(board,cell,RC_TILE_SURFACE_Z+1.4));
-   mesh.renderOrder=75;
+   mesh.position.copy(rcScreenWorld(board,cell,RC_TILE_SURFACE_Z+.16));
+   mesh.renderOrder=-20;
    scene.add(mesh);
    mutationHalos.set(change.seal,{mesh,age:0});
   }
@@ -657,7 +658,7 @@ export function createRC3DWorld(board:RCBoard,priorView?:RCViewSnapshot){
   const target=dragTarget&&key!==null?cellsByKey.get(key):null;
   targetMarker.visible=!!target;
   if(target){
-   const p=rcScreenWorld(board,target,RC_TILE_SURFACE_Z+.7);
+   const p=rcScreenWorld(board,target,RC_TILE_SURFACE_Z+.26);
    targetMarker.position.copy(p);
    targetFill.material=occupied?targetCaptureMaterial:targetFreeMaterial;
    targetOutline.material=occupied?targetCaptureBorder:targetFreeBorder;
@@ -684,6 +685,7 @@ export function createRC3DWorld(board:RCBoard,priorView?:RCViewSnapshot){
   mutationHaloGeometry.dispose();
   clearActors();
   shape.tile.dispose();shape.line.dispose();
+  cellHighlightGeometry.dispose();
   tileMaterial.dispose();nucleusMaterial.dispose();
   tileEdgeMaterial.dispose();nucleusEdgeMaterial.dispose();
   hoverEdgeMaterial.dispose();captureEdgeMaterial.dispose();
