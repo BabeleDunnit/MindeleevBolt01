@@ -1186,7 +1186,7 @@ try{
   "Pointer down needs correct 3D-mesh picking in tilted perspective");
  assert(boardCode.includes("world.transferToHome(dissociating,physical.attacker)"),
   "Nucleus dissociation transfers the actual 3D actor to its Home");
- assert(boardCode.includes("world.setReentryTargets(targets)")&&
+ assert(boardCode.includes("worldRef.current?.setReentryTargets(targets)")&&
   boardCode.includes("wasDragging?target:world.raycastCell(point.x,point.y)")&&
   dragHandler.includes("HOME RETURN · release on highlighted tile"),
   "Home return should preview eligible cells and support offset drag release");
