@@ -777,6 +777,30 @@ try{
    reachedOpening:arrivalSeen,returnedAsCapture:true,
    remainingHome:capturedOnReturn.game.home.length
   }));
+  // A real Rapier Home spring reaches a player-chosen third-ring tile.
+  homeScene.setPawns(stepTwo.game.pawns,stepTwo.game.home);
+  const cooledPawn=stepTwo.game.home.find(p=>p.seal===source.seal);
+  const chosenThird=board.cells.find(c=>c.ring===3);
+  assert(cooledPawn&&chosenThird);
+  homeScene.startHomeReturns([cooledPawn],{[cooledPawn.seal]:chosenThird.key});
+  let voluntaryArrived=false;
+  for(let i=0;i<1500;i++){
+   if(homeScene.stepHome(1/60).includes(cooledPawn.seal)){
+    voluntaryArrived=true;break;
+   }
+  }
+  assert(voluntaryArrived,
+   "Unscaled Home Polytron must fly to the selected free ring-3 tile");
+  const voluntary=model.returnRCPawnToCell(
+   stepTwo.game,cooledPawn.seal,chosenThird.key,board);
+  assert(voluntary);
+  homeScene.setPawns(voluntary.game.pawns,voluntary.game.home);
+  assert.equal(homeScene.homeStats().count,0);
+  assert.equal(model.pawnAt(voluntary.game,chosenThird.key)?.seal,cooledPawn.seal);
+  console.log("RC01 NUCLEAR REENTRY",JSON.stringify({
+   cooled:2,physical:voluntaryArrived,ring:3,
+   field:voluntary.game.mutatron.energyReserve
+  }));
   console.log("RC01 PARITY HOME",JSON.stringify({
    odd:odd.length,even:even.length,
    radius:worldModule.rcVisualPawnRadius(board),
