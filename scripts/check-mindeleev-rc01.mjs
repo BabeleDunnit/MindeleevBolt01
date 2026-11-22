@@ -395,9 +395,16 @@ try{
   const next=mutatron.evolveRCMutatron(previous,board);
   assert.deepEqual(forecast.next,next,"Preview must equal actual evolution");
   assert.deepEqual(forecast.transforms,next.mutatron.changes);
-  assert.equal(previous.mutatron.generation,generation-1);
   assert(model.validateRCGame(next,board));
-  assert.equal(next.mutatron.generation,generation);
+  const invoked=previous.mutatron.energyReserve>=mutatron.MUTATRON_INVOCATION_COST;
+  assert.equal(next.mutatron.generation,
+   previous.mutatron.generation+(invoked?1:0));
+  assert.equal(next.mutatron.dissipatedEnergy,
+   previous.mutatron.dissipatedEnergy+(invoked?1:0),
+   "Each actual invocation dissipates 1 E, even without mutation");
+  assert.equal(previous.mutatron.energyReserve-next.mutatron.energyReserve,
+   forecast.cost+forecast.invocationCost,
+   "The preview accounts for the intrinsic change AND invocation");
   assert.equal(next.pawns.length,72);
   assert.equal(next.home.length,0);
   assert.equal(next.moves,0);
@@ -406,7 +413,7 @@ try{
   assert(next.pawns.every(p=>startingPositions.get(p.seal)===p.cellKey));
   assert(next.pawns.every(p=>p.manifestations.includes(p.number)));
   assert.equal(mutatron.mutatronEnergyTotal(next),startingBudget,
-   "Intrinsic E plus reserve must be conserved at every tick");
+   "Intrinsic + Field + dissipated heat must be conserved at every tick");
   assert(next.mutatron.changes.length<=2);
   assert(next.mutatron.symmetry>=previous.mutatron.symmetry);
   assert.deepEqual(new Set(forecast.cells.filter(p=>p.status==="evolve").map(p=>p.key)),
