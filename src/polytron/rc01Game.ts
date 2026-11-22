@@ -27,6 +27,24 @@ export function rcOpeningNumber(ring:number,idxInRing:number):number{
  return RC01_OPENING_NUMBER;
 }
 export const RC01_OPENING_PALETTE={row:2,col:4} as const;
+/** Twelve diagonal Chromatica seeds on the outer-ring vertices.
+ * Coordinates are (ring, clockwise index from north).
+ * All other Seals keep their previous RC01 palette until new rules exist.
+ */
+export const RC01_DIAGONAL_PALETTE_VERTICES=[
+ {ring:5,idxInRing:0,paletteIndex:1},  // Albus Leukos — north
+ {ring:5,idxInRing:5,paletteIndex:2},  // Ruber Erythros
+ {ring:5,idxInRing:10,paletteIndex:3}, // Fulvus Pyrrhos
+ {ring:5,idxInRing:15,paletteIndex:0}, // Niger Melas — south
+ {ring:5,idxInRing:20,paletteIndex:4}, // Aureus Chrysos
+ {ring:5,idxInRing:25,paletteIndex:5}, // Flavus Xanthos
+ {ring:4,idxInRing:0,paletteIndex:6},  // Viridis Chloros
+ {ring:4,idxInRing:4,paletteIndex:7},  // Caesius Glaukos
+ {ring:4,idxInRing:8,paletteIndex:8},  // Caeruleus Kyanos
+ {ring:4,idxInRing:12,paletteIndex:9}, // Purpureus Porphyra
+ {ring:4,idxInRing:16,paletteIndex:10},// Roseus Rhodon
+ {ring:4,idxInRing:20,paletteIndex:11} // Canus Phaios
+] as const;
 export const RC01_START_SCORE=100;
 
 /**
@@ -41,7 +59,7 @@ export type RCPawn={
 };
 export type RCMutatronChange={
  seal:number;cellKey:string;from:number;to:number;
- kind:"emergence"|"symmetry"|"chromatic";
+ kind:"emergence"|"symmetry";
 };
 export type RCMutatronState={
  generation:number;
@@ -112,7 +130,8 @@ export function rcHomeRegression(n:number):number{
  * Ring 2 (Seals 7..18): C T O T C T O T C T O T.
  * Together these make six cubes (#2), six octahedra (#3), and six
  * tetrahedra (#1). Rings 4 and 5 add 54 tetrahedra (#1).
- * All 72 retain the SAME Chromatica gradient and distinct permanent IDs.
+ * Twelve vertices seed distinct diagonal Chromatica pairs; the other
+ * 60 retain the prior RC01 palette. All 72 keep distinct permanent IDs.
  */
 export function initialRCGame(board:RCBoard,_rng:()=>number=Math.random):RCGame{
  const cells=new Set(board.cells.map(c=>c.key));
@@ -123,9 +142,12 @@ export function initialRCGame(board:RCBoard,_rng:()=>number=Math.random):RCGame{
   throw Error("The Mutatron must contain all five complete rings");
  const pawns=positions.map((pos,i):RCPawn=>{
   const number=rcOpeningNumber(pos.ring,pos.idxInRing);
+  const diagonal=RC01_DIAGONAL_PALETTE_VERTICES.find(v=>
+   v.ring===pos.ring&&v.idxInRing===pos.idxInRing);
   return {
    seal:i+1,number,
-   row:RC01_OPENING_PALETTE.row,col:RC01_OPENING_PALETTE.col,
+   row:diagonal?.paletteIndex??RC01_OPENING_PALETTE.row,
+   col:diagonal?.paletteIndex??RC01_OPENING_PALETTE.col,
    cellKey:rcKey(pos.q,pos.r),
    manifestations:[number]
   };

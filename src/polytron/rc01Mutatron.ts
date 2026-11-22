@@ -21,7 +21,7 @@
  */
 import {rcKey,type RCBoard,type RCCell} from "@/polytron/rc01Board";
 import {intrinsicEnergy} from "@/polytron/mindeleevLife";
-import {RC01_OPENING_PALETTE,rcBoardSymmetry,rcTotalEnergy,
+import {rcBoardSymmetry,rcTotalEnergy,
  validateRCGame,
  type RCGame,type RCPawn,type RCMutatronChange} from "@/polytron/rc01Game";
 
@@ -103,13 +103,7 @@ function localAt(cell:RCCell,occupied:ReadonlyMap<string,RCPawn>):Local{
 }
 const appendix=(history:readonly number[],number:number)=>
  history.includes(number)?[...history]:[...history,number];
-const paletteFor=(number:number)=>({
- row:(RC01_OPENING_PALETTE.row+mutatronGroup(number)+
-  mutatronPeriod(number)-1)%12,
- col:(RC01_OPENING_PALETTE.col+2*mutatronGroup(number)+
-  mutatronPeriod(number)-1)%12
-});
-
+ 
 /** The only geometrically permitted numerical movements:
  * n -> n+1 within the same period (one group)
  * n -> n+5 within the same group (one period)
@@ -202,22 +196,19 @@ export function forecastRCMutatron(game:RCGame,board:RCBoard):RCMutatronForecast
   a.pair.id.localeCompare(b.pair.id));
  const selected=canInvoke?candidates.find(c=>
   c.supported&&c.charge>=c.needed&&c.canPay&&
-  (c.p.number!==c.target||c.q.number!==c.target||
-   c.p.row!==c.q.row||c.p.col!==c.q.col)):undefined;
+  (c.p.number!==c.target||c.q.number!==c.target)):undefined;
  const updates=new Map<number,RCPawn>();
  const transforms:RCMutatronChange[]=[];
  if(selected){
-  const color=paletteFor(selected.target);
+  // Chromatica belongs to each Seal: transmutation never changes row/col.
   for(const pawn of [selected.p,selected.q]){
-   if(pawn.number===selected.target&&pawn.row===color.row&&
-    pawn.col===color.col)continue;
+   if(pawn.number===selected.target)continue;
    updates.set(pawn.seal,{...pawn,number:selected.target,
-    row:color.row,col:color.col,
     manifestations:appendix(pawn.manifestations,selected.target)});
    transforms.push({seal:pawn.seal,cellKey:pawn.cellKey,
     from:pawn.number,to:selected.target,
     kind:mutatronPeriod(selected.target)>mutatronPeriod(pawn.number)?
-     "emergence":pawn.number!==selected.target?"symmetry":"chromatic"});
+     "emergence":"symmetry"});
   }
   resonance[selected.pair.id]=0;
  }
@@ -236,11 +227,14 @@ export function forecastRCMutatron(game:RCGame,board:RCBoard):RCMutatronForecast
    "Insufficient field energy: needs "+(c.cost+MUTATRON_INVOCATION_COST)+" E.":
    status==="charge"?
     "Resonance "+c.charge+"/"+c.needed+". "+c.reason:c.reason;
-  for(const [pawn,local] of [[c.p,c.a],[c.q,c.b]] as const)
+  for(const [pawn,local] of [[c.p,c.a],[c.q,c.b]] as const){
+   // Do not highlight a Polytron whose number is already at target.
+   if(status==="evolve"&&pawn.number===c.target)continue;
    cells.push({key:pawn.cellKey,status,number:pawn.number,
     target:c.target,neighbours:local.neighbours,axes:local.axes,
     groups:c.diversity,charge:c.charge,needed:c.needed,
     energyCost:c.cost,reason});
+  }
  }
  const summary=!canInvoke?
   "Field depleted: recover at least 1 E to invoke the Mutatron.":

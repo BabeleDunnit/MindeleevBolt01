@@ -332,9 +332,31 @@ try{
  assert.equal(new Set(sceneGame.pawns.map(p=>p.cellKey)).size,72);
  assert.deepEqual([...new Set(sceneGame.pawns.map(p=>p.number))].sort(),
   [1,2,3],"The hand-drawn opening contains exactly the three first-period solids");
- assert.deepEqual([...new Set(sceneGame.pawns.map(p=>p.row+','+p.col))],
-  [model.RC01_OPENING_PALETTE.row+','+model.RC01_OPENING_PALETTE.col],
-  "All 72 opening Polytrons retain the same Chromatica palette");
+ // Independent north-first clockwise opening seed specification.
+ const diagonalSeeds=[
+  [5,0,1,"Albus Leukos"],[5,5,2,"Ruber Erythros"],
+  [5,10,3,"Fulvus Pyrrhos"],[5,15,0,"Niger Melas"],
+  [5,20,4,"Aureus Chrysos"],[5,25,5,"Flavus Xanthos"],
+  [4,0,6,"Viridis Chloros"],[4,4,7,"Caesius Glaukos"],
+  [4,8,8,"Caeruleus Kyanos"],[4,12,9,"Purpureus Porphyra"],
+  [4,16,10,"Roseus Rhodon"],[4,20,11,"Canus Phaios"]
+ ];
+ assert.equal(diagonalSeeds.length,12);
+ assert.equal(new Set(diagonalSeeds.map(x=>x[2])).size,12);
+ for(const [ring,index,palette,name] of diagonalSeeds){
+  const cell=board.cells.find(c=>c.ring===ring&&c.idxInRing===index);
+  assert(cell,"Expected a vertex at ring "+ring+" index "+index);
+  const pawn=model.pawnAt(sceneGame,cell.key);
+  assert(pawn);
+  assert.deepEqual([pawn.row,pawn.col],[palette,palette]);
+  assert.equal(model.pawnPalette(pawn).name,name);
+ }
+ assert.equal(sceneGame.pawns.filter(p=>p.row===p.col).length,12,
+  "Only the 12 specified opening vertices have diagonal palettes");
+ assert(sceneGame.pawns.filter(p=>p.row!==p.col).every(p=>
+  p.row===model.RC01_OPENING_PALETTE.row&&
+  p.col===model.RC01_OPENING_PALETTE.col),
+  "Non-vertex Polytrons keep their previous RC01 opening palette");
  assert(sceneGame.pawns.every(p=>p.manifestations.length===1&&
   p.manifestations[0]===p.number));
  assert(!sceneGame.pawns.some(p=>p.cellKey==="0,0"));
@@ -396,7 +418,8 @@ try{
  // The very same immutable forecast drives the visual preview and tick.
  assert.equal(sceneGame.mutatron.generation,0);
  assert.equal(sceneGame.mutatron.energyReserve,48);
- assert.equal(mutatron.mutatronSymmetry(sceneGame,board),87);
+ assert.equal(mutatron.mutatronSymmetry(sceneGame,board),73,
+  "Unique vertex palettes break six previously matched opposite pairs");
  assert.deepEqual(mutatron.mutatronCounts(sceneGame),[60,6,6,0,0]);
  const startingPositions=new Map(sceneGame.pawns.map(p=>[p.seal,p.cellKey]));
  const startingBudget=mutatron.mutatronEnergyTotal(sceneGame);
@@ -425,6 +448,11 @@ try{
   assert.equal(next.score,100);
   assert(next.pawns.every(p=>startingPositions.get(p.seal)===p.cellKey));
   assert(next.pawns.every(p=>p.manifestations.includes(p.number)));
+  assert.deepEqual(next.pawns.map(p=>[p.seal,p.row,p.col]),
+   previous.pawns.map(p=>[p.seal,p.row,p.col]),
+   "Mutatron must never modify a Polytron's Chromatica palette");
+  assert(next.mutatron.changes.every(change=>change.from!==change.to),
+   "Every transformation must change the number, not just the palette");
   assert.equal(mutatron.mutatronEnergyTotal(next),startingBudget,
    "Intrinsic + Field + dissipated heat must be conserved at every tick");
   assert(next.mutatron.changes.length<=2);
@@ -438,8 +466,9 @@ try{
    assert.equal(change.to,pawn.number);
    const cell=board.cells.find(c=>c.key===pawn.cellKey);
    const opposite=model.pawnAt(next,grid.rcKey(-cell.q,-cell.r));
-   assert(opposite&&opposite.number===pawn.number&&
-    opposite.row===pawn.row&&opposite.col===pawn.col);
+   assert(opposite&&opposite.number===pawn.number,
+    "Mutatron harmonizes numbers without overwriting opposite palettes");
+   assert.deepEqual([pawn.row,pawn.col],[old.row,old.col]);
    const groupStep=Math.abs((pawn.number-1)%5-(old.number-1)%5);
    const periodStep=Math.abs(Math.floor((pawn.number-1)/5)-
     Math.floor((old.number-1)/5));

@@ -177,7 +177,7 @@ export default function MindeleevRC01(){
      <span aria-hidden="true">✳</span> Evolve Mutatron
     </button>
     <span className="rc01-evolve-meta" aria-live="polite">
-     GEN {game?.mutatron.generation??0} · SYM {game?.mutatron.symmetry??87}%
+     GEN {game?.mutatron.generation??0} · SYM {game?game.mutatron.symmetry+"%":"—"}
      {' · '} D {groups[3]} · I {groups[4]}
      {' · '} FIELD {game?.mutatron.energyReserve??48} E
      {' · '} HEAT {game?.mutatron.dissipatedEnergy??0} E
