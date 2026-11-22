@@ -21,7 +21,8 @@
  */
 import {rcKey,type RCBoard,type RCCell} from "@/polytron/rc01Board";
 import {intrinsicEnergy} from "@/polytron/mindeleevLife";
-import {RC01_OPENING_PALETTE,rcBoardSymmetry,validateRCGame,
+import {RC01_OPENING_PALETTE,rcBoardSymmetry,rcTotalEnergy,
+ validateRCGame,
  type RCGame,type RCPawn,type RCMutatronChange} from "@/polytron/rc01Game";
 
 export const MUTATRON_NEIGHBOURS=[
@@ -33,16 +34,14 @@ export const MUTATRON_MIN_GROUPS=2;
 export const MUTATRON_GROUP_CHARGE=2;
 export const MUTATRON_PERIOD_CHARGE=3;
 export const MUTATRON_MAX_CHARGE=6;
+export const MUTATRON_INVOCATION_COST=1;
 
 export const mutatronGroup=(n:number)=>((n-1)%5)+1;
 export const mutatronPeriod=(n:number)=>Math.floor((n-1)/5)+1;
 export const MUTATRON_GROUP_NAMES=["Tetrahedron","Cube","Octahedron",
  "Dodecahedron","Icosahedron"] as const;
 export const mutatronIntrinsic=(p:RCPawn)=>intrinsicEnergy(p.number,0);
-export function mutatronEnergyTotal(game:RCGame):number{
- return [...game.pawns,...game.home].reduce(
-  (sum,p)=>sum+mutatronIntrinsic(p),game.mutatron.energyReserve);
-}
+export const mutatronEnergyTotal=rcTotalEnergy;
 export function mutatronSymmetry(game:RCGame,board:RCBoard):number{
  return rcBoardSymmetry(game.pawns,board);
 }
@@ -61,6 +60,8 @@ export type RCMutatronForecastCell={
 export type RCMutatronForecast={
  /** A NEXT-generation game derived from this exact frozen input snapshot. */
  next:RCGame;
+ invocationCost:number;
+ canInvoke:boolean;
  cells:RCMutatronForecastCell[];
  cost:number;
  reservoirBefore:number;reservoirAfter:number;
@@ -147,6 +148,7 @@ function targetFor(p:RCPawn,q:RCPawn,a:Local,b:Local,diversity:number){
 }
 /** Pure preview and turn engine: no mutations to game, board, or Polytrons. */
 export function forecastRCMutatron(game:RCGame,board:RCBoard):RCMutatronForecast{
+ const canInvoke=game.mutatron.energyReserve>=MUTATRON_INVOCATION_COST;
  const occupied=new Map(game.pawns.map(p=>[p.cellKey,p]));
  const resonance:Record<string,number>={};
  const counts=mutatronCounts(game);
@@ -184,7 +186,8 @@ export function forecastRCMutatron(game:RCGame,board:RCBoard):RCMutatronForecast
   if(charge)resonance[pair.id]=charge;
   const cost=intrinsicEnergy(proposed.target,0)*2-
    intrinsicEnergy(p.number,0)-intrinsicEnergy(q.number,0);
-  const canPay=cost>=0&&cost<=game.mutatron.energyReserve;
+  const canPay=cost>=0&&
+   cost+MUTATRON_INVOCATION_COST<=game.mutatron.energyReserve;
   // Highest geometry/coherence first, but give advancing periods a
   // small boost to ensure eventual forms beyond the first five.
   const score=3*diversity+2*Math.min(a.axes,b.axes)+
@@ -197,10 +200,10 @@ export function forecastRCMutatron(game:RCGame,board:RCBoard):RCMutatronForecast
  candidates.sort((a,b)=>b.score-a.score||
   b.charge-a.charge||a.pair.a.ring-b.pair.a.ring||
   a.pair.id.localeCompare(b.pair.id));
- const selected=candidates.find(c=>
+ const selected=canInvoke?candidates.find(c=>
   c.supported&&c.charge>=c.needed&&c.canPay&&
   (c.p.number!==c.target||c.q.number!==c.target||
-   c.p.row!==c.q.row||c.p.col!==c.q.col));
+   c.p.row!==c.q.row||c.p.col!==c.q.col)):undefined;
  const updates=new Map<number,RCPawn>();
  const transforms:RCMutatronChange[]=[];
  if(selected){
@@ -228,8 +231,9 @@ export function forecastRCMutatron(game:RCGame,board:RCBoard):RCMutatronForecast
   if(status==="blocked"&&c.charge===0)continue;
   const reason=status==="evolve"?
    "Next evolution: #"+c.p.number+"/#"+c.q.number+" → #"+c.target+
-   "; "+c.cost+" E.":status==="energy"?
-   "Insufficient field energy: needs "+c.cost+" E.":
+   "; "+(c.cost+MUTATRON_INVOCATION_COST)+" E including invocation.":
+   status==="energy"?
+   "Insufficient field energy: needs "+(c.cost+MUTATRON_INVOCATION_COST)+" E.":
    status==="charge"?
     "Resonance "+c.charge+"/"+c.needed+". "+c.reason:c.reason;
   for(const [pawn,local] of [[c.p,c.a],[c.q,c.b]] as const)
@@ -238,9 +242,11 @@ export function forecastRCMutatron(game:RCGame,board:RCBoard):RCMutatronForecast
     groups:c.diversity,charge:c.charge,needed:c.needed,
     energyCost:c.cost,reason});
  }
- const summary=selected?
+ const summary=!canInvoke?
+  "Field depleted: recover at least 1 E to invoke the Mutatron.":
+  selected?
   "Pair #"+selected.p.number+"/#"+selected.q.number+" → #"+
-  selected.target+"; "+cost+" E from the field.":
+  selected.target+"; "+cost+" E transmutation + 1 E invocation.":
   candidates.some(c=>c.supported&&!c.canPay&&c.charge>=c.needed)?
    "Insufficient field energy for the charged pairs.":
   candidates.some(c=>c.supported)?
@@ -251,9 +257,13 @@ export function forecastRCMutatron(game:RCGame,board:RCBoard):RCMutatronForecast
   pawns:game.pawns.map(p=>updates.get(p.seal)??p),
   mutatron:{
    ...game.mutatron,
-   generation:game.mutatron.generation+1,
-   resonance,changes:transforms,
-   energyReserve:game.mutatron.energyReserve-cost,
+   generation:game.mutatron.generation+(canInvoke?1:0),
+   resonance:canInvoke?resonance:game.mutatron.resonance,
+   changes:canInvoke?transforms:[],
+   energyReserve:game.mutatron.energyReserve-cost-
+    (canInvoke?MUTATRON_INVOCATION_COST:0),
+   dissipatedEnergy:game.mutatron.dissipatedEnergy+
+    (canInvoke?MUTATRON_INVOCATION_COST:0),
    symmetry:0,lastNote:summary
   },
   lastAction:"MUTATRON · "+summary
@@ -264,6 +274,8 @@ export function forecastRCMutatron(game:RCGame,board:RCBoard):RCMutatronForecast
  if(mutatronEnergyTotal(next)!==mutatronEnergyTotal(game))
   throw Error("Mutatron energy was not conserved");
  return {next,cells,cost,
+  invocationCost:canInvoke?MUTATRON_INVOCATION_COST:0,
+  canInvoke,
   reservoirBefore:game.mutatron.energyReserve,
   reservoirAfter:next.mutatron.energyReserve,
   transforms,summary};
