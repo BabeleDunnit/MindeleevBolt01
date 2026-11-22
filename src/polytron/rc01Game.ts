@@ -205,11 +205,11 @@ export function assessRCMove(
  }
  if(!defender)return {allowed:true,kind:"move",fieldDelta:0,
   reason:"Empty tile."};
+ // Attacker adopts defender's number: the defender's original E
+ // cancels against the attacker's new E. Only attacker-before minus
+ // defender-regressed remains as recoverable/spendable Field energy.
  const delta=rcIntrinsic(attacker.number)-
-  rcIntrinsic(defender.number)*0-
   rcIntrinsic(rcHomeRegression(defender.number));
- // After inheritance attacker becomes defender's number. The original
- // defender regresses; therefore the defender's original energy cancels.
  if(game.mutatron.energyReserve+delta<0)
   return invalid("Capture needs "+(-delta)+" E; available "+
    game.mutatron.energyReserve+" E.");
@@ -244,7 +244,8 @@ export function returnRCPawnToCell(
  if(!validateRCGame(updated,board)||
     rcTotalEnergy(updated)!==rcTotalEnergy(game))
   throw Error("Invalid voluntary Home return");
- return {game:updated,attacker:incoming,captured:null,target};
+ return {game:updated,attacker:{...incoming,cellKey:target},
+  captured:null,target};
 }
 /** One fusion rule shared by drag captures and Home return captures. */
 function inheritManifestation(attacker:RCPawn,captured:RCPawn,target:string){
