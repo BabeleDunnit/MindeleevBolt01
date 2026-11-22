@@ -298,6 +298,23 @@ export default function RC01ThreeBoard({
    Math.hypot(e.clientX-press.startX,e.clientY-press.startY)>=MIN_DRAG_PIXELS;
   cancelPointer(e.currentTarget,e.pointerId);
   if(isBusy()||press.orbiting)return;
+  // One tap on an empty tile designates a voluntary Home destination.
+  // The Home actor remains physical until the spring flight arrives.
+  const returning=returningSealRef.current;
+  if(returning!==null&&!wasDragging&&point&&gameRef.current){
+   const chosen=world.raycastCell(point.x,point.y);
+   const homePawn=gameRef.current.home.find(p=>p.seal===returning);
+   if(chosen&&homePawn&&
+      canRCReenter(gameRef.current,returning,chosen.key,board)&&
+      ![...manualReturnTargetsRef.current.values()].includes(chosen.key)){
+    activeReturnsRef.current.add(returning);
+    manualReturnTargetsRef.current.set(returning,chosen.key);
+    world.startHomeReturns([homePawn],{[returning]:chosen.key});
+    homeChosenRef.current();
+   }
+   return;
+  }
+  if(returning!==null)return;
   if(!wasDragging){
    if(rcIsTouch(press.pointerType)){
     // Touch tap selects without opening the modal; explicit Info is the
@@ -308,7 +325,9 @@ export default function RC01ThreeBoard({
    return;
   }
   if(!press.pawn||!press.cell||press.panning||
-   !target||target.key===press.cell.key)return;
+   !target||target.key===press.cell.key||!gameRef.current||
+   !assessRCMove(gameRef.current,press.cell.key,target.key,board).allowed)
+    return;
   launchPhysicalMove(press,target);
  };
  const onPointerCancel=(e:ReactPointerEvent<HTMLCanvasElement>)=>{
@@ -382,7 +401,8 @@ export default function RC01ThreeBoard({
   world.setEvolutionPreview(previewRef.current);
   const resumed=(gameRef.current?.home??[]).filter(
    pawn=>activeReturnsRef.current.has(pawn.seal));
-  if(resumed.length)world.startHomeReturns(resumed);
+  if(resumed.length)world.startHomeReturns(resumed,
+   Object.fromEntries(manualReturnTargetsRef.current));
   const epoch=++epochRef.current;
   let alive=true,raf=0,last=performance.now(),accumulator=0;
   const frame=(now:number)=>{
@@ -419,8 +439,14 @@ export default function RC01ThreeBoard({
      // Commit the destination BEFORE unlocking viewport measurements:
      // a mobile browser chrome resize must not recreate the scene with the
      // old source cell after a long physical flight.
-     if(physical.success)commitRef.current(flight.from,flight.to);
-     else console.error("RC01: physics stopped without a completed move");
+     if(physical.success){
+      if(flight.to==="0,0"){
+       const dissociating=gameRef.current?.pawns.find(p=>
+        p.seal===flight.attackerSeal);
+       if(dissociating)world.transferToHome(dissociating,physical.attacker);
+      }
+      commitRef.current(flight.from,flight.to);
+     }else console.error("RC01: physics stopped without a completed move");
      busyRef.current?.(false);
      accumulator=0;
     }
@@ -438,7 +464,9 @@ export default function RC01ThreeBoard({
    const arrived=world.stepHome(dt,!isBusy());
    for(const seal of arrived){
     activeReturnsRef.current.delete(seal);
-    arrivalRef.current(seal);
+    const target=manualReturnTargetsRef.current.get(seal);
+    manualReturnTargetsRef.current.delete(seal);
+    arrivalRef.current(seal,target);
    }
    renderer.render(world.scene,world.camera);
   };
@@ -458,8 +486,10 @@ export default function RC01ThreeBoard({
  },[board]);
  useEffect(()=>{
   // Game changes only after a completed, physically evaluated move.
-  if(game?.pawns.length===72&&game.home.length===0)
+  if(game?.pawns.length===72&&game.home.length===0){
    activeReturnsRef.current.clear();
+   manualReturnTargetsRef.current.clear();
+  }
   if(!isBusy())worldRef.current?.setPawns(game?.pawns??[],game?.home??[]);
   worldRef.current?.setSelectedCell(game?.pawns.find(
    pawn=>pawn.seal===selectedSealRef.current)?.cellKey??null);
