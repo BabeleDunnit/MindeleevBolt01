@@ -286,6 +286,7 @@ export default function MindeleevRC01(){
          " · "+selectedForecast.number+" → "+selectedForecast.target:""}
        </dd>
       </div>}
+      </dl>
       {!inspectingHistory&&selectedPawn.cellKey&&<button type="button"
        className="rc01-inspect-3d rc01-inspect-evolve"
        disabled={physicsBusy||!forecast?.canInvoke}
@@ -293,8 +294,8 @@ export default function MindeleevRC01(){
        {forecast?.canInvoke?
         "Evolve "+pawnIdentity(selectedPawn)+" → "+forecast.transforms[0].to:
         "Evolution unavailable"}
-      </button>
-     </dl>
+      </button>}
+
      <RC01ManifestationHistory pawn={selectedPawn}
       selectedIndex={manifestationIndex} onSelect={setManifestationIndex}/>
      <RC01MnemeHistory pawn={selectedPawn}/>
