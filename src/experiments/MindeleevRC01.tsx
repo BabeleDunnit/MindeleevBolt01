@@ -10,6 +10,7 @@ import RC01ThreeBoard,{type RCCameraCommand} from "@/experiments/RC01ThreeBoard"
 import type {RCViewMode} from "@/experiments/rc01Camera";
 import RC01ThreeInspector from "@/experiments/RC01ThreeInspector";
 import RC01ManifestationHistory from "@/experiments/RC01ManifestationHistory";
+import RC01MnemeHistory from "@/experiments/RC01MnemeHistory";
 import {intrinsicEnergy} from "@/polytron/mindeleevLife";
 import "./MindeleevRC01.css";
 
@@ -124,6 +125,11 @@ export default function MindeleevRC01(){
     <div><strong>MINDELEEV</strong><small>RELEASE CANDIDATE 01</small></div>
    </div>
    <div className="rc01-header-actions">
+    <a className="rc01-periodic-shortcut"
+     href="https://babeledunnit.github.io/MindeleevBolt01/?experiment=polytron-periodic"
+     target="_blank" rel="noopener noreferrer"
+     aria-label="Open the Polytronic Periodic Table in a new tab"
+     title="Polytronic Periodic Table · new tab">TABLE ↗</a>
     <div className="rc01-score" aria-label={"Fusions: "+(game?.fusions??0)}>
      <span>FUSIONS</span><strong>{game?.fusions??0}</strong>
     </div>
@@ -187,6 +193,7 @@ export default function MindeleevRC01(){
      GEN {game?.mutatron.generation??0} · SYM {game?game.mutatron.symmetry+"%":"—"}
      {' · '} D {groups[3]} · I {groups[4]}
      {' · '} FIELD {game?.mutatron.energyReserve??48} E
+     {' · '} MNEME +{game?.mutatron.mnemeGeneratedEnergy??0} E
      {' · '} HEAT {game?.mutatron.dissipatedEnergy??0} E
     </span>
     <div className="rc01-preview-legend" aria-label="Next-evolution forecast">
@@ -267,12 +274,16 @@ export default function MindeleevRC01(){
         {' · '}{selectedForecast.neighbours}/6 neighbours
         {' · '}{selectedForecast.axes}/3 balanced axes
         {' · '}{selectedForecast.groups} groups
-        {' · '}charge {selectedForecast.charge}/{selectedForecast.needed}
+        {' · '}next charge {selectedForecast.charge} / 6
+        {' · '}threshold {selectedForecast.needed}
+        {' · '}{selectedForecast.charge>=selectedForecast.needed?
+         "ready · waiting for priority":"charging"}
         {' · '}cost {selectedForecast.energyCost} E</dd>
       </div>}
      </dl>
      <RC01ManifestationHistory pawn={selectedPawn}
       selectedIndex={manifestationIndex} onSelect={setManifestationIndex}/>
+     <RC01MnemeHistory pawn={selectedPawn}/>
     </div>}
     {sheet.kind==="home"&&<div className="rc01-home-sheet">
      <div className="rc01-sheet-kicker">PERMANENT IDENTITIES</div>

@@ -16,7 +16,7 @@ async function load(entry,name,ui=false){
  return import(pathToFileURL(out).href);
 }
 try{
- const [grid,model,physics,ui,worldModule,life,mutatron,cameraRig,touchInput,webglCleanup]=await Promise.all([
+ const [grid,model,physics,ui,worldModule,life,mutatron,cameraRig,touchInput,webglCleanup,mneme]=await Promise.all([
   load("src/polytron/rc01Board.ts","board"),
   load("src/polytron/rc01Game.ts","game"),
   load("src/experiments/rc01RapierFlight.ts","rapier-motion"),
@@ -26,7 +26,8 @@ try{
   load("src/polytron/rc01Mutatron.ts","mutatron"),
   load("src/experiments/rc01Camera.ts","camera"),
   load("src/experiments/rc01TouchInput.ts","touch"),
-  load("src/experiments/rc01WebGLContext.ts","webgl-cleanup")
+  load("src/experiments/rc01WebGLContext.ts","webgl-cleanup"),
+  load("src/polytron/rc01Mneme.ts","mneme")
  ]);
  // Verify the real WebGL resource-lifetime policy, not merely code strings:
  // effect cleanup while a canvas is still mounted must NOT poison the next
@@ -234,6 +235,21 @@ try{
    mesh.position.z<worldModule.RC_TILE_SURFACE_Z+.4,
    "Forecast highlights stay immediately above the tile face");
  }
+ // Resonant outlines retain the original teal but their width represents
+ // charge, monotonically from 0 to 6.
+ assert(worldModule.rcResonanceHighlightWidth(6)>
+  worldModule.rcResonanceHighlightWidth(1));
+ world.setEvolutionPreview([{...forecast.cells[0],status:"charge",charge:1}]);
+ const previewRingWidth=()=>{
+  const ring=world.scene.children.find(x=>x.isMesh&&
+   x.geometry?.type==="RingGeometry"&&x.material?.color?.getHex()===0x31aaa2);
+  assert(ring);
+  return ring.geometry.parameters.outerRadius-ring.geometry.parameters.innerRadius;
+ };
+ const thinWidth=previewRingWidth();
+ world.setEvolutionPreview([{...forecast.cells[0],status:"charge",charge:6}]);
+ assert(previewRingWidth()>thinWidth,
+  "A charge-6 resonance highlight must be thicker than charge-1");
  const starvedSource={...previewSource,mutatron:{
   ...previewSource.mutatron,energyReserve:0
  }};
@@ -335,12 +351,61 @@ try{
  // All 72 permanent identities: 1..6 at ring 1, 7..18 at ring 2,
  // 19..42 at ring 4, 43..72 at ring 5. Ring 3 and Nucleus stay empty.
  const sceneGame=model.initialRCGame(board,()=>.37);
+ // Exactly one reward per completed (period, Latin, Greek) for each Seal.
+ const manifests=(numbers,row=2,col=4)=>numbers.map(number=>({number,row,col}));
+ assert.deepEqual(mneme.rcCompletedMnemes(manifests([1,2,3,4,5])),[
+  {period:1,row:2,col:4,completedAt:4}]);
+ assert.deepEqual(mneme.rcCompletedMnemes(manifests([1,2,3,4,5,6,7,8,9,10])),[
+  {period:1,row:2,col:4,completedAt:4},
+  {period:2,row:2,col:4,completedAt:9}
+ ]);
+ assert.deepEqual(mneme.rcCompletedMnemes([
+  ...manifests([1,2,3,4]),{number:5,row:4,col:4}]),[],
+  "Mixed palettes cannot complete a Mneme");
+ assert.deepEqual(mneme.rcCompletedMnemes([
+  ...manifests([1,2,3,4,5]),...manifests([1,2,3,4,5])]),[
+  {period:1,row:2,col:4,completedAt:4}],
+  "Repeating completed forms must not duplicate a Mneme");
+ const basePawn=sceneGame.pawns[0];
+ const mnemeBeforePawn={...basePawn,number:4,row:2,col:4,
+  manifestations:manifests([1,2,3,4])};
+ const mnemeAfterPawn={...mnemeBeforePawn,number:5,
+  manifestations:manifests([1,2,3,4,5])};
+ const mnemeBefore={...sceneGame,pawns:sceneGame.pawns.map(p=>
+  p.seal===basePawn.seal?mnemeBeforePawn:p)};
+ const mnemeCandidate={...mnemeBefore,
+  pawns:mnemeBefore.pawns.map(p=>p.seal===basePawn.seal?mnemeAfterPawn:p),
+  mutatron:{...mnemeBefore.mutatron,energyReserve:47}};
+ const mnemeAfter=mneme.rcAwardMnemes(mnemeBefore,mnemeCandidate);
+ assert.equal(mneme.rcNewMnemeEnergy(mnemeBefore,mnemeCandidate),1);
+ assert.equal(mnemeAfter.mutatron.mnemeGeneratedEnergy,1);
+ assert.equal(mnemeAfter.mutatron.energyReserve,48,
+  "Completing period 1 mints 1 FIELD E, in addition to intrinsic transfers");
+ assert.equal(model.rcTotalEnergy(mnemeBefore),model.rcTotalEnergy(mnemeAfter),
+  "Generated E is recorded separately from transferable E");
+ assert.equal(mneme.rcAwardMnemes(mnemeAfter,mnemeAfter).mutatron.energyReserve,48,
+  "An already-completed Mneme cannot mint E repeatedly");
+ const period2BeforePawn={...basePawn,number:9,row:2,col:4,
+  manifestations:manifests([6,7,8,9])};
+ const period2AfterPawn={...period2BeforePawn,number:10,
+  manifestations:manifests([6,7,8,9,10])};
+ const period2Before={...sceneGame,pawns:sceneGame.pawns.map(p=>
+  p.seal===basePawn.seal?period2BeforePawn:p)};
+ const period2Candidate={...period2Before,
+  pawns:period2Before.pawns.map(p=>p.seal===basePawn.seal?period2AfterPawn:p),
+  mutatron:{...period2Before.mutatron,energyReserve:47}};
+ const period2Rewarded=mneme.rcAwardMnemes(period2Before,period2Candidate);
+ assert.equal(period2Rewarded.mutatron.energyReserve,49,
+  "Completing period 2 must grant +2 Field E");
+ assert.equal(period2Rewarded.mutatron.mnemeGeneratedEnergy,2);
+ assert.equal(model.rcTotalEnergy(period2Rewarded),model.rcTotalEnergy(period2Before));
  assert.deepEqual(sceneGame,model.initialRCGame(board,()=>.92),
   "The opening is deterministic, regardless of RNG");
  assert.equal(model.RC01_OPENING_COUNT,72);
  assert.deepEqual(model.RC01_OPENING_RINGS,[1,2,4,5]);
  assert.equal(sceneGame.pawns.length,72);
  assert.equal(sceneGame.home.length,0);
+ assert.equal(sceneGame.mutatron.mnemeGeneratedEnergy,0);
  assert.equal(sceneGame.fusions,0);
  assert.equal(sceneGame.score,100);
  assert.deepEqual(sceneGame.pawns.map(p=>p.seal),
@@ -456,9 +521,12 @@ try{
   assert.equal(next.mutatron.dissipatedEnergy,
    previous.mutatron.dissipatedEnergy+(invoked?1:0),
    "Each actual invocation dissipates 1 E, even without mutation");
+  const earnedMneme=mneme.rcNewMnemeEnergy(previous,next);
+  assert.equal(next.mutatron.mnemeGeneratedEnergy,
+   previous.mutatron.mnemeGeneratedEnergy+earnedMneme);
   assert.equal(previous.mutatron.energyReserve-next.mutatron.energyReserve,
-   forecast.cost+forecast.invocationCost,
-   "The preview accounts for the intrinsic change AND invocation");
+   forecast.cost+forecast.invocationCost-earnedMneme,
+   "Preview accounts for intrinsic, invocation and Mneme-generated energy");
   assert.equal(next.pawns.length,72);
   assert.equal(next.home.length,0);
   assert.equal(next.moves,0);
@@ -550,6 +618,19 @@ try{
  assert.equal(diag.pawns[0].cellKey,"0,0");
  assert.deepEqual(diag.pawns[0].manifestations,[{number:1,row:2,col:4}]);
  const source=ring1[0],victim=ring1[1];
+ const mnemeCapture={...sceneGame,pawns:sceneGame.pawns.map(p=>
+  p.seal===source.seal?{...p,number:4,row:2,col:4,
+   manifestations:manifests([1,2,3,4])}:
+  p.seal===victim.seal?{...p,number:5,row:2,col:4,
+   manifestations:manifests([5])}:p)};
+ assert(model.validateRCGame(mnemeCapture,board));
+ const mnemeFusion=model.moveRCPawn(mnemeCapture,source.cellKey,victim.cellKey,board);
+ assert(mnemeFusion);
+ assert.equal(mnemeFusion.game.mutatron.mnemeGeneratedEnergy,1,
+  "Capture must automatically complete a Mneme when it manifests the fifth group");
+ assert.equal(mnemeFusion.game.mutatron.energyReserve,49);
+ assert.equal(model.rcTotalEnergy(mnemeCapture),
+  model.rcTotalEnergy(mnemeFusion.game));
  const empty=board.cells.find(c=>c.nucleus);
  assert(empty);
  // The nucleus is a dissociation sink, not a normal empty tile.
@@ -1260,6 +1341,13 @@ try{
   'Reset fixed Metatron opening'
  ])assert(tsx.includes(phrase),
   "Inspector name heading and canonical data rows required: "+phrase);
+ assert(tsx.includes('target="_blank" rel="noopener noreferrer"')&&
+  tsx.includes("?experiment=polytron-periodic")&&
+  tsx.includes("RC01MnemeHistory")&&
+  tsx.includes("next charge {selectedForecast.charge} / 6")&&
+  tsx.includes("threshold {selectedForecast.needed}")&&
+  tsx.includes("MNEME +{game?.mutatron.mnemeGeneratedEnergy??0}"),
+  "UI must show Mneme rewards, periodic-table shortcut and charge threshold");
  assert(tsx.includes("rcCellCoordinates(selectedCell)")&&
   tsx.includes("rcCellCoordinates(occupiedCell)")&&
   !tsx.includes("Axial coordinates")&&tsx.includes("setManifestationIndex"),
@@ -1277,6 +1365,18 @@ try{
   {number:1,row:2,col:4}),
   [{number:1,row:2,col:4},{number:2,row:2,col:4},{number:1,row:2,col:4}],
   "Revisiting an older form is still a new event");
+ const mnemeUi=await readFile("src/experiments/RC01MnemeHistory.tsx","utf8");
+ assert(mnemeUi.includes("rowIndexToOps")&&
+  mnemeUi.includes('ops||"∅"')&&
+  mnemeUi.includes('["T","C","O","D","I"]')&&
+  mnemeUi.includes("gradientCss(")&&
+  mnemeUi.includes("makeRC3DPolytron")&&
+  mnemeUi.includes("renderer.setScissor(")&&
+  mnemeUi.includes("rcCompletedMnemes")&&
+  mnemeUi.includes("releaseRC01Renderer(renderer,canvas)"),
+  "Mneme list shows period, Conway operator, gradient and five real 3D groups");
+ assert.equal(mnemeUi.split("new THREE.WebGLRenderer").length-1,1,
+  "Mneme thumbnails must share one renderer");
  const historyUi=await readFile("src/experiments/RC01ManifestationHistory.tsx","utf8");
  assert(historyUi.includes("THREE.WebGLRenderer")&&
   historyUi.includes("renderer.setScissor(")&&
@@ -1318,6 +1418,9 @@ try{
  assert(css.includes(".rc01-three-board")&&!css.includes(".rc01-status{"));
  assert(css.includes(".rc01-evolve-panel")&&css.includes(".rc01-evolve-button"));
  assert(css.includes(".rc01-preview-legend")&&css.includes(".rc01-legend-gold"));
+ assert(css.includes(".rc01-mneme-solids")&&
+  css.includes(".rc01-mneme-canvas")&&
+  css.includes(".rc01-periodic-shortcut"));
  assert(css.includes(".rc01-manifestations-list")&&
   css.includes("max-height:228px")&&
   css.includes(".rc01-manifestation-thumbnail")&&

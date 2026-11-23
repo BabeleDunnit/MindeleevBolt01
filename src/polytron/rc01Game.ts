@@ -1,5 +1,6 @@
 import {dnaFromPolitronNumber} from "@/polytron/politronicNumber";
 import {gradientPair,mixColors,perceptualDistance} from "@/polytron/gradientPalettes";
+import {rcAwardMnemes} from "@/polytron/rc01Mneme";
 import {sealName} from "@/polytron/spectralFutures";
 import {rcKey,rcRing,rcRingCells,rcCellCoordinatesForKey,type RCBoard} from "@/polytron/rc01Board";
 import {intrinsicEnergy} from "@/polytron/mindeleevLife";
@@ -68,6 +69,8 @@ export type RCMutatronState={
   * Polytrons. The sum of intrinsic energies + reserve is unchanged per tick. */
  energyReserve:number;
  dissipatedEnergy:number; // cumulative invocation heat, never recycled
+ /** Total FIELD energy minted by unique completed Mnemes. */
+ mnemeGeneratedEnergy:number;
  /** Pair-coherence is stored on the GRID, never on a permanent identity. */
  resonance:Record<string,number>;
  symmetry:number;
@@ -164,7 +167,7 @@ export function initialRCGame(board:RCBoard,_rng:()=>number=Math.random):RCGame{
  });
  return {pawns,home:[],score:RC01_START_SCORE,moves:0,homeCycles:0,fusions:0,
   homeTestPhase:{odd:"board",even:"board"},homeCooling:{},
-  mutatron:{generation:0,energyReserve:48,dissipatedEnergy:0,resonance:{},
+  mutatron:{generation:0,energyReserve:48,dissipatedEnergy:0,mnemeGeneratedEnergy:0,resonance:{},
    symmetry:rcBoardSymmetry(pawns,board),changes:[],
    lastNote:"The symmetry field is at rest; evolve to test geometrical resonance."},
   lastAction:"Metatron opening: Ring 1 C/O alternating, Ring 2 C-T-O-T repeating; all outer Polytrons #1."};
@@ -179,7 +182,7 @@ export function rc01CenterDiagnostic(board:RCBoard):RCGame{
    manifestations:[{number:1,row:2,col:4}]}],
   home:[],score:RC01_START_SCORE,moves:0,homeCycles:0,fusions:0,
   homeTestPhase:{odd:"board",even:"board"},homeCooling:{},
-  mutatron:{generation:0,energyReserve:48,dissipatedEnergy:0,resonance:{},symmetry:100,changes:[],
+  mutatron:{generation:0,energyReserve:48,dissipatedEnergy:0,mnemeGeneratedEnergy:0,resonance:{},symmetry:100,changes:[],
    lastNote:"Single-body centering diagnostic."},
   lastAction:"Centering diagnostic: a single Polytron #1 at the nucleus (0,0)."
  };
@@ -197,11 +200,14 @@ export function openingCellKeyForSeal(seal:number):string{
  const {q,r}=rcRingCells(ring)[seal-start];
  return rcKey(q,r);
 }
-/** Actual energy only; Mneme and past manifestations are NOT liquid. */
+/** A completed Mneme MINTS E: subtract cumulative minted energy from the
+ * conserved-energy accounting; all transfers stay conservative.
+ */
 export const rcIntrinsic=(n:number)=>intrinsicEnergy(n,0);
 export const rcTotalEnergy=(game:RCGame)=>
  [...game.pawns,...game.home].reduce((sum,p)=>sum+rcIntrinsic(p.number),
- game.mutatron.energyReserve+game.mutatron.dissipatedEnergy);
+ game.mutatron.energyReserve+game.mutatron.dissipatedEnergy-
+ game.mutatron.mnemeGeneratedEnergy);
 export const RC_NUCLEUS_COOLING_MOVES=2;
 /** One level of intrinsic energy, not necessarily one polytronic number. */
 export function rcNucleusRegression(n:number):number|null{
@@ -382,11 +388,12 @@ export function moveRCPawn(
    lastAction:"NUCLEUS · "+pawnName(attacker)+" #"+attacker.number+
     " → #"+lower+"; +"+check.fieldDelta+" field E; cool for two moves."
   };
-  updated.mutatron.symmetry=rcBoardSymmetry(updated.pawns,board);
-  if(!validateRCGame(updated,board)||
-     rcTotalEnergy(updated)!==rcTotalEnergy(game))
+  const rewarded=rcAwardMnemes(game,updated);
+  rewarded.mutatron.symmetry=rcBoardSymmetry(rewarded.pawns,board);
+  if(!validateRCGame(rewarded,board)||
+     rcTotalEnergy(rewarded)!==rcTotalEnergy(game))
    throw Error("Non-conservative nuclear dissociation");
-  return {game:updated,captured:null,attacker};
+  return {game:rewarded,captured:null,attacker};
  }
  const captured=pawnAt(game,target)??null;
  const fused=captured?inheritManifestation(attacker,captured,target,game,board):null;
@@ -408,11 +415,12 @@ export function moveRCPawn(
    ". "+pawnName(captured)+" returns Home as #"+fused?.defender.number+
    ". Field "+(check.fieldDelta>=0?"+":"")+check.fieldDelta+" E.":
    pawnName(attacker)+" moves to cell "+rcCellCoordinatesForKey(board,target)+"."};
- updated.mutatron.symmetry=rcBoardSymmetry(updated.pawns,board);
- if(!validateRCGame(updated,board)||
-    rcTotalEnergy(updated)!==rcTotalEnergy(game))
+ const rewarded=rcAwardMnemes(game,updated);
+ rewarded.mutatron.symmetry=rcBoardSymmetry(rewarded.pawns,board);
+ if(!validateRCGame(rewarded,board)||
+    rcTotalEnergy(rewarded)!==rcTotalEnergy(game))
   throw Error("Non-conservative fusion");
- return {game:updated,captured,attacker};
+ return {game:rewarded,captured,attacker};
 }
 
 /**
@@ -501,11 +509,12 @@ export function returnRCPawnHome(
    "HOME RETURN · "+pawnName(incoming)+" returns to "+
     rcCellCoordinatesForKey(board,target)+"."
  };
- updated.mutatron.symmetry=rcBoardSymmetry(updated.pawns,board);
- if(!validateRCGame(updated,board)||
-    rcTotalEnergy(updated)!==rcTotalEnergy(game))
+ const rewarded=rcAwardMnemes(game,updated);
+ rewarded.mutatron.symmetry=rcBoardSymmetry(rewarded.pawns,board);
+ if(!validateRCGame(rewarded,board)||
+    rcTotalEnergy(rewarded)!==rcTotalEnergy(game))
   throw Error("Invalid or non-conservative Home arrival");
- return {game:updated,attacker,captured,target};
+ return {game:rewarded,attacker,captured,target};
 }
 
 export function validateRCGame(game:RCGame,board:RCBoard):boolean{
@@ -521,6 +530,8 @@ export function validateRCGame(game:RCGame,board:RCBoard):boolean{
     game.mutatron.energyReserve<0||
     !Number.isSafeInteger(game.mutatron.dissipatedEnergy)||
     game.mutatron.dissipatedEnergy<0||
+    !Number.isSafeInteger(game.mutatron.mnemeGeneratedEnergy)||
+    game.mutatron.mnemeGeneratedEnergy<0||
     !game.homeCooling||!Object.entries(game.homeCooling).every(
      ([seal,m])=>Number.isInteger(Number(seal))&&
       Number.isInteger(m)&&m>=0&&

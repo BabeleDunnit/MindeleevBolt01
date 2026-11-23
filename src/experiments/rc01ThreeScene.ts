@@ -10,6 +10,9 @@ import {createRC01CameraRig,type RCViewSnapshot} from "@/experiments/rc01Camera"
 // A bounding-sphere radius guarantees that even rotated convex Polytrons sit
 // entirely above the 3D hex tiles (including the bevel).
 export const RC_TILE_SURFACE_Z=3.25;
+/** Ring thickness rises with resonance charge 0..6, without changing color. */
+export const rcResonanceHighlightWidth=(charge:number)=>
+ .035+.105*Math.max(0,Math.min(6,charge))/6;
 export const rcVisualPawnRadius=(board:RCBoard)=>
  Math.max(4,board.size*.59);
 export const rcVisualPawnHeight=(board:RCBoard)=>
@@ -209,8 +212,13 @@ export function createRC3DWorld(board:RCBoard,priorView?:RCViewSnapshot){
  // Colored 3D overlays are rendered directly on the hex cells, not in
  // screen-space CSS. They have no collider and never enter picking.
  const previewGeometry=new THREE.CircleGeometry(board.size*.80,6);
+ // All resonating cells retain their established colors, while the
+ // surrounding ring grows thicker as resonance charge accumulates.
  const previewRingGeometry=new THREE.RingGeometry(
-  board.size*.76,board.size*.90,6);
+  board.size*(.90-rcResonanceHighlightWidth(0)),board.size*.90,6);
+ const previewRingGeometries=[previewRingGeometry,
+  ...Array.from({length:6},(_,i)=>new THREE.RingGeometry(
+   board.size*(.90-rcResonanceHighlightWidth(i+1)),board.size*.90,6))];
  const forecastColors:Record<RCPreviewStatus,number>={
   evolve:0xe5ae29,charge:0x31aaa2,energy:0xd7773d,blocked:0x8e97a0
  };
@@ -234,7 +242,8 @@ export function createRC3DWorld(board:RCBoard,priorView?:RCViewSnapshot){
    const cell=cellsByKey.get(state.key);if(!cell)continue;
    for(const [geometry,material,order] of [
     [previewGeometry,previewMaterials[state.status],-24],
-    [previewRingGeometry,previewRingMaterials[state.status],-23]
+    [previewRingGeometries[Math.max(0,Math.min(6,Math.trunc(state.charge)))],
+     previewRingMaterials[state.status],-23]
    ] as const){
     const mesh=new THREE.Mesh(geometry,material);
     mesh.position.copy(rcScreenWorld(board,cell,RC_TILE_SURFACE_Z+.12));
@@ -692,7 +701,8 @@ export function createRC3DWorld(board:RCBoard,priorView?:RCViewSnapshot){
  }
  function dispose(){
   setEvolutionPreview([]);
-  previewGeometry.dispose();previewRingGeometry.dispose();
+  previewGeometry.dispose();
+  for(const geometry of previewRingGeometries)geometry.dispose();
   for(const material of [...Object.values(previewMaterials),
    ...Object.values(previewRingMaterials)])material.dispose();
   for(const seal of [...mutationHalos.keys()])clearMutationHalo(seal);

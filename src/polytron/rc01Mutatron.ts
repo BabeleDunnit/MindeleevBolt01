@@ -22,6 +22,7 @@
  */
 import {rcKey,type RCBoard,type RCCell} from "@/polytron/rc01Board";
 import {intrinsicEnergy} from "@/polytron/mindeleevLife";
+import {rcAwardMnemes} from "@/polytron/rc01Mneme";
 import {rcBoardSymmetry,rcTotalEnergy,rcRecordManifestation,
  validateRCGame,
  type RCGame,type RCPawn,type RCMutatronChange} from "@/polytron/rc01Game";
@@ -225,7 +226,10 @@ export function forecastRCMutatron(game:RCGame,board:RCBoard):RCMutatronForecast
    status==="energy"?
    "Insufficient field energy: needs "+(c.cost+MUTATRON_INVOCATION_COST)+" E.":
    status==="charge"?
-    "Resonance "+c.charge+"/"+c.needed+". "+c.reason:c.reason;
+    (c.charge>=c.needed?
+     "Ready: charge "+c.charge+", threshold "+c.needed+
+     "; waiting behind a higher-priority pair. ":
+     "Charging: "+c.charge+" of "+c.needed+" needed. ")+c.reason:c.reason;
   for(const [pawn,local] of [[c.p,c.a],[c.q,c.b]] as const){
    // Do not highlight a Polytron whose number is already at target.
    if(status==="evolve"&&pawn.number===c.target)continue;
@@ -262,17 +266,18 @@ export function forecastRCMutatron(game:RCGame,board:RCBoard):RCMutatronForecast
   },
   lastAction:"MUTATRON · "+summary
  };
- next.mutatron.symmetry=rcBoardSymmetry(next.pawns,board);
- if(!validateRCGame(next,board))
+ const rewarded=rcAwardMnemes(game,next);
+ rewarded.mutatron.symmetry=rcBoardSymmetry(rewarded.pawns,board);
+ if(!validateRCGame(rewarded,board))
   throw Error("Invalid Mutatron preview state");
- if(mutatronEnergyTotal(next)!==mutatronEnergyTotal(game))
+ if(mutatronEnergyTotal(rewarded)!==mutatronEnergyTotal(game))
   throw Error("Mutatron energy was not conserved");
- return {next,cells,cost,
+ return {next:rewarded,cells,cost,
   invocationCost:canInvoke?MUTATRON_INVOCATION_COST:0,
   canInvoke,
   reservoirBefore:game.mutatron.energyReserve,
-  reservoirAfter:next.mutatron.energyReserve,
-  transforms,summary};
+  reservoirAfter:rewarded.mutatron.energyReserve,
+  transforms,summary:rewarded.lastAction.slice("MUTATRON · ".length)};
 }
 export function evolveRCMutatron(game:RCGame,board:RCBoard):RCGame{
  return forecastRCMutatron(game,board).next;

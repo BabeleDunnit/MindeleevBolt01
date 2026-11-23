@@ -405,3 +405,79 @@
  display:block;width:44px;height:7px;border-radius:5px;
  border:1px solid #d1dcd2
 }
+
+/* Always-available shortcut to the canonical Polytronic Periodic Table. */
+.rc01-periodic-shortcut{
+ display:inline-flex;align-items:center;justify-content:center;
+ min-height:36px;padding:7px 9px;border:1px solid #c3d8ce;
+ border-radius:11px;background:#f0f7f1;color:#28654b;
+ font-size:10px;font-weight:850;letter-spacing:.05em;
+ text-decoration:none;white-space:nowrap
+}
+.rc01-periodic-shortcut:focus-visible{outline:3px solid #359578}
+@media(max-width:370px){
+ .rc01-periodic-shortcut{font-size:9px;padding:7px 6px}
+ .rc01-header{gap:5px}
+ .rc01-header-actions{gap:5px}
+}
+
+/* Mneme: one palette-specific completed period with five Conway groups. */
+.rc01-mneme-section{
+ border-top:1px solid #e1eae2;margin-top:16px;padding-top:13px;
+ padding-bottom:12px
+}
+.rc01-mneme-empty{
+ font-size:12px;line-height:1.5;color:#73887b;
+ padding:9px 10px;margin:0;
+ background:#f0f5f0;border-radius:9px
+}
+.rc01-mneme-window{position:relative;isolation:isolate}
+.rc01-mneme-list{
+ display:grid;gap:9px;max-height:330px;overflow-y:auto;
+ overscroll-behavior:contain;scrollbar-width:thin;
+ padding-right:4px
+}
+.rc01-mneme-entry{
+ background:#f3f8f2;border:1px solid #d9e7d9;border-radius:13px;
+ padding:10px 11px 9px
+}
+.rc01-mneme-top{display:flex;align-items:center;gap:8px}
+.rc01-mneme-top strong{font-size:15px;color:#255c42;font-weight:850}
+.rc01-mneme-top code{
+ font-size:12px;letter-spacing:.03em;font-weight:750;
+ color:#67796b;overflow-wrap:anywhere
+}
+.rc01-mneme-energy{
+ margin-left:auto;font-size:12px;font-weight:850;white-space:nowrap;
+ color:#267a4c;background:#e4f3e6;border:1px solid #cbe3d0;
+ border-radius:7px;padding:4px 6px
+}
+.rc01-mneme-palette{
+ display:flex;align-items:center;justify-content:space-between;
+ gap:10px;margin-top:8px;font-size:12px;color:#3d5f4d;font-weight:750
+}
+.rc01-mneme-gradient{
+ display:block;flex:0 0 32%;height:12px;border-radius:5px;
+ border:1px solid #cbdbcf
+}
+.rc01-mneme-solids{
+ display:grid;grid-template-columns:repeat(5,minmax(0,1fr));
+ gap:4px;margin-top:9px
+}
+.rc01-mneme-solid{
+ display:grid;gap:2px;min-width:0;
+ background:#e4efe7;border-radius:8px;border:1px solid #d6e4da;
+ padding:3px 2px 2px;text-align:center
+}
+.rc01-mneme-solid-preview{
+ display:block;min-height:47px;width:100%;
+ background:radial-gradient(ellipse at center,#d6e7dd 0%,#e9f1eb 85%);
+ border-radius:5px
+}
+.rc01-mneme-solid-label{
+ font-size:10px;font-weight:850;line-height:1.2;color:#48705c
+}
+.rc01-mneme-canvas{
+ position:absolute;inset:0;width:100%;height:100%;
+ pointer-events:none;z-index:2
+}
