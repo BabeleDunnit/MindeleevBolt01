@@ -1,9 +1,10 @@
 import {useEffect,useMemo,useRef,useState} from "react";
 import {makeRCBoard,type RCCell} from "@/polytron/rc01Board";
-import {initialRCGame,moveRCPawn,toggleRCParityHome,returnRCPawnHome,
+import {initialRCGame,moveRCPawn,recallRCParity,
  returnRCPawnToCell,rcHomeCooldown,rcParity,
  pawnDNA,pawnName,pawnPalette,
- type RCGame,type RCPawn,type RCHomeParity,type RCHomeToggleResult} from "@/polytron/rc01Game";
+ type RCGame,type RCPawn,type RCHomeParity} from "@/polytron/rc01Game";
+import {gradientCss} from "@/polytron/gradientPalettes";
 import {forecastRCMutatron,mutatronCounts} from "@/polytron/rc01Mutatron";
 import RC01ThreeBoard,{type RCCameraCommand} from "@/experiments/RC01ThreeBoard";
 import type {RCViewMode} from "@/experiments/rc01Camera";
@@ -24,7 +25,6 @@ export default function MindeleevRC01(){
  // Touch selection is persistent; only Info opens the modal. Mouse clicks
  // keep their existing inspector behaviour.
  const [selectedSeal,setSelectedSeal]=useState<number|null>(null);
- const [returningSeal,setReturningSeal]=useState<number|null>(null);
  const [physicsBusy,setPhysicsBusy]=useState(false);
  const [cameraCommand,setCameraCommand]=useState<RCCameraCommand|null>(null);
  const [viewMode,setViewMode]=useState<RCViewMode>("map");
@@ -62,8 +62,6 @@ export default function MindeleevRC01(){
  const cells=useMemo(()=>new Map(board.cells.map(c=>[c.key,c])),[board]);
  const selectedPawn=sheet?.kind==="polytron"?
   [...(game?.pawns??[]),...(game?.home??[])].find(p=>p.seal===sheet.seal):undefined;
- const isSelectedHome=selectedPawn!==undefined&&
-  (game?.home.some(p=>p.seal===selectedPawn.seal)??false);
  const selectedCell=sheet?.kind==="cell"?cells.get(sheet.key):undefined;
  const touchSelectedPawn=game?.pawns.find(p=>p.seal===selectedSeal);
  useEffect(()=>{
@@ -81,15 +79,15 @@ export default function MindeleevRC01(){
    return moveRCPawn(previous,from,to,board)?.game??previous;
   });
  };
- const toggleParity=(parity:RCHomeParity):RCHomeToggleResult=>{
-  const result=toggleRCParityHome(game??initialRCGame(board),parity,board);
-  setGame(result.game);
-  return result;
+ const recallParity=(parity:RCHomeParity):RCPawn[]=>{
+  const recalled=game?.pawns.filter(p=>rcParity(p.seal)===parity)??[];
+  if(recalled.length)setGame(previous=>previous?
+   recallRCParity(previous,parity,board):previous);
+  return recalled;
  };
- const returnArrived=(seal:number,target?:string)=>{
+ const returnArrived=(seal:number,target:string)=>{
   setGame(previous=>previous?
-   (target?returnRCPawnToCell(previous,seal,target,board):
-    returnRCPawnHome(previous,seal,board))?.game??previous:previous);
+   returnRCPawnToCell(previous,seal,target,board)?.game??previous:previous);
  };
  const evolve=()=>{
   if(physicsBusyRef.current||!game?.mutatron.energyReserve)return;
@@ -105,7 +103,6 @@ export default function MindeleevRC01(){
   if(physicsBusy)return;
   setSheet(null);
   setSelectedSeal(null);
-  setReturningSeal(null);
   setGame(initialRCGame(board));
  };
  return <main className="rc01-page">
@@ -126,13 +123,11 @@ export default function MindeleevRC01(){
    aria-label="3D Mutatron board">
    <RC01ThreeBoard board={board} game={game}
     selectedSeal={selectedSeal} onTouchSelect={setSelectedSeal}
-    returningSeal={returningSeal}
-    onHomeDestinationChosen={()=>setReturningSeal(null)}
     preview={forecast?.cells??[]}
     cameraCommand={cameraCommand} onViewModeChange={setViewMode}
     onSelect={select} onCommitMove={commitMove}
     onOpenHome={parity=>setSheet({kind:"home",parity})}
-    onToggleParity={toggleParity}
+    onRecallParity={recallParity}
     onReturnArrived={returnArrived}
     onBusyChange={onPhysicsBusy}/>
    <div className="rc01-fusion-notice" role="status">
@@ -191,10 +186,6 @@ export default function MindeleevRC01(){
      {forecast?.summary??"Reading the Mutatron…"} · Invocation: 1 E
     </span>
    </div>
-   {returningSeal!==null&&<div className="rc01-reentry-instruction" role="status">
-    Tap a highlighted empty tile, or drag to aim above your finger, to return Home Polytron #{returningSeal}.
-    <button type="button" onClick={()=>setReturningSeal(null)}>Cancel</button>
-   </div>}
    <div className="rc01-board-footer">
     <div className="rc01-scene-count" aria-label="Polytrons on Mutatron">
      <span className="rc01-scene-dot"/> {game?.pawns.length??72} / 72
@@ -230,30 +221,23 @@ export default function MindeleevRC01(){
     {selectedPawn&&<div className="rc01-poly-sheet">
      <RC01ThreeInspector pawn={selectedPawn}/>
      <h2>Polytron - {pawnName(selectedPawn)}</h2>
-     {!isSelectedHome&&<button type="button" className="rc01-inspect-3d"
+     {selectedPawn.cellKey&&<button type="button" className="rc01-inspect-3d"
       onClick={()=>setView("subjective",selectedPawn.cellKey)}>
       View this Polytron in 3D
-     </button>}
-     {isSelectedHome&&<div className="rc01-home-indicator">
-      AT HOME · {rcHomeCooldown(game!,selectedPawn.seal)>0?
-       "COOLING "+rcHomeCooldown(game!,selectedPawn.seal)+" MOVES":"READY"}
-     </div>}
-     {isSelectedHome&&<button type="button" className="rc01-inspect-3d"
-      disabled={rcHomeCooldown(game!,selectedPawn.seal)>0||physicsBusy}
-      onClick={()=>{
-       setReturningSeal(selectedPawn.seal);
-       setSheet(null);
-       setView("map");
-      }}>
-      {rcHomeCooldown(game!,selectedPawn.seal)>0?
-       "Cooling · "+rcHomeCooldown(game!,selectedPawn.seal)+" moves remaining":
-       "Return to an empty tile"}
      </button>}
      <dl className="rc01-details">
       <div><dt>Polytronic Number</dt><dd>{selectedPawn.number}</dd></div>
       <div><dt>Conway DNA</dt><dd>{pawnDNA(selectedPawn)}</dd></div>
        <div><dt>Intrinsic Energy</dt><dd>{intrinsicEnergy(selectedPawn.number,0)} E</dd></div>
-      <div><dt>Palette · Latin / Greek</dt><dd>{pawnPalette(selectedPawn).name}</dd></div>
+      <div className="rc01-palette-detail"><dt>Palette · Latin / Greek</dt>
+       <dd><span>{pawnPalette(selectedPawn).name}</span>
+        <span className="rc01-palette-continuous" role="img"
+         aria-label={"Continuous palette from "+pawnPalette(selectedPawn).primary.name+
+          " to "+pawnPalette(selectedPawn).secondary.name}
+         style={{background:gradientCss(pawnPalette(selectedPawn).primary.hex,
+          pawnPalette(selectedPawn).secondary.hex)}}/>
+       </dd>
+      </div>
       <div><dt>Permanent Identity</dt>
        <dd>{pawnName(selectedPawn)} · {selectedPawn.seal}/72</dd></div>
       <div><dt>Manifestations</dt><dd>{selectedPawn.manifestations.map(n=>"#"+n).join(" → ")}</dd></div>
@@ -272,18 +256,18 @@ export default function MindeleevRC01(){
      <div className="rc01-sheet-kicker">PERMANENT IDENTITIES</div>
      <h2>{sheet.parity?(sheet.parity==="odd"?"Odd":"Even")+" Home":"Home"} · {
       game?.home.filter(p=>!sheet.parity||rcParity(p.seal)===sheet.parity).length??0}</h2>
-     <p>Double-tap a Home to recall its Polytrons; double-tap again to
-       return them physically to their original cells. Occupied cells
-       trigger a capture and inheritance. The board remains interactive.</p>
+     <p>Polytrons return automatically after two action cycles: each board
+       move or paid Mutatron invocation counts. Return destinations are
+       empty cells, searched from the outermost ring clockwise. Double-tap
+       a Home to recall its on-board parity group for the physics test.</p>
      {!game?.home.length&&<p>All 72 Polytrons are on the Mutatron.</p>}
      <div className="rc01-home-entries">
       {game?.home.filter(p=>!sheet.parity||rcParity(p.seal)===sheet.parity)
-       .map(p=><button type="button" key={p.seal}
-       onClick={()=>setSheet({kind:"polytron",seal:p.seal})}>
+       .map(p=><div className="rc01-home-entry" key={p.seal}>
        <span>{pawnName(p)} <small>· {p.seal}/72</small></span>
        <strong>#{p.number}{rcHomeCooldown(game!,p.seal)>0?
-        " · "+rcHomeCooldown(game!,p.seal)+" moves":""}</strong>
-      </button>)}
+        " · "+rcHomeCooldown(game!,p.seal)+" cycles":" · returning"}</strong>
+      </div>)}
      </div>
     </div>}
     {selectedCell&&<div className="rc01-cell-sheet">
