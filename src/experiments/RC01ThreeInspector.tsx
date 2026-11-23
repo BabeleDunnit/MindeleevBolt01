@@ -2,6 +2,7 @@ import {useEffect,useRef} from "react";
 import * as THREE from "three";
 import type {RCPawn} from "@/polytron/rc01Game";
 import {makeRC3DPolytron} from "@/experiments/rc01ThreeScene";
+import {releaseRC01Renderer} from "@/experiments/rc01WebGLContext";
 
 /** One persistent WebGL context per open inspector. Historical selection
  * replaces ONLY the 3D mesh, never the renderer or its canvas.
@@ -63,9 +64,7 @@ export default function RC01ThreeInspector({pawn}:{pawn:RCPawn}){
    alive=false;cancelAnimationFrame(raf);
    updateActorRef.current=null;
    if(actor){scene.remove(actor.root);actor.dispose();}
-   renderer.dispose();
-   // dispose() frees GPU resources but does NOT release the browser context.
-   renderer.forceContextLoss();
+   releaseRC01Renderer(renderer,canvas);
   };
  },[]);
  useEffect(()=>{

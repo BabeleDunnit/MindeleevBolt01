@@ -16,7 +16,7 @@ async function load(entry,name,ui=false){
  return import(pathToFileURL(out).href);
 }
 try{
- const [grid,model,physics,ui,worldModule,life,mutatron,cameraRig,touchInput]=await Promise.all([
+ const [grid,model,physics,ui,worldModule,life,mutatron,cameraRig,touchInput,webglCleanup]=await Promise.all([
   load("src/polytron/rc01Board.ts","board"),
   load("src/polytron/rc01Game.ts","game"),
   load("src/experiments/rc01RapierFlight.ts","rapier-motion"),
@@ -25,8 +25,33 @@ try{
   load("src/polytron/mindeleevLife.ts","energy"),
   load("src/polytron/rc01Mutatron.ts","mutatron"),
   load("src/experiments/rc01Camera.ts","camera"),
-  load("src/experiments/rc01TouchInput.ts","touch")
+  load("src/experiments/rc01TouchInput.ts","touch"),
+  load("src/experiments/rc01WebGLContext.ts","webgl-cleanup")
  ]);
+ // Verify the real WebGL resource-lifetime policy, not merely code strings:
+ // effect cleanup while a canvas is still mounted must NOT poison the next
+ // renderer (both StrictMode and viewport resize reuse that same canvas).
+ const cleanupSteps=[];
+ const callbacks=[];
+ const canvasLifecycle={isConnected:true};
+ const mockRenderer=()=>({
+  dispose:()=>cleanupSteps.push("dispose"),
+  forceContextLoss:()=>cleanupSteps.push("forceLoss")
+ });
+ webglCleanup.releaseRC01Renderer(mockRenderer(),canvasLifecycle,
+  cb=>callbacks.push(cb));
+ assert.deepEqual(cleanupSteps,["dispose"],
+  "Disposal must never force immediate loss of a reusable canvas");
+ callbacks.shift()();
+ assert.deepEqual(cleanupSteps,["dispose"],
+  "StrictMode effect replay and board resize must preserve the WebGL context");
+ webglCleanup.releaseRC01Renderer(mockRenderer(),canvasLifecycle,
+  cb=>callbacks.push(cb));
+ canvasLifecycle.isConnected=false;
+ assert.deepEqual(cleanupSteps,["dispose","dispose"]);
+ callbacks.shift()();
+ assert.deepEqual(cleanupSteps,["dispose","dispose","forceLoss"],
+  "A canvas truly removed from the DOM must release its WebGL context");
  const board=grid.makeRCBoard(390,760);
  // Mouse & pen must keep exact targets. TOUCH previews and releases use
  // the same shifted aim, even on a CSS-resized HiDPI canvas.
@@ -1260,7 +1285,7 @@ try{
   historyUi.includes("manifestations.length")&&
   historyUi.includes("slice().reverse()")&&
   historyUi.includes("data-mneme-index")&&
-  historyUi.includes("renderer.forceContextLoss()")&&
+  historyUi.includes("releaseRC01Renderer(renderer,canvas)")&&
   !historyUi.includes("RC01ThreeInspector")&&
   !historyUi.includes("IntersectionObserver"),
   "Mneme history must share one scissored renderer, not spawn a context per row");
@@ -1282,12 +1307,12 @@ try{
   inspector.includes("makeRC3DPolytron")&&!inspector.includes("<svg")&&
   inspector.includes("const updateActor=")&&
   inspector.includes("updateActorRef.current?.(pawn)")&&
-  inspector.includes("renderer.forceContextLoss()"),
+  inspector.includes("releaseRC01Renderer(renderer,canvas)"),
   "Historical inspection must update only meshes and release renderer on close");
  assert.equal(inspector.split("new THREE.WebGLRenderer").length-1,1,
   "Inspector changes must not spawn more WebGL contexts");
- assert(boardCode.includes("renderer.forceContextLoss()"),
-  "Resizing or remounting the board must release its WebGL context");
+ assert(boardCode.includes("releaseRC01Renderer(renderer,canvas)"),
+  "Board cleanup must use the detached-canvas-aware context lifecycle");
  const css=await readFile("src/experiments/MindeleevRC01.css","utf8");
  assert(css.includes("height:100dvh")&&css.includes("touch-action:none"));
  assert(css.includes(".rc01-three-board")&&!css.includes(".rc01-status{"));

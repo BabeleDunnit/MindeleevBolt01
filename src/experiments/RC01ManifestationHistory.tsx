@@ -3,6 +3,7 @@ import * as THREE from "three";
 import type {RCPawn} from "@/polytron/rc01Game";
 import {gradientPair,gradientCss} from "@/polytron/gradientPalettes";
 import {makeRC3DPolytron} from "@/experiments/rc01ThreeScene";
+import {releaseRC01Renderer} from "@/experiments/rc01WebGLContext";
 
 /** A single shared WebGL context paints every visible historical 3D preview.
  * Each row supplies a scissor/viewport rectangle on the overlay canvas:
@@ -104,8 +105,7 @@ export default function RC01ManifestationHistory({pawn,selectedIndex,onSelect}:{
    }
    actors.clear();
    renderer.setScissorTest(false);
-   renderer.dispose();
-   renderer.forceContextLoss();
+   releaseRC01Renderer(renderer,canvas);
   };
  },[pawn.seal]);
  const mostRecent=pawn.manifestations.length-1;

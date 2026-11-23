@@ -8,6 +8,7 @@ import {pawnAt,assessRCMove,rcAutomaticHomeDestinations,
 import {RC01RapierFlight,RC_RAPIER_FIXED_STEP}
  from "@/experiments/rc01RapierFlight";
 import {createRC3DWorld} from "@/experiments/rc01ThreeScene";
+import {releaseRC01Renderer} from "@/experiments/rc01WebGLContext";
 import type {RCViewMode,RCViewSnapshot} from "@/experiments/rc01Camera";
 import type {RCMutatronForecastCell} from "@/polytron/rc01Mutatron";
 import {rcDragAim,rcIsTouch} from "@/experiments/rc01TouchInput";
@@ -474,9 +475,7 @@ export default function RC01ThreeBoard({
    flightRef.current?.dispose();flightRef.current=null;
    worldRef.current=null;
    world.dispose();
-   renderer.dispose();
-   // Closing a WebGLRenderer must release its browser context too.
-   renderer.forceContextLoss();
+   releaseRC01Renderer(renderer,canvas);
   };
  },[board]);
  useEffect(()=>{
