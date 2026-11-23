@@ -276,8 +276,12 @@ export default function MindeleevRC01(){
         {' · '}{selectedForecast.groups} groups
         {' · '}next charge {selectedForecast.charge} / 6
         {' · '}threshold {selectedForecast.needed}
-        {' · '}{selectedForecast.charge>=selectedForecast.needed?
-         "ready · waiting for priority":"charging"}
+        {' · '}{selectedForecast.status==="energy"?
+         "insufficient Field E":
+         selectedForecast.status==="blocked"?"requirements not met":
+         selectedForecast.status==="evolve"?"selected for next mutation":
+         selectedForecast.charge>=selectedForecast.needed?
+          "ready · awaiting priority":"charging"}
         {' · '}cost {selectedForecast.energyCost} E</dd>
       </div>}
      </dl>
