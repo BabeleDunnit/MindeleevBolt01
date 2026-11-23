@@ -82,19 +82,6 @@
  * On narrow mobiles the compact chip sits opposite the 3D controls.
  */
 /* Voluntary, cooling-gated Home reentry destination picker. */
-.rc01-reentry-instruction{
- position:absolute;left:50%;top:174px;transform:translateX(-50%);
- width:min(310px,88%);z-index:10;
- border:1px solid #3e9c82;border-radius:12px;
- padding:8px 10px;background:#e3f8eeed;color:#215c49;
- box-shadow:0 4px 16px #255c4724;
- display:flex;align-items:center;justify-content:space-between;
- gap:10px;font-size:11px;font-weight:800;line-height:1.3
-}
-.rc01-reentry-instruction button{
- color:#fff;border:0;border-radius:7px;
- background:#397e62;padding:7px 8px;font-weight:800
-}
 .rc01-touch-selection{
  position:absolute;top:91px;left:8px;z-index:8;
  display:flex;align-items:center;gap:5px;
@@ -260,13 +247,13 @@
 .rc01-home-sheet{padding-top:20px}
 .rc01-home-sheet p{font-size:13px;line-height:1.5;color:#72867b}
 .rc01-home-entries{display:grid;gap:7px;margin-top:15px}
-.rc01-home-entries button{
+.rc01-home-entry{
  display:flex;align-items:center;justify-content:space-between;gap:12px;
  background:#eff6f0;border:1px solid #d5e5d8;border-radius:11px;
  padding:12px 14px;text-align:left;color:#2d5643;font-size:14px
 }
-.rc01-home-entries button strong{font-size:18px;color:#257a55}
-.rc01-home-entries button small{color:#799188;font-size:11px}
+.rc01-home-entry strong{font-size:18px;color:#257a55}
+.rc01-home-entry small{color:#799188;font-size:11px}
 .rc01-visually-hidden{
  position:absolute!important;width:1px!important;height:1px!important;
  padding:0!important;margin:-1px!important;border:0!important;
@@ -334,6 +321,10 @@
  font-size:16px;font-weight:750;color:#24483a;text-align:right;
  margin:0;overflow-wrap:anywhere
 }
+.rc01-palette-detail dd{display:grid;gap:7px;width:min(240px,57%);min-width:0}
+.rc01-palette-continuous{display:block;width:100%;height:20px;
+ border-radius:7px;border:1px solid #d0ddd4;
+ box-shadow:inset 0 0 0 1px #ffffff50}
 .rc01-cell-sheet{padding-top:38px}
 .rc01-cell-sheet h2{margin:9px 0 22px}
 @media(min-width:700px){
