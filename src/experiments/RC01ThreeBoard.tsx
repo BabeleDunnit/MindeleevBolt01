@@ -444,6 +444,18 @@ export default function RC01ThreeBoard({
     if(!target||!gameRef.current?.home.some(p=>p.seal===seal))continue;
     if(gameRef.current.pawns.some(p=>p.cellKey===target)){
      world.cancelHomeReturn(seal);
+     // Retarget immediately, even if no React game update follows.
+     const retry=rcAutomaticHomeDestinations(gameRef.current,board,
+      returnTargetsRef.current.values(),activeReturnsRef.current);
+     if(retry.length){
+      for(const next of retry){
+       activeReturnsRef.current.add(next.seal);
+       returnTargetsRef.current.set(next.seal,next.target);
+      }
+      const pawns=retry.flatMap(next=>
+       gameRef.current!.home.filter(p=>p.seal===next.seal));
+      world.startHomeReturns(pawns,Object.fromEntries(returnTargetsRef.current));
+     }
      continue;
     }
     arrivalRef.current(seal,target);
@@ -472,6 +484,15 @@ export default function RC01ThreeBoard({
   }
   if(!isBusy())worldRef.current?.setPawns(game?.pawns??[],game?.home??[]);
   if(game&&!isBusy()&&worldRef.current){
+   // Discard reservations invalidated by external board changes.
+   for(const [seal,target] of [...returnTargetsRef.current]){
+    if(!game.home.some(p=>p.seal===seal)||
+       game.pawns.some(p=>p.cellKey===target)){
+     activeReturnsRef.current.delete(seal);
+     returnTargetsRef.current.delete(seal);
+     worldRef.current.cancelHomeReturn(seal);
+    }
+   }
    const arrivals=rcAutomaticHomeDestinations(game,board,
     returnTargetsRef.current.values(),activeReturnsRef.current);
    if(arrivals.length){
