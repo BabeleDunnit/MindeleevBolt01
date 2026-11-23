@@ -2,7 +2,7 @@ import {useEffect,useMemo,useRef,useState} from "react";
 import {makeRCBoard,rcCellCoordinates,type RCCell} from "@/polytron/rc01Board";
 import {initialRCGame,moveRCPawn,recallRCParity,
  returnRCPawnToCell,rcHomeCooldown,rcParity,
- pawnDNA,pawnName,pawnPalette,
+ pawnDNA,pawnIdentity,pawnPalette,
  type RCGame,type RCPawn,type RCHomeParity} from "@/polytron/rc01Game";
 import {gradientCss} from "@/polytron/gradientPalettes";
 import {forecastRCMutatron,mutatronCounts} from "@/polytron/rc01Mutatron";
@@ -173,11 +173,11 @@ export default function MindeleevRC01(){
     role="group" aria-label="Selected Polytron for touch drag">
     <span className="rc01-selection-hex" aria-hidden="true">⬡</span>
     <span className="rc01-selection-name">
-     <strong>{pawnName(touchSelectedPawn)}</strong>
-     <small>#{touchSelectedPawn.number} · selected</small>
+     <strong>{pawnIdentity(touchSelectedPawn)}</strong>
+     <small>Form {touchSelectedPawn.number} · selected</small>
     </span>
     <button type="button" className="rc01-selection-info"
-     aria-label={"Inspect Polytron "+pawnName(touchSelectedPawn)}
+     aria-label={"Inspect Polytron "+pawnIdentity(touchSelectedPawn)}
      onClick={()=>setSheet({kind:"polytron",seal:touchSelectedPawn.seal})}>Info</button>
     <button type="button" className="rc01-selection-clear"
      aria-label="Clear Polytron selection"
@@ -239,7 +239,7 @@ export default function MindeleevRC01(){
      onClick={()=>setSheet(null)}>×</button>
     {selectedPawn&&inspectedPawn&&<div className="rc01-poly-sheet">
      <RC01ThreeInspector pawn={inspectedPawn}/>
-     <h2>Polytron - {pawnName(selectedPawn)}</h2>
+     <h2>Polytron: {pawnIdentity(selectedPawn)}</h2>
      {inspectingHistory&&<div className="rc01-history-lens">
       Historical manifestation · inspection only
       <button type="button" onClick={()=>setManifestationIndex(null)}>
@@ -264,13 +264,11 @@ export default function MindeleevRC01(){
           pawnPalette(inspectedPawn).secondary.hex)}}/>
        </dd>
       </div>
-      <div><dt>Permanent Identity</dt>
-       <dd>{pawnName(selectedPawn)} · {selectedPawn.seal}/72</dd></div>
       <div><dt>Current cell (ring, idxInRing)</dt>
        <dd>{occupiedCell?rcCellCoordinates(occupiedCell):"Home"}</dd></div>
       {!inspectingHistory&&selectedForecast&&<div><dt>Mutatron Forecast</dt>
-       <dd>{selectedForecast.status.toUpperCase()} · #{
-        selectedForecast.number} → #{selectedForecast.target}
+       <dd>{selectedForecast.status.toUpperCase()} · form {
+        selectedForecast.number} → {selectedForecast.target}
         {' · '}{selectedForecast.neighbours}/6 neighbours
         {' · '}{selectedForecast.axes}/3 balanced axes
         {' · '}{selectedForecast.groups} groups
@@ -301,8 +299,8 @@ export default function MindeleevRC01(){
      <div className="rc01-home-entries">
       {game?.home.filter(p=>!sheet.parity||rcParity(p.seal)===sheet.parity)
        .map(p=><div className="rc01-home-entry" key={p.seal}>
-       <span>{pawnName(p)} <small>· {p.seal}/72</small></span>
-       <strong>#{p.number}{rcHomeCooldown(game!,p.seal)>0?
+       <span>{pawnIdentity(p)}</span>
+       <strong>Form {p.number}{rcHomeCooldown(game!,p.seal)>0?
         " · "+rcHomeCooldown(game!,p.seal)+" cycles":" · returning"}</strong>
       </div>)}
      </div>
@@ -311,8 +309,8 @@ export default function MindeleevRC01(){
      <div className="rc01-sheet-kicker">MUTATRON GEOMETRY</div>
      <h2>{selectedCell.nucleus?"Nucleus":"Empty cell"}</h2>
      {selectedCell.nucleus&&<p>
-      Dissociate a Polytron above #1 here to recover 1 Field E.
-      It returns Home for two valid moves. A current #1 cannot enter.
+      Dissociate a Polytron with polytronic number above 1 to recover 1 Field E.
+      It returns Home for two valid moves. A Polytron currently in form 1 cannot enter.
      </p>}
      <dl className="rc01-details">
       <div><dt>Cell (ring, idxInRing)</dt>

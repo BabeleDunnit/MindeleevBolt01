@@ -1,10 +1,10 @@
 import * as THREE from "three";
 import * as RAPIER from "@dimforge/rapier3d-compat";
 import {polytronGeometry} from "@/polytron/polytron";
-import {openingCellKeyForSeal,pawnDNA,pawnPalette,rcParity,type RCPawn} from "@/polytron/rc01Game";
+import {openingCellKeyForSeal,pawnDNA,pawnIdentity,pawnPalette,rcParity,type RCPawn} from "@/polytron/rc01Game";
 import {RC_HOME_ROTATION,type RCBoard,type RCCell,type RCPoint} from "@/polytron/rc01Board";
 import type {RCMutatronForecastCell,RCPreviewStatus} from "@/polytron/rc01Mutatron";
-import {createRC01CameraRig,type RCViewSnapshot} from "@/experiments/rc01Camera";
+import {createRC01CameraRig,type RCViewMode,type RCViewSnapshot} from "@/experiments/rc01Camera";
 
 // The same resting height is used by the Three.js display and Rapier bodies.
 // A bounding-sphere radius guarantees that even rotated convex Polytrons sit
@@ -53,26 +53,36 @@ export function makeRC3DPolytron(pawn:RCPawn,radius:number){
 export type RCWorldModel=ReturnType<typeof makeRC3DPolytron>&{
  pawn:RCPawn;shadow:THREE.Mesh;label:THREE.Sprite;
 };
+/** #N denotes the permanent Seal; polytronic numbers are never prefixed. */
+export const rcActorLabel=(pawn:RCPawn,mode:RCViewMode)=>
+ mode==="subjective"?pawnIdentity(pawn):"#"+pawn.seal;
 export function rcScreenWorld(board:RCBoard,point:RCPoint,z=0):THREE.Vector3{
  return new THREE.Vector3(point.x-board.width/2,board.height/2-point.y,z);
 }
 function makeTextSprite(text:string):THREE.Sprite{
- const canvas=document.createElement("canvas");canvas.width=128;canvas.height=64;
+ const expanded=text.includes(" - ");
+ const canvas=document.createElement("canvas");
+ canvas.width=expanded?384:128;canvas.height=64;
  const ctx=canvas.getContext("2d");
  if(ctx){
-  ctx.clearRect(0,0,128,64);
-  ctx.font="bold 31px system-ui, sans-serif";
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.font=(expanded?"bold 28px":"bold 31px")+" system-ui, sans-serif";
   ctx.textAlign="center";ctx.textBaseline="middle";
-  ctx.lineWidth=6;ctx.strokeStyle="#f6faf7";ctx.strokeText(text,64,31);
-  ctx.fillStyle="#294d45";ctx.fillText(text,64,31);
+  ctx.lineWidth=6;ctx.strokeStyle="#f6faf7";
+  ctx.strokeText(text,canvas.width/2,31);
+  ctx.fillStyle="#294d45";ctx.fillText(text,canvas.width/2,31);
  }
  const texture=new THREE.CanvasTexture(canvas);
  texture.colorSpace=THREE.SRGBColorSpace;
- const material=new THREE.SpriteMaterial({map:texture,transparent:true,depthTest:false});
- const sprite=new THREE.Sprite(material);sprite.scale.set(27,13.5,1);
+ const material=new THREE.SpriteMaterial({
+  map:texture,transparent:true,depthTest:false
+ });
+ const sprite=new THREE.Sprite(material);
+ sprite.userData.rcLabelText=text;
  sprite.renderOrder=20;
  return sprite;
 }
+
 function makeHexGeometry(radius:number){
  const shape=new THREE.Shape();
  for(let i=0;i<6;i++){
@@ -101,6 +111,19 @@ export function createRC3DWorld(board:RCBoard,priorView?:RCViewSnapshot){
  // a ground-hugging subjective view. Raycasting follows this SAME camera.
  const view=createRC01CameraRig(board,priorView);
  const camera=view.camera;
+ /** Full name in subjective 3D, permanent ID only in MAP and AREA. */
+ function makePawnLabel(pawn:RCPawn){
+  const subjective=view.getMode()==="subjective";
+  const label=makeTextSprite(rcActorLabel(pawn,view.getMode()));
+  label.scale.set(subjective?Math.max(20,board.size*2):
+   Math.max(9,board.size*.75),Math.max(5,board.size*.375),1);
+  label.position.set(0,-board.size*.72,4.5);
+  return label;
+ }
+ function disposePawnLabel(label:THREE.Sprite){
+  (label.material as THREE.SpriteMaterial).map?.dispose();
+  label.material.dispose();
+ }
  scene.add(new THREE.HemisphereLight(0xf8fff7,0x7e969a,2.0));
  const sun=new THREE.DirectionalLight(0xffffff,2.7);
  sun.position.set(-160,260,530);scene.add(sun);
@@ -334,8 +357,7 @@ export function createRC3DWorld(board:RCBoard,priorView?:RCViewSnapshot){
    actors.delete(pawn.seal);
    scene.remove(actor.shadow);
    actor.root.remove(actor.label);
-   (actor.label.material as THREE.SpriteMaterial).map?.dispose();
-   actor.label.material.dispose();
+   disposePawnLabel(actor.label);
    model=actor;
   }else model=makeRC3DPolytron(pawn,homeRadius);
   const center=board.homes[rcParity(pawn.seal)];
@@ -418,7 +440,7 @@ export function createRC3DWorld(board:RCBoard,priorView?:RCViewSnapshot){
    if(!existing)newHomeParticle(pawn);
    else if(existing.pawn.number!==pawn.number){
     existing.pawn=pawn;
-    // The #1 opening does not change geometries on capture; if it ever
+    // Opening form 1 does not change geometry on capture; if it ever
     // does, update the Home mesh but retain the physical rigid body.
     const replacement=makeRC3DPolytron(pawn,homeRadius);
     replacement.root.position.copy(existing.model.root.position);
@@ -558,8 +580,7 @@ export function createRC3DWorld(board:RCBoard,priorView?:RCViewSnapshot){
  function disposeActor(actor:RCWorldModel){
   scene.remove(actor.root,actor.shadow);
   actor.dispose();
-  (actor.label.material as THREE.SpriteMaterial).map?.dispose();
-  actor.label.material.dispose();
+  disposePawnLabel(actor.label);
  }
  function clearActors(){
   for(const actor of actors.values())disposeActor(actor);
@@ -577,10 +598,7 @@ export function createRC3DWorld(board:RCBoard,priorView?:RCViewSnapshot){
    if(homeWorld&&p.body)homeWorld.removeRigidBody(p.body);
    homeParticles.delete(pawn.seal);pendingHome.delete(pawn.seal);
    const shadow=new THREE.Mesh(shadowGeometry,shadowMaterial);
-   const label=makeTextSprite("#"+pawn.number);
-   label.scale.set(Math.max(9,board.size*.75),
-    Math.max(5,board.size*.375),1);
-   label.position.set(0,-board.size*.72,4.5);
+   const label=makePawnLabel(pawn);
    p.model.root.add(label);
    scene.add(p.model.root,shadow);
    actors.set(pawn.seal,{...p.model,pawn,shadow,label});
@@ -616,9 +634,7 @@ export function createRC3DWorld(board:RCBoard,priorView?:RCViewSnapshot){
    // lifts or tumbles during real 3D impacts.
    shadow.position.copy(rcScreenWorld(board,cell,RC_TILE_SURFACE_Z+.05));
    scene.add(shadow);
-   const label=makeTextSprite("#"+pawn.number);
-   label.scale.set(Math.max(9,board.size*.75),Math.max(5,board.size*.375),1);
-   label.position.set(0,-board.size*.72,4.5);
+   const label=makePawnLabel(pawn);
    actor.root.add(label);
    actor.root.position.copy(rcScreenWorld(board,cell,idleZ));
    scene.add(actor.root);
@@ -691,13 +707,25 @@ export function createRC3DWorld(board:RCBoard,priorView?:RCViewSnapshot){
  function rotateModels(time:number,active:ReadonlySet<number>=new Set()){
   const dt=lastSpinTime===null?0:Math.max(0,Math.min(.05,(time-lastSpinTime)/1000));
   lastSpinTime=time;
-  for(const [seal,{spin}] of actors){
+  // A view change replaces ONLY label textures, never physical meshes.
+  const mode=view.getMode();
+  for(const [seal,actor] of actors){
+   const wanted=rcActorLabel(actor.pawn,mode);
+   if(actor.label.userData.rcLabelText!==wanted){
+    actor.root.remove(actor.label);
+    disposePawnLabel(actor.label);
+    actor.label=makePawnLabel(actor.pawn);
+    actor.root.add(actor.label);
+   }
    if(active.has(seal))continue; // Rapier owns the 3D orientation in flight.
    // Incremental rotation: no absolute clock angle jump when returning from
    // a physical flight. Root quaternion retains its physical landing pose.
-   spin.rotation.y+=dt*.28;
-   spin.rotation.x+=dt*.06;
+   actor.spin.rotation.y+=dt*.28;
+   actor.spin.rotation.x+=dt*.06;
   }
+ }
+ function actorLabelText(seal:number):string|null{
+  return (actors.get(seal)?.label.userData.rcLabelText as string|undefined)??null;
  }
  function dispose(){
   setEvolutionPreview([]);
@@ -733,6 +761,6 @@ export function createRC3DWorld(board:RCBoard,priorView?:RCViewSnapshot){
   setPawns,moveActor,actorOrientation,physicalPose,dragPreview,
   initHomePhysics,stepHome,transferToHome,transferParityToHome,
    startHomeReturns,cancelHomeReturn,cancelHomeReturns,homeStats,homeSnapshot,
-  hover,rotateModels,setEvolutionPreview,
+  hover,rotateModels,actorLabelText,setEvolutionPreview,
   pulseMutations,stepMutationHalos,dispose};
 }

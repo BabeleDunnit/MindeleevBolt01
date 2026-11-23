@@ -12,8 +12,8 @@ export const RC01_OPENING_NUMBER=1; // outer rings 4 and 5
 /**
  * Canonical opening transcribed from the hand-drawn pointy-top sketch,
  * rotated counterclockwise 30° into the CURRENT north-first board frame.
- * In particular (ring 1,index 0) and (ring 2,index 0) are both cubes (#2).
- * Tetrahedron T = #1; Cube C = #2; Octahedron O = #3.
+ * In particular (ring 1,index 0) and (ring 2,index 0) are both cubes (Polytronic Number 2).
+ * Tetrahedron T = 1; Cube C = 2; Octahedron O = 3.
  */
 export const RC01_OPENING_RING_1=[2,3,2,3,2,3] as const;
 export const RC01_OPENING_RING_2=[
@@ -89,6 +89,8 @@ export type RCGame={
 export const pawnDNA=(p:RCPawn)=>dnaFromPolitronNumber(p.number);
 export const pawnPalette=(p:RCPawn)=>gradientPair(p.row,p.col);
 export const pawnName=(p:RCPawn)=>sealName(p.seal);
+/** #N always denotes the unique permanent Seal (1..72), never the form. */
+export const pawnIdentity=(p:RCPawn)=>"#"+p.seal+" - "+pawnName(p);
 export const pawnAt=(game:RCGame,key:string)=>game.pawns.find(p=>p.cellKey===key);
 
 /** One canonical bilateral-symmetry metric, recalculated after EVERY
@@ -123,7 +125,7 @@ export function rcRecordManifestation(
 
 /**
  * Home regression: decrease period and group together (-6) where possible.
- * On the first period, step back one group; a group-one form returns to #1.
+ * On the first period, step back one group; a group-one form returns to number 1.
  */
 export function rcHomeRegression(n:number):number{
  if(!Number.isSafeInteger(n)||n<1)throw Error("Invalid Polytronic Number");
@@ -141,8 +143,8 @@ export function rcHomeRegression(n:number):number{
  * Both the Nucleus and ring 3 are empty, with exactly 19 free cells.
  * Ring 1 (Seals 1..6): C O C O C O, clockwise from due north.
  * Ring 2 (Seals 7..18): C T O T C T O T C T O T.
- * Together these make six cubes (#2), six octahedra (#3), and six
- * tetrahedra (#1). Rings 4 and 5 add 54 tetrahedra (#1).
+ * Together these make six cubes (number 2), six octahedra (number 3), and six
+ * tetrahedra (number 1). Rings 4 and 5 add 54 tetrahedra (number 1).
  * Twelve vertices seed distinct diagonal Chromatica pairs; the other
  * 60 retain the prior RC01 palette. All 72 keep distinct permanent IDs.
  */
@@ -170,7 +172,7 @@ export function initialRCGame(board:RCBoard,_rng:()=>number=Math.random):RCGame{
   mutatron:{generation:0,energyReserve:48,dissipatedEnergy:0,mnemeGeneratedEnergy:0,resonance:{},
    symmetry:rcBoardSymmetry(pawns,board),changes:[],
    lastNote:"The symmetry field is at rest; evolve to test geometrical resonance."},
-  lastAction:"Metatron opening: Ring 1 C/O alternating, Ring 2 C-T-O-T repeating; all outer Polytrons #1."};
+  lastAction:"Metatron opening: Ring 1 C/O alternating, Ring 2 C-T-O-T repeating; all outer Polytrons in form 1."};
 }
 
 /** Diagnostic fixture, never used for the production opening. */
@@ -184,7 +186,7 @@ export function rc01CenterDiagnostic(board:RCBoard):RCGame{
   homeTestPhase:{odd:"board",even:"board"},homeCooling:{},
   mutatron:{generation:0,energyReserve:48,dissipatedEnergy:0,mnemeGeneratedEnergy:0,resonance:{},symmetry:100,changes:[],
    lastNote:"Single-body centering diagnostic."},
-  lastAction:"Centering diagnostic: a single Polytron #1 at the nucleus (0,0)."
+  lastAction:"Centering diagnostic: a single Polytron of form 1 at the nucleus (0,0)."
  };
 }
 
@@ -239,7 +241,7 @@ export function assessRCMove(
   const gain=rcNucleusRecovery(attacker.number);
   return gain?{allowed:true,kind:"nucleus",fieldDelta:gain,
    reason:"Nucleus: +"+gain+" E; two moves cooling."}:
-   invalid("A Polytron #1 cannot enter the Nucleus.");
+   invalid("A Polytron in form 1 cannot enter the Nucleus.");
  }
  if(!defender)return {allowed:true,kind:"move",fieldDelta:0,
   reason:"Empty tile."};
@@ -295,7 +297,7 @@ export function returnRCPawnToCell(
   home:game.home.filter(p=>p.seal!==seal),
   homeCooling:Object.fromEntries(Object.entries(game.homeCooling)
    .filter(([key])=>key!==String(seal))),
-  lastAction:"HOME REENTRY · "+pawnName(incoming)+" returns to "+
+  lastAction:"HOME REENTRY · "+pawnIdentity(incoming)+" returns to "+
    rcCellCoordinatesForKey(board,target)+" without capture or energy cost."
  };
  updated.mutatron={...updated.mutatron,
@@ -385,8 +387,8 @@ export function moveRCPawn(
    mutatron:{...game.mutatron,
     energyReserve:game.mutatron.energyReserve+check.fieldDelta,
     symmetry:0},
-   lastAction:"NUCLEUS · "+pawnName(attacker)+" #"+attacker.number+
-    " → #"+lower+"; +"+check.fieldDelta+" field E; cool for two moves."
+   lastAction:"NUCLEUS · "+pawnIdentity(attacker)+" form "+attacker.number+
+    " → "+lower+"; +"+check.fieldDelta+" field E; cool for two moves."
   };
   const rewarded=rcAwardMnemes(game,updated);
   rewarded.mutatron.symmetry=rcBoardSymmetry(rewarded.pawns,board);
@@ -410,11 +412,11 @@ export function moveRCPawn(
    energyReserve:game.mutatron.energyReserve+check.fieldDelta,
    symmetry:0},
   lastAction:captured?
-   "FUSION · "+pawnName(attacker)+" inherits #"+captured.number+
+   "FUSION · "+pawnIdentity(attacker)+" inherits form "+captured.number+
    " and palette "+pawnPalette(fused!.attacker).name+
-   ". "+pawnName(captured)+" returns Home as #"+fused?.defender.number+
+   ". "+pawnIdentity(captured)+" returns Home as form "+fused?.defender.number+
    ". Field "+(check.fieldDelta>=0?"+":"")+check.fieldDelta+" E.":
-   pawnName(attacker)+" moves to cell "+rcCellCoordinatesForKey(board,target)+"."};
+   pawnIdentity(attacker)+" moves to cell "+rcCellCoordinatesForKey(board,target)+"."};
  const rewarded=rcAwardMnemes(game,updated);
  rewarded.mutatron.symmetry=rcBoardSymmetry(rewarded.pawns,board);
  if(!validateRCGame(rewarded,board)||
@@ -503,10 +505,10 @@ export function returnRCPawnHome(
   mutatron:{...game.mutatron,
    energyReserve:game.mutatron.energyReserve+delta,symmetry:0},
   lastAction:captured?
-   "HOME FUSION · "+pawnName(incoming)+" inherits #"+captured.number+
-   " from "+pawnName(captured)+". Field "+
+   "HOME FUSION · "+pawnIdentity(incoming)+" inherits form "+captured.number+
+   " from "+pawnIdentity(captured)+". Field "+
    (delta>=0?"+":"")+delta+" E.":
-   "HOME RETURN · "+pawnName(incoming)+" returns to "+
+   "HOME RETURN · "+pawnIdentity(incoming)+" returns to "+
     rcCellCoordinatesForKey(board,target)+"."
  };
  const rewarded=rcAwardMnemes(game,updated);

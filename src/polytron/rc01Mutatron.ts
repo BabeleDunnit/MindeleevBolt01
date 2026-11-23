@@ -221,7 +221,8 @@ export function forecastRCMutatron(game:RCGame,board:RCBoard):RCMutatronForecast
   // energy-starved sites. Don't flood the mobile board with dead pairs.
   if(status==="blocked"&&c.charge===0)continue;
   const reason=status==="evolve"?
-   "Next evolution: #"+c.p.number+"/#"+c.q.number+" → #"+c.target+
+   "Next evolution: Polytrons #"+c.p.seal+" and #"+c.q.seal+
+   " · numbers "+c.p.number+"/"+c.q.number+" → "+c.target+
    "; "+(c.cost+MUTATRON_INVOCATION_COST)+" E including invocation.":
    status==="energy"?
    "Insufficient field energy: needs "+(c.cost+MUTATRON_INVOCATION_COST)+" E.":
@@ -242,7 +243,8 @@ export function forecastRCMutatron(game:RCGame,board:RCBoard):RCMutatronForecast
  const summary=!canInvoke?
   "Field depleted: recover at least 1 E to invoke the Mutatron.":
   selected?
-  "Pair #"+selected.p.number+"/#"+selected.q.number+" → #"+
+  "Polytrons #"+selected.p.seal+" and #"+selected.q.seal+
+  " · numbers "+selected.p.number+"/"+selected.q.number+" → "+
   selected.target+"; "+cost+" E transmutation + 1 E invocation.":
   candidates.some(c=>c.supported&&!c.canPay&&c.charge>=c.needed)?
    "Insufficient field energy for the charged pairs.":

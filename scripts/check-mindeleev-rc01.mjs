@@ -276,6 +276,8 @@ try{
   width:128,height:64,getContext:()=>null
  }:{}};
  world.setPawns([one]);
+ assert.equal(world.actorLabelText(one.seal),"#"+one.seal,
+  "MAP label must be the permanent Seal, not the polytronic number");
  const oneCell=board.cells.find(c=>c.key===one.cellKey);
  assert(oneCell);
  const oneNdc=worldModule.rcScreenWorld(board,oneCell,
@@ -298,6 +300,19 @@ try{
  assert(selectedMarker.position.distanceTo(oldSelected)>board.size);
  world.setSelectedCell(null);
  assert(!selectedMarker.visible);
+ // Switching MAP to 3D replaces the label texture, never its mesh.
+ world.view.focusOnCell(oneCell,"subjective");
+ for(let i=0;i<180;i++)world.view.step(1/60);
+ assert.equal(world.view.getMode(),"subjective");
+ world.rotateModels(1000);
+ assert.equal(world.actorLabelText(one.seal),
+  "#"+one.seal+" - "+model.pawnName(one),
+  "3D labels combine unique permanent ID and stable name");
+ world.view.overview();
+ for(let i=0;i<180;i++)world.view.step(1/60);
+ world.rotateModels(1100);
+ assert.equal(world.actorLabelText(one.seal),"#"+one.seal,
+  "MAP must switch back to permanent IDs");
  world.setPawns([]);
  if(priorDOM===undefined)delete globalThis.document;
  else globalThis.document=priorDOM;
@@ -404,6 +419,15 @@ try{
  assert.equal(model.RC01_OPENING_COUNT,72);
  assert.deepEqual(model.RC01_OPENING_RINGS,[1,2,4,5]);
  assert.equal(sceneGame.pawns.length,72);
+ const sameForm=sceneGame.pawns.filter(p=>p.number===1).slice(0,2);
+ assert.equal(sameForm.length,2);
+ assert.equal(worldModule.rcActorLabel(sameForm[0],"map"),"#"+sameForm[0].seal);
+ assert.equal(worldModule.rcActorLabel(sameForm[1],"area"),"#"+sameForm[1].seal);
+ assert.notEqual(worldModule.rcActorLabel(sameForm[0],"map"),
+  worldModule.rcActorLabel(sameForm[1],"map"),
+  "Two Polytrons with the same form must display different IDs");
+ assert.equal(worldModule.rcActorLabel(sameForm[0],"subjective"),
+  model.pawnIdentity(sameForm[0]));
  assert.equal(sceneGame.home.length,0);
  assert.equal(sceneGame.mutatron.mnemeGeneratedEnergy,0);
  assert.equal(sceneGame.fusions,0);
@@ -1311,6 +1335,24 @@ try{
  }
  assert(!boardCode.includes("<svg")&&!boardCode.includes("<polygon"));
  const modelCode=await readFile("src/experiments/rc01ThreeScene.ts","utf8");
+ const gameCode=await readFile("src/polytron/rc01Game.ts","utf8");
+ const mutatronCode=await readFile("src/polytron/rc01Mutatron.ts","utf8");
+ assert(modelCode.includes('mode==="subjective"?pawnIdentity(pawn):"#"+pawn.seal')&&
+  modelCode.includes("makePawnLabel(pawn)")&&
+  modelCode.includes("actor.label.userData.rcLabelText!==wanted")&&
+  modelCode.includes("disposePawnLabel(actor.label)")&&
+  !modelCode.includes('makeTextSprite("#"+pawn.number)'),
+  "MAP/AREA show Seal IDs; subjective 3D shows Seal ID and name");
+ assert(gameCode.includes('pawnIdentity=(p:RCPawn)=>"#"+p.seal')&&
+  !gameCode.includes('" inherits #"+captured.number')&&
+  !gameCode.includes('" returns Home as #"+fused?.defender.number')&&
+  !gameCode.includes('" #"+attacker.number')&&
+  !gameCode.includes("A Polytron #1"),
+  "Game messages must never prefix polytronic numbers with #");
+ assert(!mutatronCode.includes('"Next evolution: #"+c.p.number')&&
+  !mutatronCode.includes('"Pair #"+selected.p.number')&&
+  mutatronCode.includes('"Polytrons #"+selected.p.seal'),
+  "Mutatron forecast shows Seal IDs and unprefixed form numbers");
  for(const phrase of ["dragProxy","dragMaterial","opacity:.5",
    "targetMarker","targetFill","targetCaptureMaterial",
    "rcVisualPawnHeight","scene.add(shadow)",
@@ -1331,16 +1373,23 @@ try{
  // periodic table: Polytronic Number 13 (period 3, group 3) has 6 E.
  assert.equal(life.intrinsicEnergy(13,0),6);
  for(const phrase of [
-  '<h2>Polytron - {pawnName(selectedPawn)}</h2>',
+  '<h2>Polytron: {pawnIdentity(selectedPawn)}</h2>',
   '<dt>Polytronic Number</dt><dd>{inspectedPawn.number}</dd>',
   '<dt>Intrinsic Energy</dt><dd>{intrinsicEnergy(inspectedPawn.number,0)} E</dd>',
-  '<dt>Permanent Identity</dt>',
   'import {intrinsicEnergy} from "@/polytron/mindeleevLife"',
   '<RC01ManifestationHistory pawn={selectedPawn}',
   'game?.home.filter(p=>!sheet.parity||rcParity(p.seal)===sheet.parity)',
   'Reset fixed Metatron opening'
  ])assert(tsx.includes(phrase),
-  "Inspector name heading and canonical data rows required: "+phrase);
+  "Inspector permanent-ID headline and canonical form rows required: "+phrase);
+ assert(!tsx.includes("Permanent Identity")&&
+  !tsx.includes("#{selectedForecast.number}")&&
+  !tsx.includes("#{touchSelectedPawn.number}")&&
+  !tsx.includes("<strong>#{p.number}")&&
+  !tsx.includes("above #1")&&
+  tsx.includes("<strong>{pawnIdentity(touchSelectedPawn)}</strong>")&&
+  tsx.includes("<strong>Form {p.number"),
+  "In RC01 UI #N must identify the Seal, never the polytronic form");
  assert(tsx.includes('target="_blank" rel="noopener noreferrer"')&&
   tsx.includes("?experiment=polytron-periodic")&&
   tsx.includes("RC01MnemeHistory")&&
