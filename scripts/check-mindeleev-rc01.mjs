@@ -1357,10 +1357,19 @@ try{
   !gameCode.includes('" #"+attacker.number')&&
   !gameCode.includes("A Polytron #1"),
   "Game messages must never prefix polytronic numbers with #");
- assert(!mutatronCode.includes('"Next evolution: #"+c.p.number')&&
-  !mutatronCode.includes('"Pair #"+selected.p.number')&&
-  mutatronCode.includes('"Polytrons #"+selected.p.seal'),
-  "Mutatron forecast shows Seal IDs and unprefixed form numbers");
+ assert(mutatronCode.includes('pawnIdentity(pawn)')&&
+  mutatronCode.includes("selectedSeal:number|null=null")&&
+  mutatronCode.includes("rcMutationStep(neighbours)")&&
+  !mutatronCode.includes('"Next evolution: #"+c.p.number'),
+  "Mutatron evolves the selected Seal without # form numbers");
+ const resonanceCode=await readFile("src/polytron/rc01Resonance.ts","utf8");
+ assert(resonanceCode.includes("localOccupantsChanged")&&
+  resonanceCode.includes("rcPrimeCellResonance")&&
+  resonanceCode.includes("RC_RESONANCE_COOLDOWN_ACTIONS=3")&&
+  resonanceCode.includes("resonance[key]=status===-1?1:status+1")&&
+  resonanceCode.includes("resonance[key]=1")&&
+  resonanceCode.includes("resonance[options.consumeKey]=-RC_RESONANCE_COOLDOWN_ACTIONS"),
+  "Cells retain charge, cool after use, and reset after a local move");
  for(const phrase of ["dragProxy","dragMaterial","opacity:.5",
    "targetMarker","targetFill","targetCaptureMaterial",
    "rcVisualPawnHeight","scene.add(shadow)",
