@@ -220,19 +220,8 @@ try{
  assert.equal(world.scene.children.filter(x=>
   x.isMesh&&x.geometry?.type==="RingGeometry").length,ringsBefore,
   "Preview must be cleared cleanly without leaving stale hex highlights");
- // Voluntary Home returns highlight only free, non-nuclear tile faces.
- const reentryKeys=board.cells.filter(c=>c.ring===3).slice(0,2).map(c=>c.key);
- world.setReentryTargets([...reentryKeys,"0,0"]);
- const reentryOverlays=world.scene.children.filter(x=>x.isMesh&&
-  x.material?.color?.getHex()===0x149b70&&x.renderOrder<0);
- assert.equal(reentryOverlays.length,reentryKeys.length*2,
-  "Nucleus must never be highlighted as a Home return destination");
- assert(reentryOverlays.every(x=>x.material.depthTest===true&&
-  x.material.depthWrite===false&&x.geometry.type!=="ExtrudeGeometry"));
- world.setReentryTargets([]);
- assert.equal(world.scene.children.filter(x=>x.isMesh&&
-  x.material?.color?.getHex()===0x149b70&&x.renderOrder<0).length,0,
-  "Home target highlights must clear without leaking scene objects");
+ assert.equal(typeof world.setReentryTargets,"undefined",
+ "Manual Home target overlays are removed");
  // A selected touch Polytron highlights its real opening tile, and the
  // selection can be moved/cleared WITHOUT opening the inspector.
  const one=model.initialRCGame(board).pawns.find(p=>p.cellKey==="1,0");
@@ -444,6 +433,7 @@ try{
   assert.equal(next.pawns.length,72);
   assert.equal(next.home.length,0);
   assert.equal(next.moves,0);
+  assert.equal(next.homeCycles,next.mutatron.generation);
   assert.equal(next.fusions,0);
   assert.equal(next.score,100);
   assert(next.pawns.every(p=>startingPositions.get(p.seal)===p.cellKey));
@@ -542,6 +532,7 @@ try{
  assert.equal(moved.game.mutatron.energyReserve,49);
  assert.equal(model.rcTotalEnergy(moved.game),model.rcTotalEnergy(sceneGame));
  assert.equal(model.rcHomeCooldown(moved.game,source.seal),2);
+ assert.equal(moved.game.homeCycles,1);
  assert.equal(model.assessRCMove(sceneGame,ring2[1].cellKey,empty.key,board).allowed,false);
  assert.equal(model.rcNucleusRegression(1),null);
  assert.equal(model.rcNucleusRegression(6),1);
@@ -554,9 +545,19 @@ try{
  assert.equal(taken.game.home.length,1);
  assert.equal(taken.game.fusions,1);
  assert.equal(model.pawnAt(taken.game,victim.cellKey)?.number,3);
+ const selectedPalette=model.rcSelectCapturedPalette(sceneGame,source,victim,board);
+ assert.deepEqual([selectedPalette.row,selectedPalette.col],
+  [model.pawnAt(taken.game,victim.cellKey)?.row,
+   model.pawnAt(taken.game,victim.cellKey)?.col],
+  "Capture recombines Latin/Greek alleles and selects one");
+ const parentOptions=[
+  [source.row,victim.col],[victim.row,source.col]
+ ];
+ assert(parentOptions.some(([row,col])=>row===selectedPalette.row&&col===selectedPalette.col));
  assert.deepEqual(model.pawnAt(taken.game,victim.cellKey)?.manifestations,[2,3]);
  assert.equal(taken.game.home[0].seal,victim.seal);
  assert.equal(taken.game.home[0].number,2);
+ assert.equal(model.rcHomeCooldown(taken.game,victim.seal),2);
  assert.deepEqual(taken.game.home[0].manifestations,[3,2]);
  // A field with no spendable energy must reject expensive captures.
  const broke={...sceneGame,
@@ -633,74 +634,49 @@ try{
   inherited:stolen.game.pawns.find(p=>p.seal===source.seal)?.number,
   regressed:stolen.game.home[0].number
  }));
- // Each Home double-tap alternates between recall and return, even if
- // one parity has already lost pieces to regular captures.
- const firstOdd=model.toggleRCParityHome(sceneGame,"odd",board);
- assert.equal(firstOdd.action,"recall");
- assert.equal(firstOdd.pawns.length,36);
- assert.equal(firstOdd.game.homeTestPhase.odd,"home");
- assert.equal(firstOdd.game.home.length,36);
- const secondOdd=model.toggleRCParityHome(firstOdd.game,"odd",board);
- assert.equal(secondOdd.action,"return");
- assert.equal(secondOdd.pawns.length,36);
- assert.equal(secondOdd.game.homeTestPhase.odd,"board");
- assert.equal(secondOdd.game.home.length,36,
-  "Return must not teleport pieces before they physically arrive");
- let restored=secondOdd.game;
- for(const pawn of secondOdd.pawns){
-  const arrival=model.returnRCPawnHome(restored,pawn.seal,board);
-  assert(arrival,"Every opening cell must exist");
+ // Diagnostic recall uses the same cooldown and auto-targets.
+ const recalledOdd=model.recallRCParity(sceneGame,"odd",board);
+ assert.equal(recalledOdd.pawns.length,36);
+ assert.equal(recalledOdd.home.length,36);
+ assert.equal(model.rcAutomaticHomeDestinations(recalledOdd,board).length,0);
+ assert(recalledOdd.home.every(p=>model.rcHomeCooldown(recalledOdd,p.seal)===2));
+ const invokedOnce=mutatron.evolveRCMutatron(recalledOdd,board);
+ assert.equal(invokedOnce.homeCycles,recalledOdd.homeCycles+1);
+ assert.equal(model.rcAutomaticHomeDestinations(invokedOnce,board).length,0);
+ const invokedTwice=mutatron.evolveRCMutatron(invokedOnce,board);
+ assert.equal(invokedTwice.homeCycles,recalledOdd.homeCycles+2);
+ const scheduled=model.rcAutomaticHomeDestinations(invokedTwice,board);
+ assert.equal(scheduled.length,36);
+ assert.equal(new Set(scheduled.map(x=>x.target)).size,36);
+ assert(scheduled.every(x=>x.target!=="0,0"&&!model.pawnAt(invokedTwice,x.target)));
+ const sortedCells=scheduled.map(item=>board.cells.find(c=>c.key===item.target));
+ assert(sortedCells.every(Boolean));
+ for(let i=1;i<sortedCells.length;i++){
+  assert(sortedCells[i-1].ring>=sortedCells[i].ring);
+  if(sortedCells[i-1].ring===sortedCells[i].ring)
+   assert(sortedCells[i-1].idxInRing<sortedCells[i].idxInRing);
+ }
+ const reserved=model.rcAutomaticHomeDestinations(invokedTwice,board,
+  scheduled.slice(0,5).map(x=>x.target),
+  scheduled.slice(0,5).map(x=>x.seal));
+ assert.equal(reserved.length,31);
+ assert(!reserved.some(x=>scheduled.slice(0,5).some(y=>y.target===x.target)));
+ let restored=invokedTwice;
+ for(const {seal,target} of scheduled){
+  const arrival=model.returnRCPawnToCell(restored,seal,target,board);
+  assert(arrival&&arrival.captured===null);
   restored=arrival.game;
   assert(model.validateRCGame(restored,board));
  }
  assert.equal(restored.pawns.length,72);
  assert.equal(restored.home.length,0);
  assert.equal(restored.fusions,0);
- assert.deepEqual(restored.pawns.slice().sort((a,b)=>a.seal-b.seal)
-  .map(p=>p.cellKey),sceneGame.pawns.map(p=>p.cellKey),
-  "Every permanent Seal must return to its own opening position");
- assert.deepEqual(model.toggleRCParityHome(restored,"odd",board).action,"recall");
-
- // An arriving Seal is the ATTACKER if its opening cell became occupied.
- // Give the defender a distinct number so inherited DNA and regression
- // can be verified through the same helper as a normal drag capture.
- const occupiedOdd=firstOdd.game;
- const occupiedKey=model.openingCellKeyForSeal(1);
- const evenSeal=sceneGame.pawns.find(p=>p.seal===2);
- const evenMoved=model.moveRCPawn(occupiedOdd,evenSeal.cellKey,occupiedKey,board);
- assert(evenMoved);
- const distinct={
-  ...evenMoved.game,
-  pawns:evenMoved.game.pawns.map(p=>p.seal===2?{
-   ...p,number:18,manifestations:[3,18]}:p)
- };
- assert(model.validateRCGame(distinct,board));
- const pendingOdd=model.toggleRCParityHome(distinct,"odd",board);
- assert.equal(pendingOdd.action,"return");
- const capturedReturn=model.returnRCPawnHome(pendingOdd.game,1,board);
- assert(capturedReturn&&capturedReturn.captured?.seal===2);
- assert.equal(capturedReturn.game.fusions,1);
- assert.equal(model.pawnAt(capturedReturn.game,occupiedKey)?.seal,1);
- assert.equal(model.pawnAt(capturedReturn.game,occupiedKey)?.number,18);
- assert.deepEqual(model.pawnAt(capturedReturn.game,occupiedKey)?.manifestations,[2,18]);
- const defenderHome=capturedReturn.game.home.find(p=>p.seal===2);
- assert.equal(defenderHome?.number,12);
- assert.deepEqual(defenderHome?.manifestations,[3,18,12]);
- assert(model.validateRCGame(capturedReturn.game,board));
- let resolvedAll=capturedReturn.game;
- for(const pawn of pendingOdd.pawns.filter(p=>p.seal!==1)){
-  const result=model.returnRCPawnHome(resolvedAll,pawn.seal,board);
-  assert(result);
-  resolvedAll=result.game;
- }
- assert.equal(resolvedAll.pawns.length,71);
- assert.equal(resolvedAll.home.length,1);
- assert.equal(resolvedAll.fusions,1);
- assert.equal(resolvedAll.home[0].seal,2);
- assert(model.validateRCGame(resolvedAll,board));
- console.log("RC01 HOME TOGGLE",JSON.stringify({
-  recalled:36,returned:36,interruptedCapture:true,
-  inherited:18,regressed:12,remainingAtHome:resolvedAll.home.length
+ assert.equal(restored.homeCycles,invokedTwice.homeCycles,
+  "Automatic returns do not consume another action cycle");
+ assert.equal(model.rcTotalEnergy(restored),model.rcTotalEnergy(invokedTwice));
+ console.log("RC01 AUTO HOME",JSON.stringify({
+  recalled:36,returned:scheduled.length,first:scheduled[0].target,
+  last:scheduled.at(-1).target,cycles:2
  }));
  // HOME STRESS TEST: 36 odd + 36 even with full-size Rapier bodies.
  // Node CI has no HTML Canvas. This is a headless scene test, not a
@@ -754,71 +730,35 @@ try{
   assert.deepEqual(homeScene.homeStats(),
    {count:0,odd:0,even:0,physical:0},
    "Reset must dispose ALL Home rigid bodies");
-  // Re-use the real Home Rapier world for a PHYSICAL return followed by
-  // the exact same capture semantics as a regular board drag.
-  const arrivingOdd=ring1[0],occupyingEven=ring1[1];
-  const occupiedByEven=model.moveRCPawn(sceneGame,
-   occupyingEven.cellKey,arrivingOdd.cellKey,board);
-  assert(occupiedByEven);
-  homeScene.setPawns(occupiedByEven.game.pawns,occupiedByEven.game.home);
-  const returningPawn=occupiedByEven.game.home[0];
-  assert.equal(returningPawn.seal,arrivingOdd.seal);
-  const openingCell=board.cells.find(c=>
-   c.key===model.openingCellKeyForSeal(arrivingOdd.seal));
-  assert(openingCell);
-  for(let i=0;i<240;i++)homeScene.stepHome(1/60);
-  const openingPoint=worldModule.rcScreenWorld(board,openingCell,
-   worldModule.rcVisualPawnHeight(board));
-  const homePose=homeScene.homeSnapshot().find(p=>p.seal===arrivingOdd.seal);
-  assert(homePose);
-  const distanceAtHome=Math.hypot(
-   homePose.position.x-openingPoint.x,homePose.position.y-openingPoint.y);
-  assert(distanceAtHome>board.size*2,
-   "Home return must begin far from the opening tile");
-  homeScene.startHomeReturns([returningPawn]);
-  let arrivalSeen=false;
-  for(let i=0;i<1200;i++){
-   const arrived=homeScene.stepHome(1/60);
-   if(arrived.includes(arrivingOdd.seal)){arrivalSeen=true;break;}
-  }
-  assert(arrivalSeen,"The unscaled Rapier body must reach its original tile");
-  const capturedOnReturn=model.returnRCPawnHome(
-   occupiedByEven.game,arrivingOdd.seal,board);
-  assert(capturedOnReturn?.captured?.seal===occupyingEven.seal);
-  assert.equal(capturedOnReturn.game.fusions,2);
-  homeScene.setPawns(capturedOnReturn.game.pawns,capturedOnReturn.game.home);
-  assert.equal(homeScene.homeStats().odd,0);
-  assert.equal(homeScene.homeStats().even,1);
-  homeScene.setPawns(sceneGame.pawns,[]);
-  assert.equal(homeScene.homeStats().count,0);
-  console.log("RC01 RAP-RETURN",JSON.stringify({
-   distanceAtHome:+distanceAtHome.toFixed(2),
-   reachedOpening:arrivalSeen,returnedAsCapture:true,
-   remainingHome:capturedOnReturn.game.home.length
-  }));
-  // A real Rapier Home spring reaches a player-chosen third-ring tile.
-  homeScene.setPawns(stepTwo.game.pawns,stepTwo.game.home);
-  const cooledPawn=stepTwo.game.home.find(p=>p.seal===source.seal);
-  const chosenThird=board.cells.find(c=>c.ring===3);
-  assert(cooledPawn&&chosenThird);
-  homeScene.startHomeReturns([cooledPawn],{[cooledPawn.seal]:chosenThird.key});
-  let voluntaryArrived=false;
-  for(let i=0;i<1500;i++){
-   if(homeScene.stepHome(1/60).includes(cooledPawn.seal)){
-    voluntaryArrived=true;break;
+  // Automatic Home return uses a reserved free destination and the
+  // existing Rapier spring; no opening-cell capture or manual selection.
+  const sent=model.moveRCPawn(sceneGame,ring1[1].cellKey,ring1[0].cellKey,board);
+  assert(sent);
+  const ready1=mutatron.evolveRCMutatron(sent.game,board);
+  const ready2=mutatron.evolveRCMutatron(ready1,board);
+  const plan=model.rcAutomaticHomeDestinations(ready2,board);
+  assert.equal(plan.length,1);
+  assert.equal(board.cells.find(c=>c.key===plan[0].target)?.ring,3,
+   "After opening capture, the first free tile lies in ring 3");
+  homeScene.setPawns(ready2.pawns,ready2.home);
+  const incoming=ready2.home[0];
+  homeScene.startHomeReturns([incoming],{[incoming.seal]:plan[0].target});
+  let physicallyArrived=false;
+  for(let i=0;i<1800;i++){
+   if(homeScene.stepHome(1/60).includes(incoming.seal)){
+    physicallyArrived=true;break;
    }
   }
-  assert(voluntaryArrived,
-   "Unscaled Home Polytron must fly to the selected free ring-3 tile");
-  const voluntary=model.returnRCPawnToCell(
-   stepTwo.game,cooledPawn.seal,chosenThird.key,board);
-  assert(voluntary);
-  homeScene.setPawns(voluntary.game.pawns,voluntary.game.home);
+  assert(physicallyArrived,"Rapier Home body must reach its automatic target");
+  const returned=model.returnRCPawnToCell(
+   ready2,incoming.seal,plan[0].target,board);
+  assert(returned&&returned.captured===null);
+  homeScene.setPawns(returned.game.pawns,returned.game.home);
   assert.equal(homeScene.homeStats().count,0);
-  assert.equal(model.pawnAt(voluntary.game,chosenThird.key)?.seal,cooledPawn.seal);
-  console.log("RC01 NUCLEAR REENTRY",JSON.stringify({
-   cooled:2,physical:voluntaryArrived,ring:3,
-   field:voluntary.game.mutatron.energyReserve
+  assert.equal(returned.game.fusions,1);
+  assert.equal(model.pawnAt(returned.game,plan[0].target)?.seal,incoming.seal);
+  console.log("RC01 PHYSICAL AUTO RETURN",JSON.stringify({
+   arrived:physicallyArrived,ring:3,target:plan[0].target
   }));
   console.log("RC01 PARITY HOME",JSON.stringify({
    odd:odd.length,even:even.length,
@@ -1215,14 +1155,11 @@ try{
   "Pointer down needs correct 3D-mesh picking in tilted perspective");
  assert(boardCode.includes("world.transferToHome(dissociating,physical.attacker)"),
   "Nucleus dissociation transfers the actual 3D actor to its Home");
- assert(boardCode.includes("worldRef.current?.setReentryTargets(targets)")&&
-  boardCode.includes("wasDragging?target:world.raycastCell(point.x,point.y)")&&
-  dragHandler.includes("HOME RETURN · release on highlighted tile"),
-  "Home return should preview eligible cells and support offset drag release");
- assert(boardCode.includes("world.startHomeReturns([homePawn],{[returning]:chosen.key})"),
-  "Home return uses spring motion toward a chosen free cell");
- assert(boardCode.includes("canRCReenter(gameRef.current,returning,chosen.key,board)"),
-  "Cooling, empty-tile restriction and nuclear exclusion are enforced");
+ assert(boardCode.includes("rcAutomaticHomeDestinations")&&
+  boardCode.includes("worldRef.current.startHomeReturns(pawns,")&&
+  !boardCode.includes("setReentryTargets")&&
+  !boardCode.includes("returningSeal"),
+  "Ready Home Polytrons automatically target reserved free tiles");
  assert(!dragHandler.includes("world.moveActor("),
   "Polytron cannot follow the finger: physical movement begins ONLY on drop");
  assert(boardCode.includes("world.dragPreview(null)"),
@@ -1270,7 +1207,7 @@ try{
    "transferToHome","transferParityToHome","startHomeReturns",
    "cancelHomeReturns","stepHome(dt:number",
    "pulseMutations","stepMutationHalos(dt:number",
-   "setEvolutionPreview","previewRingGeometry","setReentryTargets"]){
+   "setEvolutionPreview","previewRingGeometry"]){
   assert(modelCode.includes(phrase),"Missing 3D architecture: "+phrase);
  }
  // RC01 inspector must use the very same canonical energy rule as the
@@ -1287,6 +1224,9 @@ try{
   'Reset fixed Metatron opening'
  ])assert(tsx.includes(phrase),
   "Inspector name heading and canonical data rows required: "+phrase);
+ assert(tsx.includes("rc01-palette-continuous")&&
+  tsx.includes("gradientCss(")&&!tsx.includes("setReturningSeal"),
+  "Inspector shows continuous palette and manual Home return is absent");
  assert(!tsx.includes("POLYTRONE ·")&&!tsx.includes("<h2>#{selectedPawn.number}</h2>")&&
   !tsx.includes("<h2>Polytronic Number:"),
   "The inspector should never emphasize the number in the heading");
@@ -1299,6 +1239,8 @@ try{
  assert(css.includes(".rc01-three-board")&&!css.includes(".rc01-status{"));
  assert(css.includes(".rc01-evolve-panel")&&css.includes(".rc01-evolve-button"));
  assert(css.includes(".rc01-preview-legend")&&css.includes(".rc01-legend-gold"));
+ assert(css.includes(".rc01-palette-continuous")&&
+  !css.includes(".rc01-reentry-instruction"));
  assert(css.includes(".rc01-touch-selection")&&
   css.includes(".rc01-touch-drag-hint")&&
   css.includes(".rc01-selection-info"),
