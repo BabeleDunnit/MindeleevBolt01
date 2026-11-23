@@ -481,3 +481,20 @@
  position:absolute;inset:0;width:100%;height:100%;
  pointer-events:none;z-index:2
 }
+
+/* The periodic-table shortcut must fit beside the logo, score and reset
+ * even on narrow phone screens without shrinking the 3D board.
+ */
+@media(max-width:500px){
+ .rc01-header{padding:8px 9px;gap:7px}
+ .rc01-brand{gap:6px}
+ .rc01-brand-mark{font-size:23px}
+ .rc01-brand strong{font-size:12px;letter-spacing:.09em}
+ .rc01-brand small{font-size:7px;letter-spacing:.10em}
+ .rc01-header-actions{gap:5px}
+ .rc01-score{min-width:87px;padding:7px 7px;gap:5px}
+ .rc01-score span{font-size:8px}
+ .rc01-score strong{font-size:22px}
+ .rc01-reset{width:33px;height:33px}
+ .rc01-periodic-shortcut{font-size:9px;min-height:33px;padding:6px 6px}
+}
