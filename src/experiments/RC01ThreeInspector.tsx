@@ -3,9 +3,14 @@ import * as THREE from "three";
 import type {RCPawn} from "@/polytron/rc01Game";
 import {makeRC3DPolytron} from "@/experiments/rc01ThreeScene";
 
-/** Inspector: real Three.js scene, not SVG and not a screenshot of the pawn. */
+/** One persistent WebGL context per open inspector. Historical selection
+ * replaces ONLY the 3D mesh, never the renderer or its canvas.
+ */
 export default function RC01ThreeInspector({pawn}:{pawn:RCPawn}){
  const canvasRef=useRef<HTMLCanvasElement>(null);
+ const latestPawn=useRef(pawn);
+ latestPawn.current=pawn;
+ const updateActorRef=useRef<((pawn:RCPawn)=>void)|null>(null);
  useEffect(()=>{
   const canvas=canvasRef.current;if(!canvas)return;
   let renderer:THREE.WebGLRenderer;
@@ -21,12 +26,18 @@ export default function RC01ThreeInspector({pawn}:{pawn:RCPawn}){
   const camera=new THREE.PerspectiveCamera(35,1,.05,100);
   camera.position.set(3,2.4,7.6);camera.lookAt(0,0,0);
   let actor:ReturnType<typeof makeRC3DPolytron>|null=null;
-  try{
-   actor=makeRC3DPolytron(pawn,1.6);
-   scene.add(actor.root);
-  }catch{
-   renderer.dispose();return;
-  }
+  let actorKey="";
+  const updateActor=(current:RCPawn)=>{
+   const key=[current.seal,current.number,current.row,current.col].join(":");
+   if(key===actorKey)return;
+   let replacement:ReturnType<typeof makeRC3DPolytron>;
+   try{replacement=makeRC3DPolytron(current,1.6);}
+   catch{return;}
+   if(actor){scene.remove(actor.root);actor.dispose();}
+   actor=replacement;actorKey=key;scene.add(actor.root);
+  };
+  updateActorRef.current=updateActor;
+  updateActor(latestPawn.current);
   let raf=0,alive=true,w=0,h=0,last=0;
   const frame=(now:number)=>{
    if(!alive)return;
@@ -50,8 +61,15 @@ export default function RC01ThreeInspector({pawn}:{pawn:RCPawn}){
   raf=requestAnimationFrame(frame);
   return ()=>{
    alive=false;cancelAnimationFrame(raf);
-   actor?.dispose();renderer.dispose();
+   updateActorRef.current=null;
+   if(actor){scene.remove(actor.root);actor.dispose();}
+   renderer.dispose();
+   // dispose() frees GPU resources but does NOT release the browser context.
+   renderer.forceContextLoss();
   };
+ },[]);
+ useEffect(()=>{
+  updateActorRef.current?.(pawn);
  },[pawn.seal,pawn.number,pawn.row,pawn.col]);
  return <canvas className="rc01-three-inspector" ref={canvasRef}
   role="img" aria-label={"Rotating 3D model of Polytron number "+pawn.number}/>;

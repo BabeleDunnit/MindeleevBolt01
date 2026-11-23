@@ -1253,11 +1253,24 @@ try{
   [{number:1,row:2,col:4},{number:2,row:2,col:4},{number:1,row:2,col:4}],
   "Revisiting an older form is still a new event");
  const historyUi=await readFile("src/experiments/RC01ManifestationHistory.tsx","utf8");
- assert(historyUi.includes("IntersectionObserver")&&
-  historyUi.includes("RC01ThreeInspector")&&
+ assert(historyUi.includes("THREE.WebGLRenderer")&&
+  historyUi.includes("renderer.setScissor(")&&
+  historyUi.includes("renderer.setViewport(")&&
+  historyUi.includes("makeRC3DPolytron")&&
   historyUi.includes("manifestations.length")&&
-  historyUi.includes("slice().reverse()"),
-  "Mneme list must be newest-first with lazy genuine Three.js previews");
+  historyUi.includes("slice().reverse()")&&
+  historyUi.includes("data-mneme-index")&&
+  historyUi.includes("renderer.forceContextLoss()")&&
+  !historyUi.includes("RC01ThreeInspector")&&
+  !historyUi.includes("IntersectionObserver"),
+  "Mneme history must share one scissored renderer, not spawn a context per row");
+ assert.equal(historyUi.split("new THREE.WebGLRenderer").length-1,1,
+  "Every Mneme history owns exactly one renderer, regardless of length");
+ assert(historyUi.includes("actors.delete(index)")&&
+  historyUi.includes("actor.dispose()")&&
+  historyUi.includes("if(!manifestation)continue"),
+  "Offscreen manifestation geometries must be released");
+
  assert(tsx.includes("rc01-palette-continuous")&&
   tsx.includes("gradientCss(")&&!tsx.includes("setReturningSeal"),
   "Inspector shows continuous palette and manual Home return is absent");
@@ -1266,8 +1279,15 @@ try{
   "The inspector should never emphasize the number in the heading");
  const inspector=await readFile("src/experiments/RC01ThreeInspector.tsx","utf8");
  assert(inspector.includes("THREE.PerspectiveCamera")&&
-  inspector.includes("makeRC3DPolytron")&&!inspector.includes("<svg"),
-  "Inspector must use real rotating 3D geometry");
+  inspector.includes("makeRC3DPolytron")&&!inspector.includes("<svg")&&
+  inspector.includes("const updateActor=")&&
+  inspector.includes("updateActorRef.current?.(pawn)")&&
+  inspector.includes("renderer.forceContextLoss()"),
+  "Historical inspection must update only meshes and release renderer on close");
+ assert.equal(inspector.split("new THREE.WebGLRenderer").length-1,1,
+  "Inspector changes must not spawn more WebGL contexts");
+ assert(boardCode.includes("renderer.forceContextLoss()"),
+  "Resizing or remounting the board must release its WebGL context");
  const css=await readFile("src/experiments/MindeleevRC01.css","utf8");
  assert(css.includes("height:100dvh")&&css.includes("touch-action:none"));
  assert(css.includes(".rc01-three-board")&&!css.includes(".rc01-status{"));
@@ -1275,7 +1295,9 @@ try{
  assert(css.includes(".rc01-preview-legend")&&css.includes(".rc01-legend-gold"));
  assert(css.includes(".rc01-manifestations-list")&&
   css.includes("max-height:228px")&&
-  css.includes(".rc01-manifestation-thumbnail"));
+  css.includes(".rc01-manifestation-thumbnail")&&
+  css.includes(".rc01-manifestations-canvas")&&
+  css.includes("pointer-events:none"));
  assert(css.includes(".rc01-palette-continuous")&&
   !css.includes(".rc01-reentry-instruction"));
  assert(css.includes(".rc01-touch-selection")&&

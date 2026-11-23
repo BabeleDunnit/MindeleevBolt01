@@ -473,7 +473,10 @@ export default function RC01ThreeBoard({
    pendingVictimRef.current=null;doubleTapRef.current=null;
    flightRef.current?.dispose();flightRef.current=null;
    worldRef.current=null;
-   world.dispose();renderer.dispose();
+   world.dispose();
+   renderer.dispose();
+   // Closing a WebGLRenderer must release its browser context too.
+   renderer.forceContextLoss();
   };
  },[board]);
  useEffect(()=>{
