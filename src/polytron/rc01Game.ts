@@ -1,6 +1,7 @@
 import {dnaFromPolitronNumber} from "@/polytron/politronicNumber";
 import {gradientPair,mixColors,perceptualDistance} from "@/polytron/gradientPalettes";
 import {rcAwardMnemes} from "@/polytron/rc01Mneme";
+import {rcPrimeCellResonance,rcAdvanceCellResonance} from "@/polytron/rc01Resonance";
 import {sealName} from "@/polytron/spectralFutures";
 import {rcKey,rcRing,rcRingCells,rcCellCoordinatesForKey,type RCBoard} from "@/polytron/rc01Board";
 import {intrinsicEnergy} from "@/polytron/mindeleevLife";
@@ -71,7 +72,7 @@ export type RCMutatronState={
  dissipatedEnergy:number; // cumulative invocation heat, never recycled
  /** Total FIELD energy minted by unique completed Mnemes. */
  mnemeGeneratedEnergy:number;
- /** Pair-coherence is stored on the GRID, never on a permanent identity. */
+ /** Cell status: absent=dormant, 1=charged, -3..-1=cooldown. */
  resonance:Record<string,number>;
  symmetry:number;
  changes:RCMutatronChange[];
@@ -167,19 +168,19 @@ export function initialRCGame(board:RCBoard,_rng:()=>number=Math.random):RCGame{
    manifestations:[{number,row,col}]
   };
  });
- return {pawns,home:[],score:RC01_START_SCORE,moves:0,homeCycles:0,fusions:0,
+ return rcPrimeCellResonance({pawns,home:[],score:RC01_START_SCORE,moves:0,homeCycles:0,fusions:0,
   homeTestPhase:{odd:"board",even:"board"},homeCooling:{},
   mutatron:{generation:0,energyReserve:48,dissipatedEnergy:0,mnemeGeneratedEnergy:0,resonance:{},
    symmetry:rcBoardSymmetry(pawns,board),changes:[],
    lastNote:"The symmetry field is at rest; evolve to test geometrical resonance."},
-  lastAction:"Metatron opening: Ring 1 C/O alternating, Ring 2 C-T-O-T repeating; all outer Polytrons in form 1."};
+  lastAction:"Metatron opening: Ring 1 C/O alternating, Ring 2 C-T-O-T repeating; all outer Polytrons in form 1."},board);
 }
 
 /** Diagnostic fixture, never used for the production opening. */
 export function rc01CenterDiagnostic(board:RCBoard):RCGame{
  if(!board.cells.some(c=>c.key==="0,0"&&c.nucleus))
   throw Error("Nucleus (0,0) is not visible");
- return {
+ return rcPrimeCellResonance({
   pawns:[{seal:1,number:1,row:2,col:4,cellKey:"0,0",
    manifestations:[{number:1,row:2,col:4}]}],
   home:[],score:RC01_START_SCORE,moves:0,homeCycles:0,fusions:0,
@@ -187,7 +188,7 @@ export function rc01CenterDiagnostic(board:RCBoard):RCGame{
   mutatron:{generation:0,energyReserve:48,dissipatedEnergy:0,mnemeGeneratedEnergy:0,resonance:{},symmetry:100,changes:[],
    lastNote:"Single-body centering diagnostic."},
   lastAction:"Centering diagnostic: a single Polytron of form 1 at the nucleus (0,0)."
- };
+ },board);
 }
 
 /**
@@ -215,7 +216,7 @@ export const RC_NUCLEUS_COOLING_MOVES=2;
 export function rcNucleusRegression(n:number):number|null{
  if(!Number.isSafeInteger(n)||n<1)throw Error("Invalid number");
  if(n===1)return null;
- return (n-1)%5===0?n-5:n-1;
+ return n-1;
 }
 export function rcNucleusRecovery(n:number):number{
  const lower=rcNucleusRegression(n);
@@ -238,10 +239,15 @@ export function assessRCMove(
  const defender=pawnAt(game,target);
  if(target==="0,0"){
   if(defender)return invalid("The Nucleus must be empty.");
-  const gain=rcNucleusRecovery(attacker.number);
-  return gain?{allowed:true,kind:"nucleus",fieldDelta:gain,
-   reason:"Nucleus: +"+gain+" E; two moves cooling."}:
-   invalid("A Polytron in form 1 cannot enter the Nucleus.");
+  const lower=rcNucleusRegression(attacker.number);
+  if(lower===null)return invalid("A Polytron in form 1 cannot enter the Nucleus.");
+  const delta=rcNucleusRecovery(attacker.number);
+  if(game.mutatron.energyReserve+delta<0)
+   return invalid("Fission needs "+(-delta)+" Field E; available "+
+    game.mutatron.energyReserve+" E.");
+  return {allowed:true,kind:"nucleus",fieldDelta:delta,
+   reason:"Nucleus: "+attacker.number+" → "+lower+"; Field "+
+    (delta>=0?"+":"")+delta+" E; two moves cooling."};
  }
  if(!defender)return {allowed:true,kind:"move",fieldDelta:0,
   reason:"Empty tile."};
@@ -300,12 +306,12 @@ export function returnRCPawnToCell(
   lastAction:"HOME REENTRY · "+pawnIdentity(incoming)+" returns to "+
    rcCellCoordinatesForKey(board,target)+" without capture or energy cost."
  };
- updated.mutatron={...updated.mutatron,
-  symmetry:rcBoardSymmetry(updated.pawns,board)};
- if(!validateRCGame(updated,board)||
-    rcTotalEnergy(updated)!==rcTotalEnergy(game))
+ const resonated=rcAdvanceCellResonance(game,updated,board);
+ resonated.mutatron.symmetry=rcBoardSymmetry(resonated.pawns,board);
+ if(!validateRCGame(resonated,board)||
+    rcTotalEnergy(resonated)!==rcTotalEnergy(game))
   throw Error("Invalid voluntary Home return");
- return {game:updated,attacker:{...incoming,cellKey:target},
+ return {game:resonated,attacker:{...incoming,cellKey:target},
   captured:null,target};
 }
 /**
@@ -388,9 +394,11 @@ export function moveRCPawn(
     energyReserve:game.mutatron.energyReserve+check.fieldDelta,
     symmetry:0},
    lastAction:"NUCLEUS · "+pawnIdentity(attacker)+" form "+attacker.number+
-    " → "+lower+"; +"+check.fieldDelta+" field E; cool for two moves."
+    " → "+lower+"; Field "+(check.fieldDelta>=0?"+":"")+
+    check.fieldDelta+" E; cool for two moves."
   };
-  const rewarded=rcAwardMnemes(game,updated);
+  const rewarded=rcAwardMnemes(game,
+   rcAdvanceCellResonance(game,updated,board,{action:true}));
   rewarded.mutatron.symmetry=rcBoardSymmetry(rewarded.pawns,board);
   if(!validateRCGame(rewarded,board)||
      rcTotalEnergy(rewarded)!==rcTotalEnergy(game))
@@ -417,7 +425,8 @@ export function moveRCPawn(
    ". "+pawnIdentity(captured)+" returns Home as form "+fused?.defender.number+
    ". Field "+(check.fieldDelta>=0?"+":"")+check.fieldDelta+" E.":
    pawnIdentity(attacker)+" moves to cell "+rcCellCoordinatesForKey(board,target)+"."};
- const rewarded=rcAwardMnemes(game,updated);
+ const rewarded=rcAwardMnemes(game,
+  rcAdvanceCellResonance(game,updated,board,{action:true}));
  rewarded.mutatron.symmetry=rcBoardSymmetry(rewarded.pawns,board);
  if(!validateRCGame(rewarded,board)||
     rcTotalEnergy(rewarded)!==rcTotalEnergy(game))
@@ -446,10 +455,11 @@ export function recallRCParity(game:RCGame,parity:RCHomeParity,board:RCBoard):RC
   lastAction:"HOME TEST · "+recalled.length+" "+parity+
    " Polytrons recalled into their Home."
  };
- updated.mutatron={...updated.mutatron,
-  symmetry:rcBoardSymmetry(updated.pawns,board)};
- if(!validateRCGame(updated,board))throw Error("Home recall changed permanent identities");
- return updated;
+ const resonated=rcAdvanceCellResonance(game,updated,board);
+ resonated.mutatron.symmetry=rcBoardSymmetry(resonated.pawns,board);
+ if(!validateRCGame(resonated,board))
+  throw Error("Home recall changed permanent identities");
+ return resonated;
 }
 
 export type RCHomeToggleResult={
@@ -511,7 +521,8 @@ export function returnRCPawnHome(
    "HOME RETURN · "+pawnIdentity(incoming)+" returns to "+
     rcCellCoordinatesForKey(board,target)+"."
  };
- const rewarded=rcAwardMnemes(game,updated);
+ const rewarded=rcAwardMnemes(game,
+  rcAdvanceCellResonance(game,updated,board,{action:true}));
  rewarded.mutatron.symmetry=rcBoardSymmetry(rewarded.pawns,board);
  if(!validateRCGame(rewarded,board)||
     rcTotalEnergy(rewarded)!==rcTotalEnergy(game))
@@ -541,7 +552,11 @@ export function validateRCGame(game:RCGame,board:RCBoard):boolean{
     game.mutatron.generation<0||
     !Number.isFinite(game.mutatron.symmetry)||
     game.mutatron.symmetry<0||game.mutatron.symmetry>100||
-    !game.mutatron.resonance||!Array.isArray(game.mutatron.changes)||
+    !game.mutatron.resonance||!Object.entries(game.mutatron.resonance).every(
+     ([key,status])=>cells.has(key)&&key!=="0,0"&&
+      Number.isInteger(status)&&(status===1||
+      (status<=-1&&status>=-3)))||
+    !Array.isArray(game.mutatron.changes)||
     !game.homeTestPhase||
     !["board","home"].includes(game.homeTestPhase.odd)||
     !["board","home"].includes(game.homeTestPhase.even))return false;

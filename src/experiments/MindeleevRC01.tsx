@@ -80,10 +80,14 @@ export default function MindeleevRC01(){
  useEffect(()=>{
   if(selectedSeal!==null&&game&&!touchSelectedPawn)setSelectedSeal(null);
  },[game,selectedSeal,touchSelectedPawn]);
- const forecast=useMemo(()=>game?forecastRCMutatron(game,board):null,[game,board]);
+ const focusSeal=sheet?.kind==="polytron"&&selectedPawn?.cellKey?
+  selectedPawn.seal:selectedSeal;
+ const forecast=useMemo(()=>game?forecastRCMutatron(game,board,focusSeal):null,
+  [game,board,focusSeal]);
  const selectedForecast=forecast?.cells.find(p=>p.key===
   (selectedPawn?.cellKey||selectedCell?.key));
  const select=(cell:RCCell,pawn:RCPawn|null)=>{
+  if(pawn)setSelectedSeal(pawn.seal);
   setSheet(pawn?{kind:"polytron",seal:pawn.seal}:{kind:"cell",key:cell.key});
  };
  const commitMove=(from:string,to:string)=>{
@@ -102,9 +106,10 @@ export default function MindeleevRC01(){
   setGame(previous=>previous?
    returnRCPawnToCell(previous,seal,target,board)?.game??previous:previous);
  };
- const evolve=()=>{
-  if(physicsBusyRef.current||!game?.mutatron.energyReserve)return;
-  setGame(previous=>previous?forecastRCMutatron(previous,board).next:previous);
+ const evolve=(seal:number|null=focusSeal)=>{
+  if(physicsBusyRef.current||seal===null)return;
+  setGame(previous=>previous?
+   forecastRCMutatron(previous,board,seal).next:previous);
  };
  const groups=game?mutatronCounts(game):[0,0,0,0,0];
  const setView=(mode:RCViewMode,cellKey?:string)=>{
@@ -185,9 +190,11 @@ export default function MindeleevRC01(){
    </div>}
    <div className="rc01-evolve-panel">
     <button type="button" className="rc01-evolve-button"
-     disabled={!game||physicsBusy||game.mutatron.energyReserve<1}
-     onClick={evolve} aria-label="Evolve Mutatron one generation">
-     <span aria-hidden="true">✳</span> Evolve Mutatron
+     disabled={!game||physicsBusy||!forecast?.canInvoke}
+     onClick={()=>evolve()} aria-label="Evolve selected Polytron">
+     <span aria-hidden="true">✳</span> {forecast?.canInvoke&&focusSeal!==null?
+      "Evolve #"+focusSeal+" · "+forecast.transforms[0].from+" → "+
+      forecast.transforms[0].to:"Evolve selected Polytron"}
     </button>
     <span className="rc01-evolve-meta" aria-live="polite">
      GEN {game?.mutatron.generation??0} · SYM {game?game.mutatron.symmetry+"%":"—"}
@@ -196,13 +203,14 @@ export default function MindeleevRC01(){
      {' · '} MNEME +{game?.mutatron.mnemeGeneratedEnergy??0} E
      {' · '} HEAT {game?.mutatron.dissipatedEnergy??0} E
     </span>
-    <div className="rc01-preview-legend" aria-label="Next-evolution forecast">
-     <span><i className="rc01-legend-gold"/> Next mutation</span>
-     <span><i className="rc01-legend-teal"/> Resonating</span>
+    <div className="rc01-preview-legend" aria-label="Activated cell states">
+     <span><i className="rc01-legend-gold"/> Selected +1 / +5</span>
+     <span><i className="rc01-legend-teal"/> Charged</span>
+     <span><i className="rc01-legend-cooldown"/> Cooldown</span>
      <span><i className="rc01-legend-orange"/> Energy blocked</span>
     </div>
     <span className="rc01-forecast-outcome" aria-live="polite">
-     {forecast?.summary??"Reading the Mutatron…"} · Invocation: 1 E
+     {forecast?.summary??"Select a Polytron to inspect its next evolution."}
     </span>
    </div>
    <div className="rc01-board-footer">
@@ -266,22 +274,26 @@ export default function MindeleevRC01(){
       </div>
       <div><dt>Current cell (ring, idxInRing)</dt>
        <dd>{occupiedCell?rcCellCoordinates(occupiedCell):"Home"}</dd></div>
-      {!inspectingHistory&&selectedForecast&&<div><dt>Mutatron Forecast</dt>
-       <dd>{selectedForecast.status.toUpperCase()} · form {
-        selectedForecast.number} → {selectedForecast.target}
+      {!inspectingHistory&&selectedForecast&&<div><dt>Cell Resonance</dt>
+       <dd>{selectedForecast.cooldown>0?
+         "Cooldown · "+selectedForecast.cooldown+" actions":
+         selectedForecast.status==="evolve"?"Charged · ready":
+         selectedForecast.status==="energy"?"Charged · insufficient E":
+         selectedForecast.status==="blocked"?"Dormant / too few neighbours":
+         "Charged"}
         {' · '}{selectedForecast.neighbours}/6 neighbours
-        {' · '}{selectedForecast.axes}/3 balanced axes
-        {' · '}{selectedForecast.groups} groups
-        {' · '}next charge {selectedForecast.charge} / 6
-        {' · '}threshold {selectedForecast.needed}
-        {' · '}{selectedForecast.status==="energy"?
-         "insufficient Field E":
-         selectedForecast.status==="blocked"?"requirements not met":
-         selectedForecast.status==="evolve"?"selected for next mutation":
-         selectedForecast.charge>=selectedForecast.needed?
-          "ready · awaiting priority":"charging"}
-        {' · '}cost {selectedForecast.energyCost} E</dd>
+        {selectedForecast.target>0&&selectedForecast.target!==selectedForecast.number?
+         " · "+selectedForecast.number+" → "+selectedForecast.target:""}
+       </dd>
       </div>}
+      {!inspectingHistory&&selectedPawn.cellKey&&<button type="button"
+       className="rc01-inspect-3d rc01-inspect-evolve"
+       disabled={physicsBusy||!forecast?.canInvoke}
+       onClick={()=>evolve(selectedPawn.seal)}>
+       {forecast?.canInvoke?
+        "Evolve "+pawnIdentity(selectedPawn)+" → "+forecast.transforms[0].to:
+        "Evolution unavailable"}
+      </button>
      </dl>
      <RC01ManifestationHistory pawn={selectedPawn}
       selectedIndex={manifestationIndex} onSelect={setManifestationIndex}/>
@@ -309,12 +321,16 @@ export default function MindeleevRC01(){
      <div className="rc01-sheet-kicker">MUTATRON GEOMETRY</div>
      <h2>{selectedCell.nucleus?"Nucleus":"Empty cell"}</h2>
      {selectedCell.nucleus&&<p>
-      Dissociate a Polytron with polytronic number above 1 to recover 1 Field E.
-      It returns Home for two valid moves. A Polytron currently in form 1 cannot enter.
+      Fission takes a Polytron back exactly one polytronic number.
+       Across a period boundary it may require Field E instead of recovering it.
+       The Polytron returns Home for two valid moves. Form 1 cannot enter.
      </p>}
      <dl className="rc01-details">
       <div><dt>Cell (ring, idxInRing)</dt>
        <dd>{rcCellCoordinates(selectedCell)}</dd></div>
+       <div><dt>Cell charge</dt><dd>{selectedForecast?
+        selectedForecast.reason:"Dormant: activate an antipodal pair with 5 neighbours each."}
+       </dd></div>
      </dl>
     </div>}
    </section>

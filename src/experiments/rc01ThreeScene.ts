@@ -243,11 +243,11 @@ export function createRC3DWorld(board:RCBoard,priorView?:RCViewSnapshot){
   ...Array.from({length:6},(_,i)=>new THREE.RingGeometry(
    board.size*(.90-rcResonanceHighlightWidth(i+1)),board.size*.90,6))];
  const forecastColors:Record<RCPreviewStatus,number>={
-  evolve:0xe5ae29,charge:0x31aaa2,energy:0xd7773d,blocked:0x8e97a0
+  evolve:0xe5ae29,charge:0x31aaa2,energy:0xd7773d,blocked:0x8e97a0,\n   cooldown:0xb89158
  };
  const previewMaterials={} as Record<RCPreviewStatus,THREE.MeshBasicMaterial>;
  const previewRingMaterials={} as Record<RCPreviewStatus,THREE.MeshBasicMaterial>;
- for(const kind of ["evolve","charge","energy","blocked"] as const){
+ for(const kind of ["evolve","charge","energy","blocked","cooldown"] as const){
   previewMaterials[kind]=new THREE.MeshBasicMaterial({
    color:forecastColors[kind],transparent:true,opacity:.15,
    depthTest:true,depthWrite:false,side:THREE.DoubleSide

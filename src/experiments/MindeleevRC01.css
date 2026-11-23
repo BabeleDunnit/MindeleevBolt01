@@ -198,6 +198,14 @@
 .rc01-legend-gold{background:#e5ae29}
 .rc01-legend-teal{background:#31aaa2}
 .rc01-legend-orange{background:#d7773d}
+.rc01-legend-cooldown{background:#b89158}
+.rc01-inspect-evolve{
+ background:#2b8063;color:#fff;border-color:#27694d;
+ width:100%;margin:0 0 15px
+}
+.rc01-inspect-evolve:disabled{
+ background:#e2eae3;color:#87988a;border-color:#d3ded5;
+}
 .rc01-forecast-outcome{
  max-width:min(280px,76vw);
  white-space:normal;text-align:center;

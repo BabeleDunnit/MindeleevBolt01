@@ -16,7 +16,7 @@ async function load(entry,name,ui=false){
  return import(pathToFileURL(out).href);
 }
 try{
- const [grid,model,physics,ui,worldModule,life,mutatron,cameraRig,touchInput,webglCleanup,mneme]=await Promise.all([
+ const [grid,model,physics,ui,worldModule,life,mutatron,cameraRig,touchInput,webglCleanup,mneme,resonance]=await Promise.all([
   load("src/polytron/rc01Board.ts","board"),
   load("src/polytron/rc01Game.ts","game"),
   load("src/experiments/rc01RapierFlight.ts","rapier-motion"),
@@ -27,7 +27,8 @@ try{
   load("src/experiments/rc01Camera.ts","camera"),
   load("src/experiments/rc01TouchInput.ts","touch"),
   load("src/experiments/rc01WebGLContext.ts","webgl-cleanup"),
-  load("src/polytron/rc01Mneme.ts","mneme")
+  load("src/polytron/rc01Mneme.ts","mneme"),
+  load("src/polytron/rc01Resonance.ts","resonance")
  ]);
  // Verify the real WebGL resource-lifetime policy, not merely code strings:
  // effect cleanup while a canvas is still mounted must NOT poison the next
@@ -215,50 +216,56 @@ try{
   x.isMesh&&x.geometry?.type==="RingGeometry").length,ringsBefore,
   "Temporary evolution halos must disappear after fading");
  const previewSource=model.initialRCGame(board);
- const forecast=mutatron.forecastRCMutatron(previewSource,board);
- assert(forecast.cells.some(c=>c.axes===0&&c.status==="charge"),
-  "Basic resonance must allow zero balanced local axes");
+ assert.equal(Object.keys(previewSource.mutatron.resonance).length,12,
+  "Opening must activate exactly six antipodal pairs");
+ const previewPawn=previewSource.pawns.find(p=>
+  previewSource.mutatron.resonance[p.cellKey]===1);
+ assert(previewPawn);
+ const forecast=mutatron.forecastRCMutatron(previewSource,board,previewPawn.seal);
+ assert(forecast.canInvoke);
+ assert.equal(forecast.transforms.length,1);
+ assert(forecast.cells.some(c=>c.status==="evolve"));
  assert(forecast.cells.some(c=>c.status==="charge"));
  world.setEvolutionPreview(forecast.cells);
  assert.equal(world.scene.children.filter(x=>
   x.isMesh&&x.geometry?.type==="RingGeometry").length,
   ringsBefore+forecast.cells.length,
-  "Each forecasting hex must be overlaid IN the 3D board scene");
+  "Each charged cell has a live 3D outline");
  const forecastOverlays=world.scene.children.filter(x=>
   x.isMesh&&x.renderOrder<0);
  assert.equal(forecastOverlays.length,forecast.cells.length*2);
  for(const mesh of forecastOverlays){
-  assert.equal(mesh.material.depthTest,true,
-   "Cell forecast color must be hidden by an intervening 3D Polytron");
+  assert.equal(mesh.material.depthTest,true);
   assert.equal(mesh.material.depthWrite,false);
   assert(mesh.position.z>worldModule.RC_TILE_SURFACE_Z&&
-   mesh.position.z<worldModule.RC_TILE_SURFACE_Z+.4,
-   "Forecast highlights stay immediately above the tile face");
+   mesh.position.z<worldModule.RC_TILE_SURFACE_Z+.4);
  }
- // Resonant outlines retain the original teal but their width represents
- // charge, monotonically from 0 to 6.
  assert(worldModule.rcResonanceHighlightWidth(6)>
   worldModule.rcResonanceHighlightWidth(1));
- world.setEvolutionPreview([{...forecast.cells[0],status:"charge",charge:1}]);
- const previewRingWidth=()=>{
+ const first=forecast.cells[0];
+ world.setEvolutionPreview([{...first,status:"cooldown",charge:6}]);
+ const cooldownWidth=()=>{
   const ring=world.scene.children.find(x=>x.isMesh&&
-   x.geometry?.type==="RingGeometry"&&x.material?.color?.getHex()===0x31aaa2);
-  assert(ring);
-  return ring.geometry.parameters.outerRadius-ring.geometry.parameters.innerRadius;
+   x.geometry?.type==="RingGeometry"&&
+   x.material?.color?.getHex()===0xb89158);
+  assert(ring);return ring.geometry.parameters.outerRadius-
+   ring.geometry.parameters.innerRadius;
  };
- const thinWidth=previewRingWidth();
- world.setEvolutionPreview([{...forecast.cells[0],status:"charge",charge:6}]);
- assert(previewRingWidth()>thinWidth,
-  "A charge-6 resonance highlight must be thicker than charge-1");
+ const thick=cooldownWidth();
+ world.setEvolutionPreview([{...first,status:"cooldown",charge:2}]);
+ assert(cooldownWidth()<thick,
+  "Cooldown outline must shrink as remaining actions decrease");
  const starvedSource={...previewSource,mutatron:{
   ...previewSource.mutatron,energyReserve:0
  }};
- const starvedForecast=mutatron.forecastRCMutatron(starvedSource,board);
+ const starvedForecast=mutatron.forecastRCMutatron(
+  starvedSource,board,previewPawn.seal);
+ assert(!starvedForecast.canInvoke);
  assert(starvedForecast.cells.some(c=>c.status==="energy"));
  world.setEvolutionPreview(starvedForecast.cells);
  assert(world.scene.children.some(x=>x.isMesh&&
   x.geometry?.type==="RingGeometry"&&x.material?.color?.getHex()===0xd7773d),
-  "Energy-insufficient cells must be orange in the actual Three scene");
+  "Energy blocked cells must display orange");
  world.setEvolutionPreview([]);
  assert.equal(world.scene.children.filter(x=>
   x.isMesh&&x.geometry?.type==="RingGeometry").length,ringsBefore,
@@ -528,100 +535,93 @@ try{
  assert.equal(mutatron.mutatronSymmetry(sceneGame,board),73,
   "Unique vertex palettes break six previously matched opposite pairs");
  assert.deepEqual(mutatron.mutatronCounts(sceneGame),[60,6,6,0,0]);
- const startingPositions=new Map(sceneGame.pawns.map(p=>[p.seal,p.cellKey]));
- const startingBudget=mutatron.mutatronEnergyTotal(sceneGame);
- let growing=sceneGame;
- const observed=[];
- for(let generation=1;generation<=45;generation++){
-  const previous=growing;
-  const forecast=mutatron.forecastRCMutatron(previous,board);
-  const next=mutatron.evolveRCMutatron(previous,board);
-  assert.deepEqual(forecast.next,next,"Preview must equal actual evolution");
-  assert.deepEqual(forecast.transforms,next.mutatron.changes);
-  assert(model.validateRCGame(next,board));
-  const invoked=previous.mutatron.energyReserve>=mutatron.MUTATRON_INVOCATION_COST;
-  assert.equal(next.mutatron.generation,
-   previous.mutatron.generation+(invoked?1:0));
-  assert.equal(next.mutatron.dissipatedEnergy,
-   previous.mutatron.dissipatedEnergy+(invoked?1:0),
-   "Each actual invocation dissipates 1 E, even without mutation");
-  const earnedMneme=mneme.rcNewMnemeEnergy(previous,next);
-  assert.equal(next.mutatron.mnemeGeneratedEnergy,
-   previous.mutatron.mnemeGeneratedEnergy+earnedMneme);
-  assert.equal(previous.mutatron.energyReserve-next.mutatron.energyReserve,
-   forecast.cost+forecast.invocationCost-earnedMneme,
-   "Preview accounts for intrinsic, invocation and Mneme-generated energy");
-  assert.equal(next.pawns.length,72);
-  assert.equal(next.home.length,0);
-  assert.equal(next.moves,0);
-  assert.equal(next.homeCycles,next.mutatron.generation);
-  assert.equal(next.fusions,0);
-  assert.equal(next.score,100);
-  assert(next.pawns.every(p=>startingPositions.get(p.seal)===p.cellKey));
-  assert(next.pawns.every(p=>p.manifestations.at(-1)?.number===p.number&&
-   p.manifestations.at(-1)?.row===p.row&&
-   p.manifestations.at(-1)?.col===p.col));
-  assert.deepEqual(next.pawns.map(p=>[p.seal,p.row,p.col]),
-   previous.pawns.map(p=>[p.seal,p.row,p.col]),
-   "Mutatron must never modify a Polytron's Chromatica palette");
-  assert(next.mutatron.changes.every(change=>change.from!==change.to),
-   "Every transformation must change the number, not just the palette");
-  assert.equal(mutatron.mutatronEnergyTotal(next),startingBudget,
-   "Intrinsic + Field + dissipated heat must be conserved at every tick");
-  assert(next.mutatron.changes.length<=2);
-  assert(next.mutatron.symmetry>=previous.mutatron.symmetry);
-  assert.deepEqual(new Set(forecast.cells.filter(p=>p.status==="evolve").map(p=>p.key)),
-   new Set(next.mutatron.changes.map(m=>m.cellKey)));
-  for(const change of next.mutatron.changes){
-   const pawn=next.pawns.find(p=>p.seal===change.seal);
-   const old=previous.pawns.find(p=>p.seal===change.seal);
-   assert.equal(change.from,old.number);
-   assert.equal(change.to,pawn.number);
-   const cell=board.cells.find(c=>c.key===pawn.cellKey);
-   const opposite=model.pawnAt(next,grid.rcKey(-cell.q,-cell.r));
-   assert(opposite&&opposite.number===pawn.number,
-    "Mutatron harmonizes numbers without overwriting opposite palettes");
-   assert.deepEqual([pawn.row,pawn.col],[old.row,old.col]);
-   const groupStep=Math.abs((pawn.number-1)%5-(old.number-1)%5);
-   const periodStep=Math.abs(Math.floor((pawn.number-1)/5)-
-    Math.floor((old.number-1)/5));
-   assert(groupStep+periodStep<=1,
-    "Only one adjacent group OR one adjacent period jump per tick");
-  }
-  const counts=mutatron.mutatronCounts(next);
-  observed.push({gen:generation,groups:counts,
-   max:Math.max(...next.pawns.map(p=>p.number)),
-   E:next.mutatron.energyReserve,sym:next.mutatron.symmetry,
-   changes:next.mutatron.changes.map(m=>m.seal)});
-  growing=next;
- }
- console.log("RC01 MUTATRON ENERGY-GROWTH",JSON.stringify(observed));
- assert(observed[0].changes.length===0,"Resonance must accumulate");
- assert(observed.some(x=>x.groups[3]>=2),"Dodecahedral seeds must emerge");
- assert(observed.some(x=>x.groups[4]>=2),"Icosahedral seeds must emerge");
- assert(observed.some(x=>x.max>5),"Numbers beyond the first period must emerge");
- assert(observed.some(x=>x.sym>sceneGame.mutatron.symmetry));
- let twice=sceneGame;
- for(let i=0;i<45;i++)twice=mutatron.evolveRCMutatron(twice,board);
- assert.deepEqual(growing,twice,"No randomness or mutation order dependency");
- const uniform={...sceneGame,pawns:sceneGame.pawns.map(p=>({
-  ...p,number:1,manifestations:[{number:1,row:p.row,col:p.col}]}))};
- let quiet=uniform;
- for(let i=0;i<12;i++)quiet=mutatron.evolveRCMutatron(quiet,board);
- assert.deepEqual(mutatron.mutatronCounts(quiet),[72,0,0,0,0]);
- assert.deepEqual(quiet.mutatron.changes,[],
-  "Without diverse neighbours, no spontaneous mutations");
+ // The periodic-table grammar is controlled by the player's selection.
+ const initialEnergy=mutatron.mutatronEnergyTotal(sceneGame);
+ const charged=sceneGame.pawns.find(p=>board.cells.some(c=>
+  c.key===p.cellKey&&c.ring===1)&&
+  resonance.rcCellCharged(sceneGame,p.cellKey));
+ assert(charged,"Ring 1 has an initially charged 5-neighbour cell");
+ assert.equal(resonance.rcMutationStep(2),0);
+ assert.equal(resonance.rcMutationStep(3),1);
+ assert.equal(resonance.rcMutationStep(4),1);
+ assert.equal(resonance.rcMutationStep(5),5);
+ assert.equal(resonance.rcMutationStep(6),5);
+ assert.equal(mutatron.forecastRCMutatron(sceneGame,board).next,sceneGame,
+  "No selected Seal must cause no mutation, fee or time advance");
+ const firstForecast=mutatron.forecastRCMutatron(sceneGame,board,charged.seal);
+ assert(firstForecast.canInvoke);
+ assert.equal(firstForecast.transforms.length,1);
+ assert.deepEqual(firstForecast.transforms[0],{
+  seal:charged.seal,cellKey:charged.cellKey,
+  from:charged.number,to:charged.number+5,kind:"emergence"
+ });
+ const afterJump=mutatron.evolveRCMutatron(sceneGame,board,charged.seal);
+ assert.deepEqual(afterJump,firstForecast.next,"Preview equals committed mutation");
+ assert.equal(afterJump.mutatron.resonance[charged.cellKey],-3);
+ const origin=board.cells.find(c=>c.key===charged.cellKey);
+ const oppositeKey=grid.rcKey(-origin.q,-origin.r);
+ assert.equal(afterJump.mutatron.resonance[oppositeKey],1,
+  "Only the utilized cell is consumed, its antipode remains charged");
+ assert.equal(afterJump.mutatron.generation,1);
+ assert.equal(afterJump.homeCycles,1);
+ assert.equal(afterJump.mutatron.dissipatedEnergy,1);
+ assert.equal(model.rcTotalEnergy(afterJump),initialEnergy);
+ const afterPawn=afterJump.pawns.find(p=>p.seal===charged.seal);
+ assert.equal(afterPawn.number,charged.number+5);
+ assert.deepEqual([afterPawn.row,afterPawn.col],[charged.row,charged.col]);
+ assert.equal(afterPawn.manifestations.at(-1)?.number,charged.number+5);
+ assert.equal(mutatron.evolveRCMutatron(afterJump,board,charged.seal),afterJump,
+  "Cooldown blocks repeat mutation without paying or advancing a turn");
+ const localNeighbour=afterJump.pawns.find(p=>{
+  const c=board.cells.find(c=>c.key===p.cellKey);
+  return p.seal!==charged.seal&&
+   grid.rcRing(c.q-origin.q,c.r-origin.r)===1;
+ });
+ const empty3=board.cells.find(c=>c.ring===3);
+ assert(localNeighbour&&empty3);
+ const movedLocal=model.moveRCPawn(afterJump,
+  localNeighbour.cellKey,empty3.key,board);
+ assert(movedLocal&&model.validateRCGame(movedLocal.game,board));
+ assert.equal(resonance.rcCellCharged(movedLocal.game,charged.cellKey),true,
+  "A real local rearrangement resets the cooldown immediately");
+ const secondForecast=mutatron.forecastRCMutatron(
+  movedLocal.game,board,charged.seal);
+ assert(secondForecast.canInvoke);
+ assert.equal(secondForecast.transforms[0].to,charged.number+6,
+  "At four neighbours the next mutation is +1 instead of +5");
+ const growing=secondForecast.next;
+ assert.equal(growing.pawns.find(p=>p.seal===charged.seal).number,
+  charged.number+6);
+ assert.equal(growing.mutatron.resonance[charged.cellKey],-3);
+ assert.equal(model.rcTotalEnergy(growing),initialEnergy);
+ // Waiting instead of locally rearranging restores charge after 3 actions.
+ const distantMover=growing.pawns.find(p=>
+  board.cells.find(c=>c.key===p.cellKey)?.ring===5);
+ const other3=board.cells.find(c=>c.ring===3&&c.key!==empty3.key);
+ assert(distantMover&&other3);
+ const tick1=model.moveRCPawn(growing,distantMover.cellKey,other3.key,board);
+ assert(tick1);
+ assert.equal(resonance.rcCellCooldown(tick1.game,charged.cellKey),2);
+ const tick2=model.moveRCPawn(tick1.game,other3.key,distantMover.cellKey,board);
+ assert(tick2);
+ assert.equal(resonance.rcCellCooldown(tick2.game,charged.cellKey),1);
+ const tick3=model.moveRCPawn(tick2.game,distantMover.cellKey,other3.key,board);
+ assert(tick3);
+ assert.equal(resonance.rcCellCharged(tick3.game,charged.cellKey),true,
+  "Three valid nonlocal actions must end cooldown automatically");
+ assert.equal(model.rcTotalEnergy(tick3.game),initialEnergy);
+ // An activated but empty cell remembers its charged status.
+ const movedOut=model.moveRCPawn(sceneGame,charged.cellKey,empty3.key,board);
+ assert(movedOut);
+ assert.equal(resonance.rcCellCharged(movedOut.game,charged.cellKey),true);
  const starved={...sceneGame,mutatron:{...sceneGame.mutatron,energyReserve:0}};
- const energyPreview=mutatron.forecastRCMutatron(starved,board);
- assert(energyPreview.cells.some(x=>x.status==="energy"),
-  "Energy-starved candidate cells must be visibly orange");
- assert.equal(mutatron.mutatronEnergyTotal(energyPreview.next),
-  mutatron.mutatronEnergyTotal(starved));
+ assert.equal(mutatron.forecastRCMutatron(starved,board,charged.seal).canInvoke,false);
+ assert.equal(mutatron.evolveRCMutatron(starved,board,charged.seal),starved);
  const isolated=mutatron.evolveRCMutatron(
-  model.rc01CenterDiagnostic(board),board);
+  model.rc01CenterDiagnostic(board),board,1);
  assert.equal(isolated.pawns[0].number,1);
  assert.equal(isolated.mutatron.symmetry,100);
- const evolvedSource=growing.pawns.find(p=>p.number===4);
+ const evolvedSource=growing.pawns.find(p=>p.seal===charged.seal);
  assert(evolvedSource);
  const funded={...growing,mutatron:{
   ...growing.mutatron,energyReserve:Math.max(30,growing.mutatron.energyReserve)
@@ -671,8 +671,8 @@ try{
  assert.equal(moved.game.homeCycles,1);
  assert.equal(model.assessRCMove(sceneGame,ring2[1].cellKey,empty.key,board).allowed,false);
  assert.equal(model.rcNucleusRegression(1),null);
- assert.equal(model.rcNucleusRegression(6),1);
- assert.equal(model.rcNucleusRecovery(6),1);
+ assert.equal(model.rcNucleusRegression(6),5);
+ assert.equal(model.rcNucleusRecovery(6),-3);
  // Opening captures now demonstrate immediate #2 -> #3 inheritance
  // and defender Home regression from #3 to #2.
  const taken=model.moveRCPawn(sceneGame,source.cellKey,victim.cellKey,board);
@@ -781,10 +781,14 @@ try{
  assert.equal(recalledOdd.home.length,36);
  assert.equal(model.rcAutomaticHomeDestinations(recalledOdd,board).length,0);
  assert(recalledOdd.home.every(p=>model.rcHomeCooldown(recalledOdd,p.seal)===2));
- const invokedOnce=mutatron.evolveRCMutatron(recalledOdd,board);
+ const evenMover=recalledOdd.pawns[0];
+  const vacant3=board.cells.find(c=>c.ring===3);
+  const invokedOnce=model.moveRCPawn(recalledOdd,
+   evenMover.cellKey,vacant3.key,board).game;
  assert.equal(invokedOnce.homeCycles,recalledOdd.homeCycles+1);
  assert.equal(model.rcAutomaticHomeDestinations(invokedOnce,board).length,0);
- const invokedTwice=mutatron.evolveRCMutatron(invokedOnce,board);
+ const invokedTwice=model.moveRCPawn(invokedOnce,
+   vacant3.key,evenMover.cellKey,board).game;
  assert.equal(invokedTwice.homeCycles,recalledOdd.homeCycles+2);
  const scheduled=model.rcAutomaticHomeDestinations(invokedTwice,board);
  assert.equal(scheduled.length,36);
@@ -875,8 +879,12 @@ try{
   // existing Rapier spring; no opening-cell capture or manual selection.
   const sent=model.moveRCPawn(sceneGame,ring1[1].cellKey,ring1[0].cellKey,board);
   assert(sent);
-  const ready1=mutatron.evolveRCMutatron(sent.game,board);
-  const ready2=mutatron.evolveRCMutatron(ready1,board);
+  const traveller=sent.game.pawns.find(p=>p.cellKey!==ring1[0].cellKey);
+   const free3=board.cells.find(c=>c.ring===3);
+   const ready1=model.moveRCPawn(sent.game,
+    traveller.cellKey,free3.key,board).game;
+  const ready2=model.moveRCPawn(ready1,
+    free3.key,traveller.cellKey,board).game;
   const plan=model.rcAutomaticHomeDestinations(ready2,board);
   assert.equal(plan.length,1);
   assert.equal(board.cells.find(c=>c.key===plan[0].target)?.ring,3,
@@ -1246,9 +1254,9 @@ try{
  assert(markup.includes("MAP")&&markup.includes("AREA")&&
   markup.includes(">3D<"),
   "Visible camera controls must provide MAP/AREA/3D");
- assert(markup.includes("Evolve Mutatron")&&
+ assert(markup.includes("Evolve selected Polytron")&&
   markup.includes("GEN")&&markup.includes("SYM"),
-  "A visible manual evolution control and state counters are required");
+  "A visible targeted evolution control and state counters are required");
  assert(markup.includes("RING 1: C/O ×3")&&
   markup.includes("RING 2: C/T/O/T ×3")&&markup.includes("HOME"),
   "The default UI must show the full 72-Seal opening and Home zone");
@@ -1264,8 +1272,8 @@ try{
   "Production must restore the fixed 72-Polytron opening");
  assert(!tsx.includes("<svg")&&!tsx.includes("<polygon"));
  assert(!tsx.includes("LifePolytron3D"));
- assert(tsx.includes("forecastRCMutatron(previous,board).next")&&
-  tsx.includes("disabled={!game||physicsBusy||game.mutatron.energyReserve<1}"),
+ assert(tsx.includes("forecastRCMutatron(previous,board,seal).next")&&
+  tsx.includes("disabled={!game||physicsBusy||!forecast?.canInvoke}"),
   "Mutatron evolution must be manual and must never interrupt Rapier");
  assert(tsx.includes("RC01ThreeBoard")&&tsx.includes("RC01ThreeInspector"));
  for(const phrase of ["aria-modal","onClick={()=>setSheet(null)}",
@@ -1393,10 +1401,10 @@ try{
  assert(tsx.includes('target="_blank" rel="noopener noreferrer"')&&
   tsx.includes("?experiment=polytron-periodic")&&
   tsx.includes("RC01MnemeHistory")&&
-  tsx.includes("next charge {selectedForecast.charge} / 6")&&
-  tsx.includes("threshold {selectedForecast.needed}")&&
+  tsx.includes("selectedForecast.cooldown")&&
+  tsx.includes("selectedForecast.neighbours")&&
   tsx.includes("MNEME +{game?.mutatron.mnemeGeneratedEnergy??0}"),
-  "UI must show Mneme rewards, periodic-table shortcut and charge threshold");
+  "UI must show Mneme rewards, periodic shortcut, cooldown and neighbour count");
  assert(tsx.includes("rcCellCoordinates(selectedCell)")&&
   tsx.includes("rcCellCoordinates(occupiedCell)")&&
   !tsx.includes("Axial coordinates")&&tsx.includes("setManifestationIndex"),
