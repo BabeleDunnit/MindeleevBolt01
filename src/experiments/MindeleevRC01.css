@@ -343,3 +343,64 @@
  .rc01-score strong{font-size:24px}
  .rc01-sheet{padding:11px 16px 27px}
 }
+
+/* Mneme seed: a bounded, independently scrolling history of 3D snapshots. */
+.rc01-history-lens{
+ display:flex;align-items:center;justify-content:space-between;gap:8px;
+ padding:9px 12px;margin:10px 0;border:1px solid #e3dbc5;
+ background:#f8f2e4;border-radius:10px;color:#7b602d;font-size:11px;
+ font-weight:740
+}
+.rc01-history-lens button{
+ border:0;border-radius:7px;background:#fff6e2;color:#775a25;
+ padding:6px 8px;font-size:11px;font-weight:800;cursor:pointer
+}
+.rc01-manifestations{border-top:1px solid #e4ebe4;padding-top:13px;margin-top:2px}
+.rc01-manifestations-head{
+ display:flex;align-items:center;gap:9px;margin-bottom:9px
+}
+.rc01-manifestations-head h3{
+ margin:0;font-size:12px;letter-spacing:.07em;text-transform:uppercase;
+ color:#516a5a;font-weight:800
+}
+.rc01-manifestations-count{
+ border:1px solid #d9e5db;background:#eef4ef;border-radius:9px;
+ color:#3b6850;padding:3px 8px;font-size:12px;font-weight:850;
+ font-variant-numeric:tabular-nums
+}
+.rc01-manifestations-list{
+ display:grid;gap:6px;max-height:228px;overflow-y:auto;overscroll-behavior:contain;
+ scrollbar-width:thin;padding:2px 5px 2px 0
+}
+.rc01-manifestation-entry{min-width:0}
+.rc01-manifestation-button{
+ width:100%;display:flex;align-items:center;gap:12px;padding:6px 10px 6px 6px;
+ text-align:left;border:1px solid #e2e9e2;border-radius:12px;
+ background:#f5f9f5;color:#254d3a;cursor:pointer;
+ transition:background .14s,border-color .14s
+}
+.rc01-manifestation-button[aria-pressed="true"]{
+ background:#e4f0e7;border-color:#63a282;
+ box-shadow:inset 3px 0 #388360
+}
+.rc01-manifestation-button:focus-visible{outline:2px solid #377f5e;outline-offset:2px}
+.rc01-manifestation-thumbnail{
+ position:relative;display:block;flex:0 0 58px;width:58px;height:58px;
+ border:1px solid #e0e9e1;background:#e7efe8;border-radius:9px;overflow:hidden
+}
+.rc01-manifestation-thumbnail .rc01-three-inspector{
+ width:100%;height:100%;max-width:none;margin:0;border:0;
+ background:transparent;border-radius:0
+}
+.rc01-manifestation-number{
+ font-size:21px;font-weight:850;line-height:1;
+ color:#214b39;font-variant-numeric:tabular-nums
+}
+.rc01-manifestation-meta{
+ margin-left:auto;display:grid;justify-items:end;gap:7px;
+ min-width:52px;font-size:10px;color:#698574;font-weight:750
+}
+.rc01-manifestation-swatch{
+ display:block;width:44px;height:7px;border-radius:5px;
+ border:1px solid #d1dcd2
+}

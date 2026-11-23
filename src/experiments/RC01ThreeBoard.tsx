@@ -2,7 +2,7 @@ import {useEffect,useRef,useState} from "react";
 import type {PointerEvent as ReactPointerEvent,KeyboardEvent as ReactKeyboardEvent,
  WheelEvent as ReactWheelEvent} from "react";
 import * as THREE from "three";
-import {rcHomeContains,type RCBoard,type RCCell,type RCPoint} from "@/polytron/rc01Board";
+import {rcHomeContains,rcCellCoordinates,type RCBoard,type RCCell,type RCPoint} from "@/polytron/rc01Board";
 import {pawnAt,assessRCMove,rcAutomaticHomeDestinations,
  type RCGame,type RCPawn,type RCHomeParity} from "@/polytron/rc01Game";
 import {RC01RapierFlight,RC_RAPIER_FIXED_STEP}
@@ -222,7 +222,7 @@ export default function RC01ThreeBoard({
    const text=valid?
     (check?.kind==="nucleus"?"NUCLEUS +"+check.fieldDelta+" E":
      occupied?"FUSE · Field "+(check?.fieldDelta??0)+" E":
-      "MOVE")+" · ring "+target!.ring+" / "+target!.idxInRing:
+      "MOVE")+" · "+rcCellCoordinates(target!):
     check?.reason??"Move finger to aim · release on highlighted cell";
    setDragHint(last=>last===text?last:text);
   }

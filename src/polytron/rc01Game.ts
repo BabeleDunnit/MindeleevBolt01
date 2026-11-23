@@ -1,7 +1,7 @@
 import {dnaFromPolitronNumber} from "@/polytron/politronicNumber";
 import {gradientPair,mixColors,perceptualDistance} from "@/polytron/gradientPalettes";
 import {sealName} from "@/polytron/spectralFutures";
-import {rcKey,rcRing,rcRingCells,type RCBoard} from "@/polytron/rc01Board";
+import {rcKey,rcRing,rcRingCells,rcCellCoordinatesForKey,type RCBoard} from "@/polytron/rc01Board";
 import {intrinsicEnergy} from "@/polytron/mindeleevLife";
 
 export const RC01_SEAL_COUNT=72;
@@ -49,13 +49,14 @@ export const RC01_START_SCORE=100;
 
 /**
  * Each Seal retains its identity and personal Mindeleev history forever.
- * `number` is its CURRENT Conway manifestation; `manifestations` records
- * every distinct form it has ever manifested, in order of first appearance.
- * A Polytron sent Home remains a real member of the 72-person cast.
+ * `number` is its CURRENT Conway manifestation; `manifestations` is
+ * a chronological seed of Mneme: snapshots of number AND palette, including
+ * revisits to an earlier number. Home transfers never erase its history.
  */
+export type RCManifestation={number:number;row:number;col:number};
 export type RCPawn={
  seal:number;number:number;row:number;col:number;cellKey:string;
- manifestations:number[];
+ manifestations:RCManifestation[];
 };
 export type RCMutatronChange={
  seal:number;cellKey:string;from:number;to:number;
@@ -107,8 +108,15 @@ export function rcBoardSymmetry(pawns:readonly RCPawn[],board:RCBoard):number{
  return total?Math.round(100*matching/total):100;
 }
 
-const appendManifestation=(history:readonly number[],n:number):number[]=>
- history.includes(n)?[...history]:[...history,n];
+/** Record a new manifestation only when number or palette changes. */
+export function rcRecordManifestation(
+ history:readonly RCManifestation[],state:RCManifestation
+):RCManifestation[]{
+ const last=history[history.length-1];
+ if(last&&last.number===state.number&&
+    last.row===state.row&&last.col===state.col)return [...history];
+ return [...history,{number:state.number,row:state.row,col:state.col}];
+}
 
 /**
  * Home regression: decrease period and group together (-6) where possible.
@@ -146,12 +154,12 @@ export function initialRCGame(board:RCBoard,_rng:()=>number=Math.random):RCGame{
   const number=rcOpeningNumber(pos.ring,pos.idxInRing);
   const diagonal=RC01_DIAGONAL_PALETTE_VERTICES.find(v=>
    v.ring===pos.ring&&v.idxInRing===pos.idxInRing);
+  const row=diagonal?.paletteIndex??RC01_OPENING_PALETTE.row;
+  const col=diagonal?.paletteIndex??RC01_OPENING_PALETTE.col;
   return {
-   seal:i+1,number,
-   row:diagonal?.paletteIndex??RC01_OPENING_PALETTE.row,
-   col:diagonal?.paletteIndex??RC01_OPENING_PALETTE.col,
+   seal:i+1,number,row,col,
    cellKey:rcKey(pos.q,pos.r),
-   manifestations:[number]
+   manifestations:[{number,row,col}]
   };
  });
  return {pawns,home:[],score:RC01_START_SCORE,moves:0,homeCycles:0,fusions:0,
@@ -168,7 +176,7 @@ export function rc01CenterDiagnostic(board:RCBoard):RCGame{
   throw Error("Nucleus (0,0) is not visible");
  return {
   pawns:[{seal:1,number:1,row:2,col:4,cellKey:"0,0",
-   manifestations:[1]}],
+   manifestations:[{number:1,row:2,col:4}]}],
   home:[],score:RC01_START_SCORE,moves:0,homeCycles:0,fusions:0,
   homeTestPhase:{odd:"board",even:"board"},homeCooling:{},
   mutatron:{generation:0,energyReserve:48,dissipatedEnergy:0,resonance:{},symmetry:100,changes:[],
@@ -281,8 +289,8 @@ export function returnRCPawnToCell(
   home:game.home.filter(p=>p.seal!==seal),
   homeCooling:Object.fromEntries(Object.entries(game.homeCooling)
    .filter(([key])=>key!==String(seal))),
-  lastAction:"HOME REENTRY · "+pawnName(incoming)+" returns to "+target+
-   " without capture or energy cost."
+  lastAction:"HOME REENTRY · "+pawnName(incoming)+" returns to "+
+   rcCellCoordinatesForKey(board,target)+" without capture or energy cost."
  };
  updated.mutatron={...updated.mutatron,
   symmetry:rcBoardSymmetry(updated.pawns,board)};
@@ -335,11 +343,13 @@ function inheritManifestation(attacker:RCPawn,captured:RCPawn,target:string,
  game:RCGame,board:RCBoard){
  const regressed=rcHomeRegression(captured.number);
  const palette=rcSelectCapturedPalette(game,attacker,captured,board);
+ const nextAttacker={...attacker,...palette,cellKey:target,number:captured.number};
+ const nextDefender={...captured,cellKey:"",number:regressed};
  return {
-  attacker:{...attacker,...palette,cellKey:target,number:captured.number,
-   manifestations:appendManifestation(attacker.manifestations,captured.number)},
-  defender:{...captured,cellKey:"",number:regressed,
-   manifestations:appendManifestation(captured.manifestations,regressed)}
+  attacker:{...nextAttacker,manifestations:
+   rcRecordManifestation(attacker.manifestations,nextAttacker)},
+  defender:{...nextDefender,manifestations:
+   rcRecordManifestation(captured.manifestations,nextDefender)}
  };
 }
 export type RCMoveResult={game:RCGame;captured:RCPawn|null;attacker:RCPawn};
@@ -358,7 +368,8 @@ export function moveRCPawn(
  if(check.kind==="nucleus"){
   const lower=rcNucleusRegression(attacker.number)!;
   const cooled={...attacker,cellKey:"",number:lower,
-   manifestations:appendManifestation(attacker.manifestations,lower)};
+   manifestations:rcRecordManifestation(attacker.manifestations,
+    {...attacker,number:lower})};
   const updated:RCGame={...game,
    pawns:game.pawns.filter(p=>p.seal!==attacker.seal),
    home:[...game.home,cooled],
@@ -396,7 +407,7 @@ export function moveRCPawn(
    " and palette "+pawnPalette(fused!.attacker).name+
    ". "+pawnName(captured)+" returns Home as #"+fused?.defender.number+
    ". Field "+(check.fieldDelta>=0?"+":"")+check.fieldDelta+" E.":
-   pawnName(attacker)+" moves to cell "+target+"."};
+   pawnName(attacker)+" moves to cell "+rcCellCoordinatesForKey(board,target)+"."};
  updated.mutatron.symmetry=rcBoardSymmetry(updated.pawns,board);
  if(!validateRCGame(updated,board)||
     rcTotalEnergy(updated)!==rcTotalEnergy(game))
@@ -487,7 +498,8 @@ export function returnRCPawnHome(
    "HOME FUSION · "+pawnName(incoming)+" inherits #"+captured.number+
    " from "+pawnName(captured)+". Field "+
    (delta>=0?"+":"")+delta+" E.":
-   "HOME RETURN · "+pawnName(incoming)+" returns to "+target+"."
+   "HOME RETURN · "+pawnName(incoming)+" returns to "+
+    rcCellCoordinatesForKey(board,target)+"."
  };
  updated.mutatron.symmetry=rcBoardSymmetry(updated.pawns,board);
  if(!validateRCGame(updated,board)||
@@ -527,9 +539,17 @@ export function validateRCGame(game:RCGame,board:RCBoard):boolean{
       !Number.isInteger(p.row)||p.row<0||p.row>=12||
       !Number.isInteger(p.col)||p.col<0||p.col>=12||
       !Array.isArray(p.manifestations)||!p.manifestations.length||
-      !p.manifestations.every(n=>Number.isSafeInteger(n)&&n>0)||
-      new Set(p.manifestations).size!==p.manifestations.length||
-      !p.manifestations.includes(p.number))return false;
+      !p.manifestations.every(m=>m&&
+       Number.isSafeInteger(m.number)&&m.number>0&&
+       Number.isInteger(m.row)&&m.row>=0&&m.row<12&&
+       Number.isInteger(m.col)&&m.col>=0&&m.col<12)||
+      p.manifestations.some((m,i)=>i>0&&
+       m.number===p.manifestations[i-1].number&&
+       m.row===p.manifestations[i-1].row&&
+       m.col===p.manifestations[i-1].col)||
+      p.manifestations[p.manifestations.length-1].number!==p.number||
+      p.manifestations[p.manifestations.length-1].row!==p.row||
+      p.manifestations[p.manifestations.length-1].col!==p.col)return false;
    seals.add(p.seal);
    if(location==="board"){
     if(!cells.has(p.cellKey)||occupied.has(p.cellKey))return false;

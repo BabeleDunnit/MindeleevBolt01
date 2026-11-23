@@ -4,8 +4,9 @@
  *
  * A mirrored pair is supported when EACH end has:
  *  - >= 3 occupied neighbours of its six hexagonal neighbours;
- *  - >= 1 occupied opposite-neighbour axis (of three possible axes);
  *  - >= 2 distinct Platonic groups across the two local neighbourhoods.
+ * Balanced axes are no longer needed for basic resonance; they still
+ * contribute to priority and gate advanced period changes.
  *
  * Support charges a CELL-PAIR resonance (not a Polytron's identity).
  * Charge >=2 permits an adjacent group step; charge >=3, together with
@@ -21,7 +22,7 @@
  */
 import {rcKey,type RCBoard,type RCCell} from "@/polytron/rc01Board";
 import {intrinsicEnergy} from "@/polytron/mindeleevLife";
-import {rcBoardSymmetry,rcTotalEnergy,
+import {rcBoardSymmetry,rcTotalEnergy,rcRecordManifestation,
  validateRCGame,
  type RCGame,type RCPawn,type RCMutatronChange} from "@/polytron/rc01Game";
 
@@ -29,7 +30,6 @@ export const MUTATRON_NEIGHBOURS=[
  [1,0],[1,-1],[0,-1],[-1,0],[-1,1],[0,1]
 ] as const;
 export const MUTATRON_MIN_NEIGHBOURS=3;
-export const MUTATRON_MIN_AXES=1;
 export const MUTATRON_MIN_GROUPS=2;
 export const MUTATRON_GROUP_CHARGE=2;
 export const MUTATRON_PERIOD_CHARGE=3;
@@ -101,8 +101,7 @@ function localAt(cell:RCCell,occupied:ReadonlyMap<string,RCPawn>):Local{
   near
  };
 }
-const appendix=(history:readonly number[],number:number)=>
- history.includes(number)?[...history]:[...history,number];
+
  
 /** The only geometrically permitted numerical movements:
  * n -> n+1 within the same period (one group)
@@ -137,7 +136,7 @@ function targetFor(p:RCPawn,q:RCPawn,a:Local,b:Local,diversity:number){
  };
  return {
   target:high+1,needed:MUTATRON_GROUP_CHARGE,
-  reason:"Balanced neighbours sustain a one-group transition."
+  reason:"Diverse local neighbours sustain a one-group transition."
  };
 }
 /** Pure preview and turn engine: no mutations to game, board, or Polytrons. */
@@ -154,7 +153,6 @@ export function forecastRCMutatron(game:RCGame,board:RCBoard):RCMutatronForecast
   const diversity=new Set([mutatronGroup(p.number),mutatronGroup(q.number),
    ...a.groups,...b.groups]).size;
   const localSupport=Math.min(a.neighbours,b.neighbours)>=MUTATRON_MIN_NEIGHBOURS&&
-   Math.min(a.axes,b.axes)>=MUTATRON_MIN_AXES&&
    diversity>=MUTATRON_MIN_GROUPS;
   const proposed=targetFor(p,q,a,b,diversity);
   // Do not erase the last pair of an emergent family by upgrading it.
@@ -204,7 +202,8 @@ export function forecastRCMutatron(game:RCGame,board:RCBoard):RCMutatronForecast
   for(const pawn of [selected.p,selected.q]){
    if(pawn.number===selected.target)continue;
    updates.set(pawn.seal,{...pawn,number:selected.target,
-    manifestations:appendix(pawn.manifestations,selected.target)});
+    manifestations:rcRecordManifestation(pawn.manifestations,
+     {...pawn,number:selected.target})});
    transforms.push({seal:pawn.seal,cellKey:pawn.cellKey,
     from:pawn.number,to:selected.target,
     kind:mutatronPeriod(selected.target)>mutatronPeriod(pawn.number)?
@@ -245,7 +244,7 @@ export function forecastRCMutatron(game:RCGame,board:RCBoard):RCMutatronForecast
    "Insufficient field energy for the charged pairs.":
   candidates.some(c=>c.supported)?
    "Resonance charging; evolve again or move Polytrons to change the field.":
-   "No sufficiently diverse and balanced pair.";
+   "No antipodal pair has enough occupied and diverse neighbours.";
  const next:RCGame={
   ...game,
   homeCycles:game.homeCycles+(canInvoke?1:0),

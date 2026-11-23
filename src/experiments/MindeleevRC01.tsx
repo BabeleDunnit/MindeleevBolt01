@@ -1,5 +1,5 @@
 import {useEffect,useMemo,useRef,useState} from "react";
-import {makeRCBoard,type RCCell} from "@/polytron/rc01Board";
+import {makeRCBoard,rcCellCoordinates,type RCCell} from "@/polytron/rc01Board";
 import {initialRCGame,moveRCPawn,recallRCParity,
  returnRCPawnToCell,rcHomeCooldown,rcParity,
  pawnDNA,pawnName,pawnPalette,
@@ -9,6 +9,7 @@ import {forecastRCMutatron,mutatronCounts} from "@/polytron/rc01Mutatron";
 import RC01ThreeBoard,{type RCCameraCommand} from "@/experiments/RC01ThreeBoard";
 import type {RCViewMode} from "@/experiments/rc01Camera";
 import RC01ThreeInspector from "@/experiments/RC01ThreeInspector";
+import RC01ManifestationHistory from "@/experiments/RC01ManifestationHistory";
 import {intrinsicEnergy} from "@/polytron/mindeleevLife";
 import "./MindeleevRC01.css";
 
@@ -22,6 +23,7 @@ export default function MindeleevRC01(){
   [viewport.width,viewport.height]);
  const [game,setGame]=useState<RCGame|null>(null);
  const [sheet,setSheet]=useState<Sheet>(null);
+ const [manifestationIndex,setManifestationIndex]=useState<number|null>(null);
  // Touch selection is persistent; only Info opens the modal. Mouse clicks
  // keep their existing inspector behaviour.
  const [selectedSeal,setSelectedSeal]=useState<number|null>(null);
@@ -63,6 +65,16 @@ export default function MindeleevRC01(){
  const selectedPawn=sheet?.kind==="polytron"?
   [...(game?.pawns??[]),...(game?.home??[])].find(p=>p.seal===sheet.seal):undefined;
  const selectedCell=sheet?.kind==="cell"?cells.get(sheet.key):undefined;
+ const occupiedCell=selectedPawn?.cellKey?cells.get(selectedPawn.cellKey):undefined;
+ // Read-only historic lens: the live game and board are never mutated.
+ const historical=selectedPawn&&manifestationIndex!==null?
+  selectedPawn.manifestations[manifestationIndex]:undefined;
+ const inspectedPawn=selectedPawn&&historical?
+  {...selectedPawn,...historical}:selectedPawn;
+ const inspectingHistory=!!selectedPawn&&!!historical&&
+  manifestationIndex!==selectedPawn.manifestations.length-1;
+ useEffect(()=>{setManifestationIndex(null);},
+  [sheet?.kind,sheet?.kind==="polytron"?sheet.seal:null]);
  const touchSelectedPawn=game?.pawns.find(p=>p.seal===selectedSeal);
  useEffect(()=>{
   if(selectedSeal!==null&&game&&!touchSelectedPawn)setSelectedSeal(null);
@@ -218,30 +230,38 @@ export default function MindeleevRC01(){
     <div className="rc01-sheet-handle"/>
     <button className="rc01-close" type="button" aria-label="Close"
      onClick={()=>setSheet(null)}>×</button>
-    {selectedPawn&&<div className="rc01-poly-sheet">
-     <RC01ThreeInspector pawn={selectedPawn}/>
+    {selectedPawn&&inspectedPawn&&<div className="rc01-poly-sheet">
+     <RC01ThreeInspector pawn={inspectedPawn}/>
      <h2>Polytron - {pawnName(selectedPawn)}</h2>
-     {selectedPawn.cellKey&&<button type="button" className="rc01-inspect-3d"
+     {inspectingHistory&&<div className="rc01-history-lens">
+      Historical manifestation · inspection only
+      <button type="button" onClick={()=>setManifestationIndex(null)}>
+       Back to present
+      </button>
+     </div>}
+     {!inspectingHistory&&selectedPawn.cellKey&&<button type="button"
+      className="rc01-inspect-3d"
       onClick={()=>setView("subjective",selectedPawn.cellKey)}>
       View this Polytron in 3D
      </button>}
      <dl className="rc01-details">
-      <div><dt>Polytronic Number</dt><dd>{selectedPawn.number}</dd></div>
-      <div><dt>Conway DNA</dt><dd>{pawnDNA(selectedPawn)}</dd></div>
-       <div><dt>Intrinsic Energy</dt><dd>{intrinsicEnergy(selectedPawn.number,0)} E</dd></div>
+      <div><dt>Polytronic Number</dt><dd>{inspectedPawn.number}</dd></div>
+      <div><dt>Conway DNA</dt><dd>{pawnDNA(inspectedPawn)}</dd></div>
+      <div><dt>Intrinsic Energy</dt><dd>{intrinsicEnergy(inspectedPawn.number,0)} E</dd></div>
       <div className="rc01-palette-detail"><dt>Palette · Latin / Greek</dt>
-       <dd><span>{pawnPalette(selectedPawn).name}</span>
+       <dd><span>{pawnPalette(inspectedPawn).name}</span>
         <span className="rc01-palette-continuous" role="img"
-         aria-label={"Continuous palette from "+pawnPalette(selectedPawn).primary.name+
-          " to "+pawnPalette(selectedPawn).secondary.name}
-         style={{background:gradientCss(pawnPalette(selectedPawn).primary.hex,
-          pawnPalette(selectedPawn).secondary.hex)}}/>
+         aria-label={"Continuous palette from "+pawnPalette(inspectedPawn).primary.name+
+          " to "+pawnPalette(inspectedPawn).secondary.name}
+         style={{background:gradientCss(pawnPalette(inspectedPawn).primary.hex,
+          pawnPalette(inspectedPawn).secondary.hex)}}/>
        </dd>
       </div>
       <div><dt>Permanent Identity</dt>
        <dd>{pawnName(selectedPawn)} · {selectedPawn.seal}/72</dd></div>
-      <div><dt>Manifestations</dt><dd>{selectedPawn.manifestations.map(n=>"#"+n).join(" → ")}</dd></div>
-      {selectedForecast&&<div><dt>Mutatron Forecast</dt>
+      <div><dt>Current cell (ring, idxInRing)</dt>
+       <dd>{occupiedCell?rcCellCoordinates(occupiedCell):"Home"}</dd></div>
+      {!inspectingHistory&&selectedForecast&&<div><dt>Mutatron Forecast</dt>
        <dd>{selectedForecast.status.toUpperCase()} · #{
         selectedForecast.number} → #{selectedForecast.target}
         {' · '}{selectedForecast.neighbours}/6 neighbours
@@ -251,6 +271,8 @@ export default function MindeleevRC01(){
         {' · '}cost {selectedForecast.energyCost} E</dd>
       </div>}
      </dl>
+     <RC01ManifestationHistory pawn={selectedPawn}
+      selectedIndex={manifestationIndex} onSelect={setManifestationIndex}/>
     </div>}
     {sheet.kind==="home"&&<div className="rc01-home-sheet">
      <div className="rc01-sheet-kicker">PERMANENT IDENTITIES</div>
@@ -278,10 +300,8 @@ export default function MindeleevRC01(){
       It returns Home for two valid moves. A current #1 cannot enter.
      </p>}
      <dl className="rc01-details">
-      <div><dt>Axial coordinates (q, r)</dt>
-       <dd>({selectedCell.q}, {selectedCell.r})</dd></div>
-      <div><dt>Ring</dt><dd>{selectedCell.ring}</dd></div>
-      <div><dt>idxInRing</dt><dd>{selectedCell.idxInRing}</dd></div>
+      <div><dt>Cell (ring, idxInRing)</dt>
+       <dd>{rcCellCoordinates(selectedCell)}</dd></div>
      </dl>
     </div>}
    </section>

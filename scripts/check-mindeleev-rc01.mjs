@@ -190,6 +190,8 @@ try{
   "Temporary evolution halos must disappear after fading");
  const previewSource=model.initialRCGame(board);
  const forecast=mutatron.forecastRCMutatron(previewSource,board);
+ assert(forecast.cells.some(c=>c.axes===0&&c.status==="charge"),
+  "Basic resonance must allow zero balanced local axes");
  assert(forecast.cells.some(c=>c.status==="charge"));
  world.setEvolutionPreview(forecast.cells);
  assert.equal(world.scene.children.filter(x=>
@@ -347,7 +349,8 @@ try{
   p.col===model.RC01_OPENING_PALETTE.col),
   "Non-vertex Polytrons keep their previous RC01 opening palette");
  assert(sceneGame.pawns.every(p=>p.manifestations.length===1&&
-  p.manifestations[0]===p.number));
+  p.manifestations[0].number===p.number&&
+  p.manifestations[0].row===p.row&&p.manifestations[0].col===p.col));
  assert(!sceneGame.pawns.some(p=>p.cellKey==="0,0"));
  assert(!sceneGame.pawns.some(p=>board.cells.find(c=>c.key===p.cellKey)?.ring===3));
  const ring1=sceneGame.pawns.slice(0,6);
@@ -391,7 +394,8 @@ try{
    assert.equal(pawns[i].number,expected,
     "Exact opening pattern from the hand-drawn board must be preserved");
    assert.equal(model.rcOpeningNumber(ring,i),expected);
-   assert.deepEqual(pawns[i].manifestations,[expected]);
+   assert.deepEqual(pawns[i].manifestations,[{
+    number:expected,row:pawns[i].row,col:pawns[i].col}]);
   }
  }
  assert.equal(board.cells.filter(c=>!sceneGame.pawns.some(p=>p.cellKey===c.key)).length,19);
@@ -437,7 +441,9 @@ try{
   assert.equal(next.fusions,0);
   assert.equal(next.score,100);
   assert(next.pawns.every(p=>startingPositions.get(p.seal)===p.cellKey));
-  assert(next.pawns.every(p=>p.manifestations.includes(p.number)));
+  assert(next.pawns.every(p=>p.manifestations.at(-1)?.number===p.number&&
+   p.manifestations.at(-1)?.row===p.row&&
+   p.manifestations.at(-1)?.col===p.col));
   assert.deepEqual(next.pawns.map(p=>[p.seal,p.row,p.col]),
    previous.pawns.map(p=>[p.seal,p.row,p.col]),
    "Mutatron must never modify a Polytron's Chromatica palette");
@@ -482,7 +488,7 @@ try{
  for(let i=0;i<45;i++)twice=mutatron.evolveRCMutatron(twice,board);
  assert.deepEqual(growing,twice,"No randomness or mutation order dependency");
  const uniform={...sceneGame,pawns:sceneGame.pawns.map(p=>({
-  ...p,number:1,manifestations:[1]}))};
+  ...p,number:1,manifestations:[{number:1,row:p.row,col:p.col}]}))};
  let quiet=uniform;
  for(let i=0;i<12;i++)quiet=mutatron.evolveRCMutatron(quiet,board);
  assert.deepEqual(mutatron.mutatronCounts(quiet),[72,0,0,0,0]);
@@ -517,7 +523,7 @@ try{
  const diag=model.rc01CenterDiagnostic(board);
  assert.equal(diag.pawns.length,1);
  assert.equal(diag.pawns[0].cellKey,"0,0");
- assert.deepEqual(diag.pawns[0].manifestations,[1]);
+ assert.deepEqual(diag.pawns[0].manifestations,[{number:1,row:2,col:4}]);
  const source=ring1[0],victim=ring1[1];
  const empty=board.cells.find(c=>c.nucleus);
  assert(empty);
@@ -554,16 +560,21 @@ try{
   [source.row,victim.col],[victim.row,source.col]
  ];
  assert(parentOptions.some(([row,col])=>row===selectedPalette.row&&col===selectedPalette.col));
- assert.deepEqual(model.pawnAt(taken.game,victim.cellKey)?.manifestations,[2,3]);
+ assert.deepEqual(model.pawnAt(taken.game,victim.cellKey)?.manifestations.map(m=>m.number),[2,3]);
  assert.equal(taken.game.home[0].seal,victim.seal);
  assert.equal(taken.game.home[0].number,2);
+ assert.deepEqual(taken.game.home[0].manifestations.at(-1),
+  {number:2,row:taken.game.home[0].row,col:taken.game.home[0].col});
+ const inherited=model.pawnAt(taken.game,victim.cellKey);
+ assert.deepEqual(inherited.manifestations.at(-1),
+  {number:inherited.number,row:inherited.row,col:inherited.col});
  assert.equal(model.rcHomeCooldown(taken.game,victim.seal),2);
- assert.deepEqual(taken.game.home[0].manifestations,[3,2]);
+ assert.deepEqual(taken.game.home[0].manifestations.map(m=>m.number),[3,2]);
  // A field with no spendable energy must reject expensive captures.
  const broke={...sceneGame,
   pawns:sceneGame.pawns.map(p=>p.seal===source.seal?
-   {...p,number:1,manifestations:[1]}:
-   p.seal===victim.seal?{...p,number:5,manifestations:[5]}:p),
+   {...p,number:1,manifestations:[{number:1,row:p.row,col:p.col}]}:
+   p.seal===victim.seal?{...p,number:5,manifestations:[{number:5,row:p.row,col:p.col}]}:p),
   mutatron:{...sceneGame.mutatron,energyReserve:0}
  };
  const priced=model.assessRCMove(broke,source.cellKey,victim.cellKey,board);
@@ -579,8 +590,8 @@ try{
  // Low-energy inheritance by a powerful attacker gives its energy surplus
  // back to the shared field instead of creating or destroying energy.
  const harvest={...sceneGame,pawns:sceneGame.pawns.map(p=>
-  p.seal===source.seal?{...p,number:5,manifestations:[5]}:
-  p.seal===victim.seal?{...p,number:1,manifestations:[1]}:p)};
+  p.seal===source.seal?{...p,number:5,manifestations:[{number:5,row:p.row,col:p.col}]}:
+  p.seal===victim.seal?{...p,number:1,manifestations:[{number:1,row:p.row,col:p.col}]}:p)};
  const release=model.moveRCPawn(harvest,source.cellKey,victim.cellKey,board);
  assert(release);
  assert.equal(release.game.mutatron.energyReserve,52);
@@ -589,22 +600,22 @@ try{
   null,"Current #1 cannot be used to farm Field E");
  // Distinct later manifestations must still transfer with persistent history.
  const changed=sceneGame.pawns.map(p=>p.seal===victim.seal?
-  {...p,number:13,manifestations:[13]}:p.seal===ring1[2].seal?
-  {...p,number:18,manifestations:[18]}:p);
+  {...p,number:13,manifestations:[{number:13,row:p.row,col:p.col}]}:p.seal===ring1[2].seal?
+  {...p,number:18,manifestations:[{number:18,row:p.row,col:p.col}]}:p);
  const varied={...sceneGame,pawns:changed};
  const stolen=model.moveRCPawn(varied,source.cellKey,victim.cellKey,board);
  assert(stolen&&model.validateRCGame(stolen.game,board));
  assert.equal(model.pawnAt(stolen.game,victim.cellKey)?.number,13);
- assert.deepEqual(model.pawnAt(stolen.game,victim.cellKey)?.manifestations,[2,13]);
+ assert.deepEqual(model.pawnAt(stolen.game,victim.cellKey)?.manifestations.map(m=>m.number),[2,13]);
  assert.equal(stolen.game.home[0].number,7);
- assert.deepEqual(stolen.game.home[0].manifestations,[13,7]);
+ assert.deepEqual(stolen.game.home[0].manifestations.map(m=>m.number),[13,7]);
  const second=model.moveRCPawn(stolen.game,victim.cellKey,ring1[2].cellKey,board);
  assert(second&&model.validateRCGame(second.game,board));
  assert.equal(second.game.pawns.length,70);
  assert.equal(second.game.home.length,2);
  assert.equal(second.game.fusions,2);
  assert.equal(model.pawnAt(second.game,ring1[2].cellKey)?.number,18);
- assert.deepEqual(model.pawnAt(second.game,ring1[2].cellKey)?.manifestations,[2,13,18]);
+ assert.deepEqual(model.pawnAt(second.game,ring1[2].cellKey)?.manifestations.map(m=>m.number),[2,13,18]);
  assert.equal(second.game.home[1].number,12);
  assert.equal(model.moveRCPawn(sceneGame,source.cellKey,source.cellKey,board),null);
  assert.equal(model.moveRCPawn(sceneGame,source.cellKey,"99,99",board),null);
@@ -697,7 +708,7 @@ try{
   assert.equal(oddGame.pawns.length,36);
   assert.equal(oddGame.home.length,36);
   assert.equal(oddGame.fusions,0);
-  assert(oddGame.home.every(p=>p.manifestations[0]===p.number));
+  assert(oddGame.home.every(p=>p.manifestations[0].number===p.number));
   assert.equal(oddGame.home.filter(p=>p.number===2).length,6);
   assert.equal(oddGame.home.filter(p=>p.number===3).length,3);
   assert.equal(oddGame.home.filter(p=>p.number===1).length,27);
@@ -1215,15 +1226,38 @@ try{
  assert.equal(life.intrinsicEnergy(13,0),6);
  for(const phrase of [
   '<h2>Polytron - {pawnName(selectedPawn)}</h2>',
-  '<dt>Polytronic Number</dt><dd>{selectedPawn.number}</dd>',
-  '<dt>Intrinsic Energy</dt><dd>{intrinsicEnergy(selectedPawn.number,0)} E</dd>',
+  '<dt>Polytronic Number</dt><dd>{inspectedPawn.number}</dd>',
+  '<dt>Intrinsic Energy</dt><dd>{intrinsicEnergy(inspectedPawn.number,0)} E</dd>',
   '<dt>Permanent Identity</dt>',
   'import {intrinsicEnergy} from "@/polytron/mindeleevLife"',
-  '<dt>Manifestations</dt>',
+  '<RC01ManifestationHistory pawn={selectedPawn}',
   'game?.home.filter(p=>!sheet.parity||rcParity(p.seal)===sheet.parity)',
   'Reset fixed Metatron opening'
  ])assert(tsx.includes(phrase),
   "Inspector name heading and canonical data rows required: "+phrase);
+ assert(tsx.includes("rcCellCoordinates(selectedCell)")&&
+  tsx.includes("rcCellCoordinates(occupiedCell)")&&
+  !tsx.includes("Axial coordinates")&&tsx.includes("setManifestationIndex"),
+  "Inspectors show only ring/index coordinates and read-only history");
+ assert.deepEqual(model.rcRecordManifestation(
+  [{number:2,row:2,col:4}],{number:2,row:3,col:4}),
+  [{number:2,row:2,col:4},{number:2,row:3,col:4}],
+  "A new palette of an old numerical form creates a Mneme snapshot");
+ assert.deepEqual(model.rcRecordManifestation(
+  [{number:2,row:2,col:4}],{number:2,row:2,col:4}),
+  [{number:2,row:2,col:4}],
+  "Unchanged number and palette do not duplicate a snapshot");
+ assert.deepEqual(model.rcRecordManifestation(
+  [{number:1,row:2,col:4},{number:2,row:2,col:4}],
+  {number:1,row:2,col:4}),
+  [{number:1,row:2,col:4},{number:2,row:2,col:4},{number:1,row:2,col:4}],
+  "Revisiting an older form is still a new event");
+ const historyUi=await readFile("src/experiments/RC01ManifestationHistory.tsx","utf8");
+ assert(historyUi.includes("IntersectionObserver")&&
+  historyUi.includes("RC01ThreeInspector")&&
+  historyUi.includes("manifestations.length")&&
+  historyUi.includes("slice().reverse()"),
+  "Mneme list must be newest-first with lazy genuine Three.js previews");
  assert(tsx.includes("rc01-palette-continuous")&&
   tsx.includes("gradientCss(")&&!tsx.includes("setReturningSeal"),
   "Inspector shows continuous palette and manual Home return is absent");
@@ -1239,6 +1273,9 @@ try{
  assert(css.includes(".rc01-three-board")&&!css.includes(".rc01-status{"));
  assert(css.includes(".rc01-evolve-panel")&&css.includes(".rc01-evolve-button"));
  assert(css.includes(".rc01-preview-legend")&&css.includes(".rc01-legend-gold"));
+ assert(css.includes(".rc01-manifestations-list")&&
+  css.includes("max-height:228px")&&
+  css.includes(".rc01-manifestation-thumbnail"));
  assert(css.includes(".rc01-palette-continuous")&&
   !css.includes(".rc01-reentry-instruction"));
  assert(css.includes(".rc01-touch-selection")&&

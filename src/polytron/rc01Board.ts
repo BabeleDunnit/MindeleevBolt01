@@ -18,6 +18,14 @@ export const RC_HOME_ROTATION=Math.PI/6;
 /** Clearance normal to the lower sloping outer walls: one hex-row. */
 export const RC_HOME_GAP_ROWS=1;
 export const rcKey=(q:number,r:number)=>q+","+r;
+/** Public cell notation: (ring, clockwise index). Axial q/r are internal. */
+export const rcCellCoordinates=(cell:Pick<RCCell,"ring"|"idxInRing">)=>
+ "("+cell.ring+", "+cell.idxInRing+")";
+export function rcCellCoordinatesForKey(board:RCBoard,key:string):string{
+ const cell=board.cells.find(c=>c.key===key);
+ if(!cell)throw Error("Invalid cell key");
+ return rcCellCoordinates(cell);
+}
 export const rcRing=(q:number,r:number)=>
  Math.max(Math.abs(q),Math.abs(r),Math.abs(-q-r));
 
