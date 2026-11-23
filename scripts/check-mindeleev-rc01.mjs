@@ -1181,7 +1181,7 @@ try{
   "RC01RapierFlight.create","flight.step()","world.physicalPose",
   "world.transferToHome(victim,physical.victim)",
   "flight.detachVictimToHome()","world.stepHome(dt,!isBusy())",
-  "onOpenHome","onToggleParity","onReturnArrived","doubleTapRef.current",
+  "onOpenHome","onRecallParity","onReturnArrived","doubleTapRef.current",
    "world.stepMutationHalos(dt)","worldRef.current?.pulseMutations",
    "world.cancelHomeReturn(seal)",
    "world.setEvolutionPreview(previewRef.current)",
