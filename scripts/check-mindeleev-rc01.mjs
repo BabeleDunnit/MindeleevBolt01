@@ -1139,7 +1139,7 @@ try{
   "Mutatron evolution must be manual and must never interrupt Rapier");
  assert(tsx.includes("RC01ThreeBoard")&&tsx.includes("RC01ThreeInspector"));
  for(const phrase of ["aria-modal","onClick={()=>setSheet(null)}",
-  "pawnPalette(selectedPawn).name","idxInRing","moveRCPawn",
+  "pawnPalette(inspectedPawn).name","idxInRing","moveRCPawn",
   "ResizeObserver"]){
   assert(tsx.includes(phrase),"Missing UI behaviour "+phrase);
  }
