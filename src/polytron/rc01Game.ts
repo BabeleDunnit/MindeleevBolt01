@@ -1,7 +1,7 @@
 import {dnaFromPolitronNumber} from "@/polytron/politronicNumber";
-import {gradientPair} from "@/polytron/gradientPalettes";
+import {gradientPair,mixColors,perceptualDistance} from "@/polytron/gradientPalettes";
 import {sealName} from "@/polytron/spectralFutures";
-import {rcKey,rcRingCells,type RCBoard} from "@/polytron/rc01Board";
+import {rcKey,rcRing,rcRingCells,type RCBoard} from "@/polytron/rc01Board";
 import {intrinsicEnergy} from "@/polytron/mindeleevLife";
 
 export const RC01_SEAL_COUNT=72;
@@ -75,9 +75,11 @@ export type RCMutatronState={
 };
 export type RCGame={
  pawns:RCPawn[];home:RCPawn[];score:number;moves:number;
+ /** Every committed board move and paid explicit Mutatron invocation advances Home cooldown. */
+ homeCycles:number;
  fusions:number;lastAction:string;
  homeTestPhase:{odd:"board"|"home";even:"board"|"home"};
- homeCooling:Record<string,number>; // seal -> ready when moves >= value
+ homeCooling:Record<string,number>; // seal -> ready when homeCycles >= value
  mutatron:RCMutatronState;
 };
 export const pawnDNA=(p:RCPawn)=>dnaFromPolitronNumber(p.number);
@@ -152,7 +154,7 @@ export function initialRCGame(board:RCBoard,_rng:()=>number=Math.random):RCGame{
    manifestations:[number]
   };
  });
- return {pawns,home:[],score:RC01_START_SCORE,moves:0,fusions:0,
+ return {pawns,home:[],score:RC01_START_SCORE,moves:0,homeCycles:0,fusions:0,
   homeTestPhase:{odd:"board",even:"board"},homeCooling:{},
   mutatron:{generation:0,energyReserve:48,dissipatedEnergy:0,resonance:{},
    symmetry:rcBoardSymmetry(pawns,board),changes:[],
@@ -167,7 +169,7 @@ export function rc01CenterDiagnostic(board:RCBoard):RCGame{
  return {
   pawns:[{seal:1,number:1,row:2,col:4,cellKey:"0,0",
    manifestations:[1]}],
-  home:[],score:RC01_START_SCORE,moves:0,fusions:0,
+  home:[],score:RC01_START_SCORE,moves:0,homeCycles:0,fusions:0,
   homeTestPhase:{odd:"board",even:"board"},homeCooling:{},
   mutatron:{generation:0,energyReserve:48,dissipatedEnergy:0,resonance:{},symmetry:100,changes:[],
    lastNote:"Single-body centering diagnostic."},
@@ -240,7 +242,29 @@ export function assessRCMove(
    "Capture costs "+(-delta)+" E."};
 }
 export function rcHomeCooldown(game:RCGame,seal:number):number{
- return Math.max(0,(game.homeCooling[String(seal)]??0)-game.moves);
+ return Math.max(0,(game.homeCooling[String(seal)]??0)-game.homeCycles);
+}
+/** Ready Home Seals return to free tiles, starting at the outermost ring
+ * and proceeding clockwise from north. In-flight destinations are reserved.
+ * Stable Seal ordering makes concurrent returns reproducible.
+ */
+export function rcAutomaticHomeDestinations(
+ game:RCGame,board:RCBoard,reserved:Iterable<string>=[],
+ alreadyReturning:Iterable<number>=[]
+):{seal:number;target:string}[]{
+ const occupied=new Set([...game.pawns.map(p=>p.cellKey),...reserved]);
+ const pending=new Set(alreadyReturning);
+ const open=[...board.cells].filter(c=>!c.nucleus)
+  .sort((a,b)=>b.ring-a.ring||a.idxInRing-b.idxInRing);
+ const results:{seal:number;target:string}[]=[];
+ for(const pawn of [...game.home].sort((a,b)=>a.seal-b.seal)){
+  if(pending.has(pawn.seal)||rcHomeCooldown(game,pawn.seal)>0)continue;
+  const cell=open.find(c=>!occupied.has(c.key));
+  if(!cell)continue;
+  occupied.add(cell.key);
+  results.push({seal:pawn.seal,target:cell.key});
+ }
+ return results;
 }
 export function canRCReenter(game:RCGame,seal:number,target:string,board:RCBoard){
  return target!=="0,0"&&game.home.some(p=>p.seal===seal)&&
@@ -257,7 +281,6 @@ export function returnRCPawnToCell(
   home:game.home.filter(p=>p.seal!==seal),
   homeCooling:Object.fromEntries(Object.entries(game.homeCooling)
    .filter(([key])=>key!==String(seal))),
-  moves:game.moves+1,
   lastAction:"HOME REENTRY · "+pawnName(incoming)+" returns to "+target+
    " without capture or energy cost."
  };
@@ -269,11 +292,51 @@ export function returnRCPawnToCell(
  return {game:updated,attacker:{...incoming,cellKey:target},
   captured:null,target};
 }
+/**
+ * Chromatica genetics: a palette has two independent alleles, Latin (row)
+ * and Greek (col). Capture creates the two reciprocal recombinants;
+ * selection favours the one best distinguished from the six immediate
+ * neighbours of the capture cell (excluding both parents). Without
+ * neighbours, the more contrasted two-endpoint gradient wins. Ties are
+ * resolved by canonical palette index; the drop direction is irrelevant.
+ */
+export function rcSelectCapturedPalette(
+ game:RCGame,attacker:RCPawn,defender:RCPawn,board:RCBoard
+):{row:number;col:number}{
+ const cell=board.cells.find(c=>c.key===defender.cellKey);
+ if(!cell)throw Error("Missing capture cell");
+ const neighbours=game.pawns.filter(p=>{
+  if(p.seal===attacker.seal||p.seal===defender.seal)return false;
+  const other=board.cells.find(c=>c.key===p.cellKey);
+  return !!other&&rcRing(other.q-cell.q,other.r-cell.r)===1;
+ });
+ const midpoint=(row:number,col:number)=>{
+  const pair=gradientPair(row,col);
+  return mixColors(pair.primary.hex,pair.secondary.hex,.5);
+ };
+ const options=[{row:attacker.row,col:defender.col},
+  {row:defender.row,col:attacker.col}];
+ const ranked=options.map(candidate=>{
+  const pair=gradientPair(candidate.row,candidate.col);
+  const contrast=perceptualDistance(pair.primary.hex,pair.secondary.hex);
+  const color=midpoint(candidate.row,candidate.col);
+  const fitness=neighbours.length?
+   neighbours.reduce((score,p)=>score+
+    perceptualDistance(color,midpoint(p.row,p.col)),0)/neighbours.length:
+   contrast;
+  return {...candidate,fitness,contrast};
+ }).sort((a,b)=>b.fitness-a.fitness||
+  b.contrast-a.contrast||a.row-b.row||a.col-b.col);
+ return {row:ranked[0].row,col:ranked[0].col};
+}
+
 /** One fusion rule shared by drag captures and Home return captures. */
-function inheritManifestation(attacker:RCPawn,captured:RCPawn,target:string){
+function inheritManifestation(attacker:RCPawn,captured:RCPawn,target:string,
+ game:RCGame,board:RCBoard){
  const regressed=rcHomeRegression(captured.number);
+ const palette=rcSelectCapturedPalette(game,attacker,captured,board);
  return {
-  attacker:{...attacker,cellKey:target,number:captured.number,
+  attacker:{...attacker,...palette,cellKey:target,number:captured.number,
    manifestations:appendManifestation(attacker.manifestations,captured.number)},
   defender:{...captured,cellKey:"",number:regressed,
    manifestations:appendManifestation(captured.manifestations,regressed)}
@@ -300,8 +363,8 @@ export function moveRCPawn(
    pawns:game.pawns.filter(p=>p.seal!==attacker.seal),
    home:[...game.home,cooled],
    homeCooling:{...game.homeCooling,
-    [attacker.seal]:game.moves+1+RC_NUCLEUS_COOLING_MOVES},
-   moves:game.moves+1,
+    [attacker.seal]:game.homeCycles+1+RC_NUCLEUS_COOLING_MOVES},
+   moves:game.moves+1,homeCycles:game.homeCycles+1,
    mutatron:{...game.mutatron,
     energyReserve:game.mutatron.energyReserve+check.fieldDelta,
     symmetry:0},
@@ -315,20 +378,22 @@ export function moveRCPawn(
   return {game:updated,captured:null,attacker};
  }
  const captured=pawnAt(game,target)??null;
- const fused=captured?inheritManifestation(attacker,captured,target):null;
+ const fused=captured?inheritManifestation(attacker,captured,target,game,board):null;
  const pawns=game.pawns.filter(p=>p.seal!==captured?.seal)
   .map(p=>p.seal===attacker.seal?
    fused?.attacker??{...p,cellKey:target}:p);
  const home=fused?[...game.home,fused.defender]:game.home;
  const updated:RCGame={...game,pawns,home,
-  homeCooling:captured?Object.fromEntries(Object.entries(game.homeCooling)
-   .filter(([key])=>key!==String(captured.seal))):game.homeCooling,
-  moves:game.moves+1,fusions:game.fusions+(captured?1:0),
+  homeCooling:captured?{...game.homeCooling,
+   [captured.seal]:game.homeCycles+1+RC_NUCLEUS_COOLING_MOVES}:
+   game.homeCooling,
+  moves:game.moves+1,homeCycles:game.homeCycles+1,fusions:game.fusions+(captured?1:0),
   mutatron:{...game.mutatron,
    energyReserve:game.mutatron.energyReserve+check.fieldDelta,
    symmetry:0},
   lastAction:captured?
    "FUSION · "+pawnName(attacker)+" inherits #"+captured.number+
+   " and palette "+pawnPalette(fused!.attacker).name+
    ". "+pawnName(captured)+" returns Home as #"+fused?.defender.number+
    ". Field "+(check.fieldDelta>=0?"+":"")+check.fieldDelta+" E.":
    pawnName(attacker)+" moves to cell "+target+"."};
@@ -355,6 +420,8 @@ export function recallRCParity(game:RCGame,parity:RCHomeParity,board:RCBoard):RC
   ...game,
   pawns:game.pawns.filter(p=>rcParity(p.seal)!==parity),
   home:[...game.home,...recalled.map(p=>({...p,cellKey:""}))],
+  homeCooling:{...game.homeCooling,...Object.fromEntries(recalled.map(
+   p=>[p.seal,game.homeCycles+RC_NUCLEUS_COOLING_MOVES]))},
   lastAction:"HOME TEST · "+recalled.length+" "+parity+
    " Polytrons recalled into their Home."
  };
@@ -404,7 +471,7 @@ export function returnRCPawnHome(
  const delta=captured?rcIntrinsic(incoming.number)-
   rcIntrinsic(rcHomeRegression(captured.number)):0;
  if(game.mutatron.energyReserve+delta<0)return null;
- const fused=captured?inheritManifestation(incoming,captured,target):null;
+ const fused=captured?inheritManifestation(incoming,captured,target,game,board):null;
  const attacker=fused?.attacker??{...incoming,cellKey:target};
  const updated:RCGame={...game,
   pawns:[...game.pawns.filter(p=>p.seal!==captured?.seal),attacker],
@@ -412,7 +479,8 @@ export function returnRCPawnHome(
    ...(fused?[fused.defender]:[])],
   homeCooling:Object.fromEntries(Object.entries(game.homeCooling)
    .filter(([key])=>key!==String(seal)&&key!==String(captured?.seal))),
-  moves:game.moves+1,fusions:game.fusions+(captured?1:0),
+  moves:game.moves+1,homeCycles:game.homeCycles+1,
+  fusions:game.fusions+(captured?1:0),
   mutatron:{...game.mutatron,
    energyReserve:game.mutatron.energyReserve+delta,symmetry:0},
   lastAction:captured?
@@ -433,6 +501,7 @@ export function validateRCGame(game:RCGame,board:RCBoard):boolean{
  const occupied=new Set<string>(),seals=new Set<number>();
  if(!Array.isArray(game.pawns)||!Array.isArray(game.home)||
     !Number.isInteger(game.moves)||game.moves<0||
+    !Number.isInteger(game.homeCycles)||game.homeCycles<0||
     !Number.isInteger(game.fusions)||game.fusions<0||
     game.fusions>game.moves||
     !game.mutatron||!Number.isSafeInteger(game.mutatron.generation)||
