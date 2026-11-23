@@ -514,7 +514,7 @@ export default function RC01ThreeBoard({
    if(game?.mutatron.changes.length)
     worldRef.current?.pulseMutations(game.mutatron.changes);
   }
- },[game]);
+ },[game,board]);
  useEffect(()=>{
   worldRef.current?.setEvolutionPreview(preview);
  },[preview]);
