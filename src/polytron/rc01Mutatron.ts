@@ -248,6 +248,7 @@ export function forecastRCMutatron(game:RCGame,board:RCBoard):RCMutatronForecast
    "No sufficiently diverse and balanced pair.";
  const next:RCGame={
   ...game,
+  homeCycles:game.homeCycles+(canInvoke?1:0),
   pawns:game.pawns.map(p=>updates.get(p.seal)??p),
   mutatron:{
    ...game.mutatron,
