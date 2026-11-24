@@ -1,0 +1,31 @@
+name: Archive Mindeleev RC01 final tag
+on:
+  push:
+    branches:
+      - ops/archive-rc01-tag
+    paths:
+      - .github/workflows/archive-mindeleev-rc01.yml
+permissions:
+  contents: write
+jobs:
+  tag-rc01:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Tag the last tested and deployed RC01 commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="mindeleev-rc01-final"
+          COMMIT="d8d9a3127bca7537ccbc8b9d5eac2cde0a836912"
+          git cat-file -e "${COMMIT}^{commit}"
+          if git ls-remote --exit-code origin "refs/tags/${TAG}" >/dev/null; then
+            echo "::error::Refusing to modify an existing archival tag: ${TAG}"
+            exit 1
+          fi
+          git -c user.name="Mindeleev Archive" -c user.email="actions@users.noreply.github.com" \
+            tag -a "${TAG}" "${COMMIT}" -m "Mindeleev RC01 final archive — 2026-11-24. Last successful RC01 Pages build; gameplay experiment closed."
+          git push origin "refs/tags/${TAG}"
+          git ls-remote origin "refs/tags/${TAG}^{}" | grep -F "${COMMIT}"
