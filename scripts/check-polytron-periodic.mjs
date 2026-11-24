@@ -14,15 +14,65 @@ async function load(path,name,ui=false){
  return import(pathToFileURL(outfile).href);
 }
 try{
- const [num,cat,ui,prior,life,geometry,conway]=await Promise.all([
+ const [num,cat,ui,prior,life,geometry,conway,primes]=await Promise.all([
   load("src/polytron/politronicNumber.ts","number"),
   load("src/polytron/periodicCatalog.ts","catalog"),
   load("src/experiments/PolytronPeriodicLab.tsx","ui",true),
   load("src/polytron/mapping.ts","existing"),
   load("src/polytron/mindeleevLife.ts","life"),
   load("src/polytron/polytron.ts","geometry"),
-  load("src/polyhedronisme/polyhedronisme.ts","conway")
+  load("src/polyhedronisme/polyhedronisme.ts","conway"),
+  load("src/polytron/primeManifestations.ts","prime-manifestations")
  ]);
+ assert.equal(primes.PRIME_MANIFESTATION_COUNT,72);
+ assert.equal(primes.PRIME_MANIFESTATIONS.length,72);
+ assert.equal(primes.PRIME_MANIFESTATIONS[0].prime,2);
+ assert.equal(primes.PRIME_MANIFESTATIONS[71].prime,359);
+ assert.equal(primes.LARGEST_PRIME_MANIFESTATION,359);
+ assert.equal(primes.PRIME_CATALOG_PERIODS,72);
+ const distinct=new Set();
+ for(const item of primes.PRIME_MANIFESTATIONS){
+  assert.equal(item.index,distinct.size+1);
+  assert(!distinct.has(item.prime),"All selected prime polytronic numbers must differ");
+  distinct.add(item.prime);
+  assert(item.prime>=2);
+  for(let divisor=2;divisor*divisor<=item.prime;divisor++)
+   assert.notEqual(item.prime%divisor,0,
+    "Not a prime: "+item.prime);
+  assert.equal(item.dna,num.dnaFromPolitronNumber(item.prime));
+  assert.equal(item.group,((item.prime-1)%5)+1);
+  assert.equal(item.period,Math.floor((item.prime-1)/5)+1);
+  assert.equal(item.groupCode,num.PERIODIC_SEEDS[item.group-1]);
+  assert.equal(item.energy,life.intrinsicEnergy(item.prime,0));
+  assert.equal(primes.polytronPeriodicUrl(item.prime),
+   "?experiment=polytron-periodic&polytron="+item.prime);
+  assert.equal(ui.periodicNumberFromSearch("?experiment=polytron-periodic&polytron="+item.prime),
+   item.prime,"Every prime must open by direct URL on its canonical periodic cell");
+ }
+ for(const invalid of ["","?polytron=0","?polytron=-2","?polytron=abc",
+  "?polytron=10001","?polytron=2.5","?polytron=NaN","?polytron=01"]){
+  assert.equal(ui.periodicNumberFromSearch(invalid),null,
+   "Invalid URL must never focus an unrelated periodic cell: "+invalid);
+ }
+ assert.equal(ui.periodicNumberFromSearch("?polytron=359"),359);
+ assert.equal(ui.periodicNumberFromSearch("?polytron=10000"),10000);
+ const primeUiSource=await readFile("src/experiments/PrimeManifestationsLab.tsx","utf8");
+ const appSource=await readFile("src/App.tsx","utf8");
+ const periodicSource=await readFile("src/experiments/PolytronPeriodicLab.tsx","utf8");
+ assert(appSource.includes('experiment") === "polytron-primes"')&&
+  appSource.includes("<PrimeManifestationsLab />"),
+  "The prime reference table must be available as a dedicated experiment URL");
+ assert(primeUiSource.includes("PRIME_MANIFESTATIONS.map(item=>")&&
+  primeUiSource.includes("SharedPeriodic3D")&&
+  primeUiSource.includes('data-polytron-viewport=""')&&
+  primeUiSource.includes("polytronPeriodicUrl(item.prime)")&&
+  primeUiSource.includes("prime-lab-table"),
+  "Every entry must show the real periodic 3D preview and an individual deep link");
+ assert(periodicSource.includes("periodicNumberFromSearch(window.location.search)")&&
+  periodicSource.includes('scrollIntoView({behavior:"smooth",block:"center"})')&&
+  periodicSource.includes('deepUrl.searchParams.set("polytron",number.toString())'),
+  "The existing periodic lookup must support URL focus and shareable number searches");
+
  assert.deepEqual([...num.PERIODIC_OPERATORS],[...prior.OPERATORS]);
  assert.deepEqual([...num.PERIODIC_SEEDS],["T","C","O","D","I"]);
  for(let n=1;n<=10000;n++){

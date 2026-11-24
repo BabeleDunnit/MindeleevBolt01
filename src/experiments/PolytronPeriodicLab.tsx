@@ -51,7 +51,7 @@ const flatViews=[
  * All four views share the same real Conway geometry. Only the 3D solid
  * rotates; the three flattened previews use fixed orthographic cameras.
  */
-function SharedPeriodic3D({palette,rotate,gradient}:{palette:number;rotate:boolean;gradient?:GradientSelection}){
+export function SharedPeriodic3D({palette,rotate,gradient}:{palette:number;rotate:boolean;gradient?:GradientSelection}){
  const root=useRef<HTMLCanvasElement>(null);
  const rotateRef=useRef(rotate);rotateRef.current=rotate;
  useEffect(()=>{
@@ -293,11 +293,24 @@ export function PeriodicCell({entry,showSpectrum,showEquivalent,palette,gradient
   </div>
  </article>;
 }
+/** URL entry point shared by the prime-manifestations index.
+ * Only valid in-range positive canonical numbers are accepted.
+ */
+export function periodicNumberFromSearch(search:string):number|null{
+ const raw=new URLSearchParams(search).get("polytron");
+ if(!raw||!/^\d+$/.test(raw)||raw.startsWith("0"))return null;
+ const number=Number(raw);
+ return Number.isSafeInteger(number)&&number>=1&&
+  number<=MAX_CATALOG_ROWS*5?number:null;
+}
 export default function PolytronPeriodicLab(){
+ const [deepLinkNumber]=useState(()=>typeof window==="undefined"?null:
+  periodicNumberFromSearch(window.location.search));
+ const initialRows=Math.max(100,Math.ceil((deepLinkNumber??0)/5));
  const worker=useRef<Worker|null>(null);
  const [workerError,setWorkerError]=useState("");
- const [rows,setRows]=useState(100);
- const [rowInput,setRowInput]=useState("100");
+ const [rows,setRows]=useState(initialRows);
+ const [rowInput,setRowInput]=useState(String(initialRows));
  const [entries,setEntries]=useState<PeriodicEntry[]>([]);
  const [paletteGroup,setPaletteGroup]=useState(0);
  const [paletteSlot,setPaletteSlot]=useState(2);
@@ -313,9 +326,9 @@ export default function PolytronPeriodicLab(){
  const [rotate,setRotate]=useState(true);
  const [showEquivalent,setShowEquivalent]=useState(true);
  const [showSpectrum,setShowSpectrum]=useState(false);
- const [lookup,setLookup]=useState("");
+ const [lookup,setLookup]=useState(deepLinkNumber?String(deepLinkNumber):"");
  const [lookupMessage,setLookupMessage]=useState("");
- const [currentFocus,setCurrentFocus]=useState<number|null>(null);
+ const [currentFocus,setCurrentFocus]=useState<number|null>(deepLinkNumber);
  useEffect(()=>{
   try{window.localStorage.setItem("mindeleev-periodic-palettes",
    palettesOpen?"open":"closed");}catch{/* Storage is optional. */}
@@ -397,6 +410,11 @@ export default function PolytronPeriodicLab(){
    }else{
     number=politronNumberFromDNA(lookup.trim());
     setLookupMessage("ConwayDNA "+lookup.trim()+" → Polytronic Number "+number.toString());
+   }
+   if(number>=1n&&number<=BigInt(MAX_CATALOG_ROWS*5)){
+    const deepUrl=new URL(window.location.href);
+    deepUrl.searchParams.set("polytron",number.toString());
+    window.history.replaceState(null,"",deepUrl.toString());
    }
    if(number<=BigInt(rowTarget)){
     const n=Number(number);
