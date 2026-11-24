@@ -137,10 +137,11 @@ try{
  assert(source.includes('setPaletteMode("legacy")'));
  assert(source.includes('polytronGeometry(dna,()=>palette,gradient)'));
  assert(source.includes('gradientFaceUsage(entry.faceClassIds,gradient)'));
- assert(source.includes('const [rows,setRows]=useState(100);'),
-  "The table must enumerate 100 periods by default");
- assert(source.includes('const [rowInput,setRowInput]=useState("100");'),
-  "The number input must display the actual 100-period initial target");
+ assert(source.includes("const initialRows=Math.max(100,Math.ceil((deepLinkNumber??0)/5));")&&
+  source.includes("const [rows,setRows]=useState(initialRows);"),
+  "The table must enumerate 100 periods by default, or more for a deep link");
+ assert(source.includes("const [rowInput,setRowInput]=useState(String(initialRows));"),
+  "The input must display the true initial period target, including deep links");
  assert(source.includes('const rowTarget=Math.min(rows*5,MAX_CATALOG_ROWS*5)'),
   "The number of Polytrons must remain five per period");
  assert(source.includes('instance.postMessage({kind:"target",rows})'),
