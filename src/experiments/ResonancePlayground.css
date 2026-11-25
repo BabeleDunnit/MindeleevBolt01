@@ -262,3 +262,23 @@
 }
 .resonance-owned-list button b{font-size:11px}
 .resonance-owned-list button span{font-size:10px;color:#b5d5ce}
+
+/*
+ * Desktop research dashboard.
+ * Cards inherit the fluid multi-column flow from KaleidoscopeLab.css,
+ * so composer, live forecast, score meters and difficulty report are
+ * adjacent wherever the viewport has sufficient width.
+ */
+@media(min-width:871px){
+ .kaleido-mode-switch{max-width:none}
+}
+.resonance-sidebar .kaleido-control-block{
+ width:100%;overflow-wrap:anywhere
+}
+.resonance-budget-table{
+ table-layout:fixed;width:100%
+}
+.resonance-budget-table th,
+.resonance-budget-table td{
+ overflow-wrap:normal;word-break:normal;white-space:normal
+}

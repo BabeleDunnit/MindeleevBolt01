@@ -137,6 +137,11 @@ try{
   "Several real/hint viewports must coexist on the shared canvas");
  assert(css.includes(".resonance-cell-hit")&&
   css.includes("@media(max-width:530px)"));
+ assert(css.includes("Desktop research dashboard")&&
+  css.includes(".resonance-sidebar .kaleido-control-block")&&
+  css.includes(".resonance-budget-table")&&
+  css.includes("table-layout:fixed"),
+  "Live forecast, evaluator and difficulty panel must fit the fluid desktop dashboard");
  console.log("PASS Resonance: exact spatial evaluator, chromatic/dual affinity,"+
   " saturation, graph, symmetry, marginal contribution, budgeted difficulty"+
   " worker, unique named Polytron identities and full mobile UI.");

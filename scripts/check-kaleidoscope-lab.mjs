@@ -107,6 +107,15 @@ try{
   css.includes(".kaleido-radius-picker")&&
   css.includes("@media(max-width:530px)"),
   "Evolution and mobile-first radius controls must be visible");
+ assert(css.includes("grid-template-columns:minmax(320px,40%) minmax(0,1fr)")&&
+  css.includes("column-width:245px;column-count:4;column-gap:12px")&&
+  css.includes("break-inside:avoid-column")&&
+  css.includes("position:sticky;top:12px"),
+  "Desktop labs must show sticky board beside automatically flowing horizontal cards");
+ assert(css.includes("@media(max-width:870px)")&&
+  css.includes("grid-template-columns:minmax(0,1fr)")&&
+  css.includes("column-count:1;column-width:auto"),
+  "Narrow touch layouts must remain vertically stacked without horizontal overflow");
  console.log("PASS Kaleidoscope Lab: 4 families × 4 symmetries × 5 radii × 5 generations,"+
   " exact orbit symmetry, deterministic lineage, real flat-Z viewports and UI");
 }finally{

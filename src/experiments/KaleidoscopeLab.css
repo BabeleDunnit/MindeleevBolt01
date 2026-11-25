@@ -28,13 +28,21 @@
  padding:10px 13px;border-radius:10px;font-size:12px;font-weight:750
 }
 .kaleido-back:hover,.kaleido-back:focus-visible{background:#245565}
+/*
+ * Research desktop workspace: use the full horizontal viewport rather than
+ * putting every control card in one very narrow vertical sidebar.
+ * The Mutatron keeps its own column while cards flow into 1–4 CSS columns.
+ */
 .kaleido-layout{
- max-width:1320px;margin:0 auto;
- display:grid;grid-template-columns:minmax(0,1.7fr) minmax(285px,.78fr);
- gap:18px;align-items:start
+ width:100%;max-width:none;margin:0 auto;
+ display:grid;grid-template-columns:minmax(320px,40%) minmax(0,1fr);
+ gap:clamp(12px,1.15vw,20px);align-items:start
 }
 .kaleido-stage{
- min-width:0;border-radius:18px;
+ min-width:0;width:100%;
+ max-width:min(100%,calc(100dvh - 200px));
+ position:sticky;top:12px;
+ border-radius:18px;
  border:1px solid #315564;
  overflow:hidden;background:#0b2431;
  box-shadow:0 8px 26px #0003
@@ -94,7 +102,21 @@
  border-top:1px solid #305261;background:#102f3c;
  font-variant-numeric:tabular-nums
 }
-.kaleido-controls{display:grid;gap:12px;min-width:0}
+/*
+ * CSS multi-column cards pack horizontally and rebalance as space changes.
+ * Unlike a fixed two-column grid, tall cards don't leave empty grid rows
+ * under short cards. No inner scrolling and no content order changes.
+ */
+.kaleido-controls{
+ display:block;min-width:0;
+ column-width:245px;column-count:4;column-gap:12px
+}
+.kaleido-controls > *{
+ break-inside:avoid-column;
+ -webkit-column-break-inside:avoid;
+ margin:0 0 12px;
+ min-width:0
+}
 .kaleido-control-block,.kaleido-stats,.kaleido-selected{
  background:#102d3a;border:1px solid #355b68;
  border-radius:14px;padding:15px;
@@ -207,17 +229,22 @@
  font-size:12px;line-height:1.6
 }
 .kaleido-footer strong{color:#eed6a4}
+@media(min-width:871px){
+ .kaleido-header,.kaleido-footer{max-width:none}
+}
 @media(max-width:870px){
  .kaleido-header{flex-direction:column}
- .kaleido-layout{grid-template-columns:1fr}
- .kaleido-controls{grid-template-columns:repeat(2,minmax(0,1fr))}
- .kaleido-actions{align-self:start}
- .kaleido-stage{max-width:720px;width:100%;margin:0 auto}
+ .kaleido-layout{grid-template-columns:minmax(0,1fr)}
+ .kaleido-stage{
+  max-width:min(720px,calc(100dvh - 180px));
+  width:100%;margin:0 auto;position:static
+ }
 }
 @media(max-width:530px){
  .kaleido-app{padding:10px}
  .kaleido-layout{gap:12px}
- .kaleido-controls{grid-template-columns:1fr}
+ .kaleido-controls{column-count:1;column-width:auto}
+ .kaleido-stage{max-width:720px}
  .kaleido-stage-head,.kaleido-stage-foot{padding:10px 12px}
  .kaleido-stage-head strong{font-size:16px}
  .kaleido-stage-head span{font-size:10px}
