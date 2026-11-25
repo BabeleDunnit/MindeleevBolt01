@@ -157,6 +157,26 @@ try{
  assert(ui.includes("Conferma acquisto")&&
   ui.includes("Conferma spostamento")&&
   ui.includes("Ritira"));
+ assert(ui.includes("Cancella acquisto")&&
+  ui.includes("resonance-cancel-purchase")&&
+  ui.includes("onClick={cancelPending}")&&
+  ui.includes("Annulla spostamento")&&
+  ui.includes("Annulla richiamo"),
+  "Every confirmation requires an explicit no-cost cancel action");
+ const cancelStart=ui.indexOf("const cancelPending=()=>");
+ const cancelEnd=ui.indexOf("const commit=()=>",cancelStart);
+ const cancelCode=ui.slice(cancelStart,cancelEnd);
+ assert(cancelStart>=0&&cancelEnd>cancelStart&&
+  ["setPreviewKey(null)","setHoverKey(null)","setMoveFrom(null)",
+   "setReturnSeal(null)","setNumber(2)","setPaletteRow(10)",
+   "setPaletteCol(10)"].every(x=>cancelCode.includes(x))&&
+  !cancelCode.includes("setPawns")&&!cancelCode.includes("setTreasury")&&
+  !cancelCode.includes("setHome")&&!cancelCode.includes("setNextSeal"),
+  "Cancel purchase must discard pending tile/pawn choice without spending energy or mutating owned identities");
+ assert(css.includes(".resonance-purchase-actions")&&
+  css.includes(".resonance-cancel-purchase")&&
+  css.includes("grid-template-columns:repeat(2,minmax(0,1fr))"),
+  "Confirm and cancel actions must sit side by side on desktop");
  assert(ui.includes("sealName(nextSeal)")&&
   ui.includes("Polytrone #")&&ui.includes("name:selectedPawn!.name")&&
   ui.includes("Manifestazione · Nº polytronico"));

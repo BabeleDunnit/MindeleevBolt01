@@ -163,6 +163,18 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
    setPreviewKey(null);
   }else setPreviewKey(key);
  };
+ const cancelPending=()=>{
+  // Nothing was purchased yet: discard ONLY the selection and ghost
+  // placement, leaving treasury, board and existing Seal identities intact.
+  setPreviewKey(null);
+  setHoverKey(null);
+  setMoveFrom(null);
+  setReturnSeal(null);
+  setNumber(2);
+  setPaletteRow(10);
+  setPaletteCol(10);
+  setLastEvent("Scelta annullata: nessun acquisto o spostamento effettuato.");
+ };
  const commit=()=>{
   if(!candidate||!canPurchase)return;
   if(!moveFrom&&!fromHome&&sealName(nextSeal)==="—"){
@@ -539,9 +551,16 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
         di questa commissione.</p>}
       {!canPurchase&&<p className="resonance-warning">
        Energia insufficiente per acquistare questa manifestazione.</p>}
-      <button className="resonance-confirm" disabled={!canPurchase}
-       onClick={commit}>{moveFrom?"Conferma spostamento":
-        fromHome?"Conferma richiamo di #"+fromHome.seal:"Conferma acquisto"}</button>
+      <div className="resonance-purchase-actions">
+       <button type="button" className="resonance-confirm" disabled={!canPurchase}
+        onClick={commit}>{moveFrom?"Conferma spostamento":
+         fromHome?"Conferma richiamo di #"+fromHome.seal:"Conferma acquisto"}</button>
+       <button type="button" className="resonance-cancel-purchase"
+        onClick={cancelPending}>
+        {moveFrom?"Annulla spostamento":
+         fromHome?"Annulla richiamo":"Cancella acquisto"}
+       </button>
+      </div>
      </>:
      <p>Tocca o sorvola una cella libera per vedere dove arrivano le influenze,
       quanto cresce la corrispondenza e quanto costa il Polytrone scelto.</p>}
@@ -549,8 +568,7 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
      <span>#{selectedPawn.seal} · {selectedPawn.name} · manifestazione {selectedPawn.number} ·
       recupero {Math.floor(resonanceCost(selectedPawn.number)/2)} E</span>
      <button type="button" onClick={sell}>Ritira</button>
-     <button type="button" onClick={()=>{setMoveFrom(null);setPreviewKey(null);}}>
-      Annulla</button>
+     <button type="button" onClick={cancelPending}>Annulla</button>
     </div>}
     {lastEvent&&<p className="resonance-action-message" aria-live="polite">
      {lastEvent}</p>}
