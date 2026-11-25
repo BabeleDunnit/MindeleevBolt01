@@ -10,7 +10,7 @@
  *
  * NO time/entropy and NO automatic reward farming in this first laboratory.
  */
-import type {KaleidoLayout,KaleidoPoint,KaleidoTile} from "@/polytron/kaleidoscopeGenerator";
+import {kaleidoOrbits,kaleidoTransform,type KaleidoLayout,type KaleidoPoint,type KaleidoTile} from "@/polytron/kaleidoscopeGenerator";
 import {rcRing} from "@/polytron/rc01Board";
 import {intrinsicEnergy,groupOf,periodOf} from "@/polytron/mindeleevLife";
 import {LATIN_SOURCES,GREEK_DESTINATIONS,oklab} from "@/polytron/gradientPalettes";
@@ -21,6 +21,12 @@ export type ResonancePawn={
 export type ResonanceSettings={reach:1|2|3};
 export const DEFAULT_RESONANCE_SETTINGS:ResonanceSettings={reach:2};
 export const RESONANCE_WEIGHTS={color:.65,group:.25,period:.10} as const;
+/**
+ * Separate evaluator axes:
+ * 78% LOCAL spatial resonance (Chromatica/dual groups/period)
+ * 22% GLOBAL geometric harmony measured on the player's actual board.
+ * Graph and symmetry DO NOT reuse hint saturation as their source.
+ */
 export const TOTAL_WEIGHTS={hints:.78,graph:.12,symmetry:.10} as const;
 const HEX_FALLOFF=[1,.74,.36,.14] as const;
 const ROOT_GROUPS=new Map<number,number>([[1,1],[2,3],[3,2],[4,5],[5,4]]);
@@ -43,6 +49,7 @@ export type ResonanceScore={
  quality:number;
  color:number;group:number;period:number;
  hints:number;graph:number;symmetry:number;
+ local:number;structural:number;
  hintResults:ResonanceHint[];
  graphResults:ResonanceGraphEdge[];
  contributions:ResonanceContribution[];
@@ -155,33 +162,77 @@ function scoreCore(
   hintResults.reduce((sum,h)=>sum+h.group,0)/hintResults.length:0;
  const period=hintResults.length?
   hintResults.reduce((sum,h)=>sum+h.period,0)/hintResults.length:0;
- const byKey=new Map(hintResults.map(h=>[h.key,h]));
- // A graph edge earns credit if both endpoints' desired hint field is
- // satisfied. Nucleus is a non-playable structural focal point.
- const graphResults:ResonanceGraphEdge[]=layout.edges.map(edge=>{
-  const a=byKey.get(edge.from),b=byKey.get(edge.to);
-  const av=a?.overall??(edge.from==="0,0"?1:0);
-  const bv=b?.overall??(edge.to==="0,0"?1:0);
-  return {...edge,coverage:Math.sqrt(av*bv)};
- });
- const graph=graphResults.length?
-  graphResults.reduce((sum,e)=>sum+e.coverage,0)/graphResults.length:hints;
- const orbits=new Map<string,number[]>();
- for(const h of hintResults)
-  orbits.set(h.orbit,[...(orbits.get(h.orbit)??[]),h.overall]);
- // A single answer on one side is *not* a symmetrical response.
- // Low but uniform response is not rewarded without coverage.
- let symmetry=0;
- for(const scores of orbits.values()){
-  const avg=scores.reduce((a,b)=>a+b,0)/scores.length;
-  const min=Math.min(...scores);
-  symmetry+=avg===0?0:avg*(.3+.7*min/avg)*scores.length;
+ /*
+  * GLOBAL TOPOLOGY: the user's own pairwise connections are compared to
+  * geometrical motifs of the requested graph, invariant under rotations and
+  * reflections. NO hint-coverage field is consulted in these calculations.
+  * Each valid pair supports a real player graph edge; isolated pieces and
+  * mismatched spatial relations reduce structural coherence.
+  */
+ const signature=(dq:number,dr:number)=>{
+  const all:string[]=[];
+  for(let mirror=0;mirror<=1;mirror++)for(let rotation=0;rotation<6;rotation++){
+   const p=kaleidoTransform({q:dq,r:dr},rotation,mirror===1);
+   all.push(p.q+","+p.r);
+  }
+  return all.sort()[0];
+ };
+ const targetCells=new Map(layout.cells.map(cell=>[cell.key,cell]));
+ const motifs=new Set<string>();
+ let maxMotifDistance=0;
+ for(const edge of layout.edges){
+  if(edge.from==="0,0"||edge.to==="0,0")continue;
+  const a=targetCells.get(edge.from),b=targetCells.get(edge.to);
+  if(!a||!b)continue;
+  const d=resonanceHexDistance(a,b);
+  maxMotifDistance=Math.max(maxMotifDistance,d);
+  motifs.add(signature(a.q-b.q,a.r-b.r));
  }
- symmetry=hintResults.length?symmetry/hintResults.length:0;
- const quality=100*clamp(TOTAL_WEIGHTS.hints*hints+
-  TOTAL_WEIGHTS.graph*graph+TOTAL_WEIGHTS.symmetry*symmetry);
+ const graphResults:ResonanceGraphEdge[]=[];
+ const connected=new Set<string>();
+ let nearbyPairs=0;
+ for(let i=0;i<pawnCells.length;i++)for(let j=i+1;j<pawnCells.length;j++){
+  const a=pawnCells[i],b=pawnCells[j];
+  const distance=resonanceHexDistance(a.cell,b.cell);
+  if(distance>maxMotifDistance)continue;
+  nearbyPairs++;
+  const motif=signature(a.cell.q-b.cell.q,a.cell.r-b.cell.r);
+  if(!motifs.has(motif))continue;
+  graphResults.push({
+   from:a.pawn.key,to:b.pawn.key,kind:"motif",coverage:1
+  });
+  connected.add(a.pawn.key);connected.add(b.pawn.key);
+ }
+ const n=pawnCells.length;
+ const coherence=nearbyPairs?graphResults.length/nearbyPairs:0;
+ const participation=n?connected.size/n:0;
+ const richness=n?Math.min(1,graphResults.length/(.75*n)):0;
+ const graph=clamp(.55*coherence*richness+.45*participation);
+ /*
+  * GLOBAL SYMMETRY: same occupied-cell orbit under the REQUESTED group.
+  * We don't inspect hint satisfaction. A lone pawn has symmetry score 0;
+  * completing a C2 pair or C6/D6 orbit scores highly.
+  */
+ const occupancy=new Set(pawns.map(p=>p.key));
+ let symmetry=0;
+ if(pawns.length){
+  for(const orbit of kaleidoOrbits(layout.cells,layout.params.symmetry)){
+   if(orbit.ring===0||orbit.cells.length<=1)continue;
+   const count=orbit.cells.filter(c=>occupancy.has(c.key)).length;
+   if(count===0)continue;
+   symmetry+=count*(count-1)/(orbit.cells.length-1);
+  }
+  symmetry=clamp(symmetry/pawns.length);
+ }
+ const local=100*hints;
+ const structural=100*(TOTAL_WEIGHTS.graph*graph+
+  TOTAL_WEIGHTS.symmetry*symmetry)/
+  (TOTAL_WEIGHTS.graph+TOTAL_WEIGHTS.symmetry);
+ const quality=clamp(TOTAL_WEIGHTS.hints*hints+
+  TOTAL_WEIGHTS.graph*graph+TOTAL_WEIGHTS.symmetry*symmetry)*100;
  return {quality,color:100*color,group:100*group,period:100*period,
-  hints:100*hints,graph:100*graph,symmetry:100*symmetry,
+  hints:local,graph:100*graph,symmetry:100*symmetry,
+  local,structural,
   hintResults,graphResults,contributions,
   totalCost:pawns.reduce((sum,p)=>sum+resonanceCost(p.number),0)};
 }
@@ -200,13 +251,14 @@ export function scoreResonance(
  return scoreCore(layout,pawns,settings,false);
 }
 /**
- * One-off commission economics. "Net" compares a reward received once
- * to buying ALL pieces from scratch; already-owned pieces are sunk capital.
- * Values may be negative. Pawn resale, future commissions and maintenance
- * are intentionally excluded, so this is not a lifetime profitability model.
+ * Acquisition is paid once, upkeep is paid EVERY Mutatron evolution.
+ * A cycle on an already-owned board pays reward-upkeep; a first cycle
+ * from scratch additionally deducts purchase expense.
+ * Values may be negative. Resale and future cycles are excluded.
  */
 export type ResonanceEconomics={
- quality:number;spent:number;reward:number;net:number;
+ quality:number;spent:number;upkeep:number;reward:number;
+ cycleNet:number;net:number;
  efficiency:number|null;pieces:number
 };
 export function resonanceEconomics(
@@ -215,10 +267,12 @@ export function resonanceEconomics(
 ):ResonanceEconomics{
  const score=scoreResonance(layout,pawns,settings);
  const reward=resonanceReward(layout,score.quality);
+ const upkeep=score.totalCost;
  return {
-  quality:score.quality,spent:score.totalCost,reward,
-  net:reward-score.totalCost,
-  efficiency:score.totalCost?reward/score.totalCost:null,
+  quality:score.quality,spent:score.totalCost,upkeep,reward,
+  cycleNet:reward-upkeep,
+  net:reward-upkeep-score.totalCost,
+  efficiency:upkeep?reward/upkeep:null,
   pieces:pawns.length
  };
 }

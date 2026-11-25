@@ -101,10 +101,14 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
    .sort((a,b)=>b.strength-a.strength).slice(0,20);
  },[showRays,planned,preview,candidate?.key,moveFrom]);
  const currentReward=resonanceReward(layout,planned.quality);
+ const upkeep=planned.totalCost;
+ const cycleNet=currentReward-upkeep;
+ const firstCycleNet=cycleNet-upkeep;
  const previewReward=preview?resonanceReward(layout,preview.quality):null;
  const marginalReward=previewReward===null?null:previewReward-currentReward;
- const marginalNet=marginalReward===null?null:marginalReward-candidateCost;
- const fullNet=currentReward-planned.totalCost;
+ const addedUpkeep=moveFrom?0:candidateCost;
+ const marginalCycleNet=marginalReward===null?null:marginalReward-addedUpkeep;
+ const marginalNet=marginalCycleNet===null?null:marginalCycleNet-candidateCost;
  const selectedScenario=difficulty?.scenarios.find(x=>x.id===selectedScenarioId)
   ??difficulty?.scenarios[0];
  const hintsByKey=new Map(visual.hintResults.map(h=>[h.key,h]));
@@ -216,10 +220,12 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
   setReturnSeal(selectedPawn.seal);
  };
  const reset=()=>{
+  // Do not refund purchase cost: resetting treasury would allow farming E.
   setHome(old=>[...old,...pawns]);
-  setPawns([]);setTreasury(initialBudget);setMoveFrom(null);
+  setPawns([]);setMoveFrom(null);
   setReturnSeal(null);
-  setPreviewKey(null);setHoverKey(null);setLastEvent("Composizione azzerata");
+  setPreviewKey(null);setHoverKey(null);
+  setLastEvent("Polytroni trasferiti a Home; nessun rimborso energetico.");
  };
  const setBudget=(n:number)=>{
   const next=clamp(Math.round(n)||10,10,500);
@@ -232,16 +238,23 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
   setNumber(tile.number);setPaletteRow(tile.paletteRow);setPaletteCol(tile.paletteCol);
   setMoveFrom(null);setReturnSeal(null);setPreviewKey(tile.key);
  };
- const claim=()=>{
+ const advance=(submit:boolean)=>{
   if(claimed)return;
-  const reward=currentReward;
-  setTreasury(old=>old+reward);
+  // Charge every active pawn on EVERY evolve, including without submission.
+  // Individuals at Home are never included in this operational cost.
+  const reward=submit?currentReward:0;
+  const net=reward-upkeep;
+  setTreasury(old=>old+net);
   setClaimed(true);
-  setCompletedRequests(old=>old+1);
-  setLastEvent("Risposta presentata: +"+reward+" E. La composizione rimane per la prossima richiesta.");
+  if(submit)setCompletedRequests(old=>old+1);
+  setLastEvent((submit?"Risposta presentata":"Evolve senza presentazione")+
+   ": ricavo +"+reward+" E, costo di evoluzione −"+upkeep+
+   " E, saldo "+(net>0?"+":"")+net+
+   " E. I Polytroni restano in plancia.");
   setHoverKey(null);setPreviewKey(null);setMoveFrom(null);
   onEvolve();
  };
+ const claim=()=>advance(true);
  const suggest=()=>{
   if(!difficulty?.nextMove)return;
   const next=difficulty.nextMove;
@@ -296,13 +309,18 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
      })}
      {showGraph&&layout.edges.map(edge=>{
       const a=circleFor(edge.from),b=circleFor(edge.to);
-      const score=visual.graphResults.find(e=>
-       e.from===edge.from&&e.to===edge.to)?.coverage??0;
-      return <line key={edge.from+"|"+edge.to}
+      return <line key={"requested-"+edge.from+"|"+edge.to}
        x1={a.x} y1={a.y} x2={b.x} y2={b.y}
-       stroke={score>.5?"#a8f7cb":edge.kind==="star"?"#d2a778":"#559cac"}
-       strokeWidth={edge.kind==="star"?2.3:1.5}
-       strokeOpacity={.18+.58*score}/>;
+       stroke={edge.kind==="star"?"#d2a778":"#559cac"}
+       strokeWidth={edge.kind==="star"?1.9:1.1}
+       strokeOpacity={.2}/>;
+     })}
+     {showGraph&&visual.graphResults.map(edge=>{
+      const a=circleFor(edge.from),b=circleFor(edge.to);
+      return <line key={"player-"+edge.from+"|"+edge.to}
+       x1={a.x} y1={a.y} x2={b.x} y2={b.y}
+       stroke="#f5dca0" strokeWidth="3.4"
+       strokeOpacity=".85"/>;
      })}
      {sortedRays.map(ray=>{
       const a=circleFor(ray.pawnKey),b=circleFor(ray.hintKey);
@@ -425,6 +443,21 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
    </div>
   </section>
   <aside className="kaleido-controls resonance-sidebar">
+   <section className="kaleido-control-block resonance-rules">
+    <h2>Regole di risonanza</h2>
+    <p>Questa portata controlla il campo d'influenza di ogni
+     Polytrone sia nella valutazione della risposta
+     sia nel Difficulty Analyzer. Non è un parametro del solo solutore.</p>
+    <div className="resonance-field-row">
+     <label htmlFor="resonance-reach">Portata di risonanza</label>
+     <select id="resonance-reach" value={settings.reach}
+      onChange={e=>setSettings({reach:Number(e.target.value) as 1|2|3})}>
+      <option value={1}>1 anello · concentrata</option>
+      <option value={2}>2 anelli · equilibrata</option>
+      <option value={3}>3 anelli · diffusa</option>
+     </select>
+    </div>
+   </section>
    <section className="kaleido-control-block">
     <div className="kaleido-section-top">
      <h2>Componi una risposta</h2>
@@ -564,13 +597,23 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
        <b>{moveFrom?"0 (spostamento)":candidateCost+" E"}</b>
       </div>
       <div className="resonance-forecast-row">
+       <span>Costo aggiuntivo ad ogni Evolve</span>
+       <b>−{addedUpkeep} E</b>
+      </div>
+      <div className="resonance-forecast-row">
        <span>Incremento della ricompensa</span>
        <b className={(marginalReward??0)>0?"resonance-positive":
         (marginalReward??0)<0?"resonance-negative":""}>
         {marginalReward!==null&&marginalReward>0?"+":""}{marginalReward} E</b>
       </div>
+      <div className="resonance-forecast-row">
+       <span>Saldo marginale dei cicli successivi</span>
+       <b className={(marginalCycleNet??0)>=0?"resonance-positive":"resonance-negative"}>
+        {marginalCycleNet!==null&&marginalCycleNet>0?"+":""}
+        {marginalCycleNet} E</b>
+      </div>
       <div className="resonance-forecast-row resonance-net-line">
-       <span>Saldo marginale (ricavo aggiuntivo − costo)</span>
+       <span>Saldo marginale primo ciclo (incluso acquisto)</span>
        <b className={(marginalNet??0)>=0?"resonance-positive":"resonance-negative"}>
         {marginalNet!==null&&marginalNet>0?"+":""}{marginalNet} E</b>
       </div>
@@ -607,10 +650,27 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
      <h2>Valutazione della risposta</h2>
      <strong>{fmt(planned.quality)}%</strong>
     </div>
+    <div className="resonance-score-axis">
+     <strong>Risonanza locale</strong>
+     <span>{fmt(visual.local)}% · peso 78%</span>
+    </div>
     {([
      ["Palette",visual.color],["Gruppi",visual.group],
-     ["Periodi",visual.period],["Grafo",visual.graph],
-     ["Simmetria della risposta",visual.symmetry]
+     ["Periodi",visual.period]
+    ] as [string,number][]).map(([name,value])=>
+     <div className="resonance-meter" key={name}>
+      <div><span>{name}</span><b>{fmt(value)}%</b></div>
+      <div className="resonance-meter-track">
+       <div style={{width:clamp(value,0,100)+"%"}}/>
+      </div>
+     </div>)}
+    <div className="resonance-score-axis">
+     <strong>Armonia strutturale</strong>
+     <span>{fmt(visual.structural)}% · peso 22%</span>
+    </div>
+    {([
+     ["Grafo dei Polytroni",visual.graph],
+     ["Simmetria delle posizioni",visual.symmetry]
     ] as [string,number][]).map(([name,value])=>
      <div className="resonance-meter" key={name}>
       <div><span>{name}</span><b>{fmt(value)}%</b></div>
@@ -623,40 +683,41 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
      <b className="resonance-positive">+{currentReward} E</b>
     </div>
     <div className="resonance-forecast-row">
-     <span>Capitale acquistato sulla plancia</span>
-     <b>−{occupiedCost} E</b>
+     <span>Costo obbligatorio ad ogni evoluzione</span>
+     <b>−{upkeep} E</b>
     </div>
     <div className="resonance-forecast-row resonance-net-line">
-     <span>Saldo teorico da zero (una commissione)</span>
-     <b className={fullNet>=0?"resonance-positive":"resonance-negative"}>
-      {fullNet>0?"+":""}{fullNet} E</b>
+     <span>Saldo ad ogni commissione (ricavo − evoluzione)</span>
+     <b className={cycleNet>=0?"resonance-positive":"resonance-negative"}>
+      {cycleNet>0?"+":""}{cycleNet} E</b>
     </div>
-    <p>Il capitale già acquistato può essere riutilizzato nelle commissioni
-     successive: questo saldo da zero non si ripete a ogni Evolve.</p>
+    <div className="resonance-forecast-row">
+     <span>Investimento iniziale nei Polytroni in plancia</span>
+     <b>−{occupiedCost} E</b>
+    </div>
+    <div className="resonance-forecast-row">
+     <span>Saldo del primo ciclo da zero</span>
+     <b className={firstCycleNet>=0?"resonance-positive":"resonance-negative"}>
+      {firstCycleNet>0?"+":""}{firstCycleNet} E</b>
+    </div>
+    <p>Il costo dei Polytroni presenti viene addebitato a <b>ogni Evolve</b>.
+     I Polytroni a Home non costano. L'acquisto si paga una sola volta.</p>
     <button type="button" className="resonance-submit"
      disabled={claimed} onClick={claim}>
-     Presenta al Mutatron · +{currentReward} E e prossima richiesta</button>
-    <p>La risposta si può presentare una sola volta per commissione.
-     I Polytroni acquistati restano sul Mutatron per la successiva.</p>
+     Presenta · saldo {cycleNet>0?"+":""}{cycleNet} E ed Evolve</button>
+    <p>Ogni evoluzione addebita il costo dei Polytroni in plancia,
+     anche senza presentazione. La risposta si può presentare
+     una sola volta per commissione.</p>
     <div className="resonance-two-actions">
-     <button type="button" onClick={()=>{onEvolve();setPreviewKey(null);}}>
-      Evolve senza ricompensa</button>
-     <button type="button" onClick={reset}>Azzera risposta</button>
+     <button type="button" disabled={claimed} onClick={()=>advance(false)}>
+      Evolve senza presentare · −{upkeep} E</button>
+     <button type="button" onClick={reset}>Tutti a Home (senza rimborso)</button>
     </div>
    </section>
    <section className="kaleido-control-block resonance-analysis">
     <h2>Difficulty Analyzer</h2>
     <p>Stima la qualità ottenibile con budget differenti, cercando
      collocazioni convenienti per questo specifico caleidoscopio.</p>
-    <div className="resonance-field-row">
-     <label htmlFor="resonance-reach">Portata di risonanza</label>
-     <select id="resonance-reach" value={settings.reach}
-      onChange={e=>setSettings({reach:Number(e.target.value) as 1|2|3})}>
-      <option value={1}>1 anello · concentrata</option>
-      <option value={2}>2 anelli · equilibrata</option>
-      <option value={3}>3 anelli · diffusa</option>
-     </select>
-    </div>
     <p className="resonance-analysis-status" aria-live="polite">
      {analyzerState||"Stima euristica pronta"}
     </p>
@@ -692,11 +753,12 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
        {" "}Ricavo aggiuntivo
        {" "}{difficulty.nextMoveRewardGain!==null&&difficulty.nextMoveRewardGain>0?"+":""}
        {difficulty.nextMoveRewardGain} E;
-       {" "}saldo marginale
-       {" "}<b className={(difficulty.nextMoveNetGain??0)>=0?
+       {" "}saldo marginale dei cicli successivi
+       {" "}<b className={(difficulty.nextMoveCycleNetGain??0)>=0?
         "resonance-positive":"resonance-negative"}>
-        {difficulty.nextMoveNetGain!==null&&difficulty.nextMoveNetGain>0?"+":""}
-        {difficulty.nextMoveNetGain} E</b>.</p>
+        {difficulty.nextMoveCycleNetGain!==null&&difficulty.nextMoveCycleNetGain>0?"+":""}
+        {difficulty.nextMoveCycleNetGain} E</b>;
+       {" "}primo ciclo {difficulty.nextMoveNetGain} E.</p>
       <button type="button" onClick={suggest}
        disabled={treasury<resonanceCost(difficulty.nextMove.number)}>
        Prepara la mossa suggerita</button>

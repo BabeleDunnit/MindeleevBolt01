@@ -26,7 +26,10 @@ try{
  const empty=r.evaluateResonance(layout,[]);
  assert.equal(empty.quality,0);
  assert.equal(empty.hintResults.length,layout.tiles.length);
- assert.equal(empty.graphResults.length,layout.edges.length);
+ assert.equal(empty.graphResults.length,0,
+  "Graph edges must be created by actual player pairs, not hinted connections");
+ assert.equal(empty.structural,0);
+ assert.equal(empty.local,0);
  const first=layout.tiles[0];
  const hue={number:first.number,paletteRow:first.paletteRow,
   paletteCol:first.paletteCol};
@@ -41,8 +44,27 @@ try{
  assert(two.quality>one.quality,
   "Two correctly matched dual-side Polytrons improve resonance");
  assert(two.quality<100,"A pair should not automatically solve a whole target");
- assert(two.symmetry>=one.symmetry,
-  "Symmetric answer should not score lower on symmetry");
+ assert(two.symmetry>one.symmetry,
+  "C2 counterpart should improve actual placement symmetry");
+ // Global geometry uses coordinates only, not saturation or color.
+ const recolored=[same,pair].map(p=>({...p,number:1,
+  paletteRow:0,paletteCol:0}));
+ const recoloredScore=r.evaluateResonance(layout,recolored);
+ assert.equal(recoloredScore.graph,two.graph);
+ assert.equal(recoloredScore.symmetry,two.symmetry);
+ assert.notEqual(recoloredScore.local,two.local,
+  "Local resonance must respond to palette/group/period differences");
+ assert.equal(two.structural,
+  (r.TOTAL_WEIGHTS.graph*two.graph+
+   r.TOTAL_WEIGHTS.symmetry*two.symmetry)/
+  (r.TOTAL_WEIGHTS.graph+r.TOTAL_WEIGHTS.symmetry));
+ const extra=layout.cells.find(c=>c.ring>0&&
+  c.key!==same.key&&c.key!==pair.key);
+ assert(extra);
+ const unsymmetrical=r.evaluateResonance(layout,
+  [...recolored,{...recolored[0],key:extra.key}]);
+ assert(unsymmetrical.symmetry<recoloredScore.symmetry,
+  "Unpaired pawn lowers actual C2 geometrical symmetry");
  const openCell=layout.cells.find(c=>c.ring===1&&!layout.tiles.some(t=>t.key===c.key));
  if(openCell){
   const remotelyPlaced={...hue,key:openCell.key};
@@ -101,12 +123,16 @@ try{
   const exact=r.evaluateResonance(layout,scenario.placements,{reach:2});
   assert(Math.abs(scenario.quality-exact.quality)<1e-9);
   assert.equal(scenario.reward,r.resonanceReward(layout,scenario.quality));
-  assert.equal(scenario.net,scenario.reward-scenario.spent);
+  assert.equal(scenario.upkeep,scenario.spent);
+  assert.equal(scenario.cycleNet,scenario.reward-scenario.upkeep);
+  assert.equal(scenario.net,scenario.reward-scenario.upkeep-scenario.spent);
   assert.equal(scenario.pieces,scenario.placements.length);
  }
  for(const band of report.bands){
   assert.equal(band.reward,r.resonanceReward(layout,band.score));
-  assert.equal(band.net,band.reward-band.spent);
+  assert.equal(band.upkeep,band.spent);
+  assert.equal(band.cycleNet,band.reward-band.upkeep);
+  assert.equal(band.net,band.reward-band.upkeep-band.spent);
   assert.equal(band.efficiency,
    band.spent?band.reward/band.spent:null);
  }
@@ -118,8 +144,9 @@ try{
  assert(report.placementRisk.purchasesSampled>0);
  assert(report.placementRisk.uneconomicPurchases>0,
   "The exploratory sample should find an acquisition with negative net return");
- assert.equal(report.placementRisk.worseningPurchases,0,
-  "Positive-only saturating affinities cannot lower quality on a new purchase");
+ assert(report.placementRisk.worseningPurchases>=0&&
+  report.placementRisk.worseningPurchases<=report.placementRisk.purchasesSampled,
+  "New purchases may decrease global structural harmony");
  assert.equal(report.placementRisk.relocationsSampled,0,
   "Empty starting board has no Polytrons to relocate");
  const reportAfterPurchase=difficulty.analyzeResonanceDifficulty(
@@ -129,10 +156,15 @@ try{
  assert(reportAfterPurchase.nextMoveNetGain===null||
   reportAfterPurchase.nextMoveNetGain===
   reportAfterPurchase.nextMoveRewardGain-
+   2*r.resonanceCost(reportAfterPurchase.nextMove.number));
+ assert(reportAfterPurchase.nextMoveCycleNetGain===null||
+  reportAfterPurchase.nextMoveCycleNetGain===
+  reportAfterPurchase.nextMoveRewardGain-
    r.resonanceCost(reportAfterPurchase.nextMove.number));
  const current=difficulty.analyzeResonanceDifficulty(layout,22,{reach:2},[same]);
- assert(current.nextMoveQuality===null||current.nextMoveQuality>=one.quality,
-  "A suggested next placement should not reduce score");
+ assert(current.nextMoveQuality===null||
+  current.nextMoveQuality>=0&&current.nextMoveQuality<=100,
+  "Suggestions may improve local coverage but compromise global geometry");
  assert(names.sealName(1)!=="—");
  assert(names.sealName(2)!=="—");
  assert(names.sealName(1)!==names.sealName(2));
@@ -220,7 +252,9 @@ try{
   "src/experiments/ResonanceEconomicsPanel.css","utf8");
  assert(ui.includes("ResonanceEconomicsPanel")&&
   ui.includes("marginalReward")&&ui.includes("marginalNet")&&
-  ui.includes("Saldo teorico da zero")&&
+  ui.includes("Saldo del primo ciclo da zero")&&
+  ui.includes("Saldo ad ogni commissione")&&
+  ui.includes("Costo obbligatorio ad ogni evoluzione")&&
   ui.includes("nextMoveNetGain")&&
   ui.includes("selectedScenario?.placements.map"),
   "The user must see marginal spending and compare scenario overlays");
@@ -229,10 +263,34 @@ try{
   economicsUi.includes("Si può sbagliare?")&&
   economicsUi.includes("uneconomicPurchases")&&
   economicsUi.includes("worseningRelocations")&&
-  economicsUi.includes("Spesa")&&
-  economicsUi.includes("Ricavo")&&economicsUi.includes("Saldo")&&
+  economicsUi.includes("Acquisti iniziali")&&
+  economicsUi.includes("Costo ogni Evolve")&&
+  economicsUi.includes("Saldo per ciclo")&&
+  economicsUi.includes("Ricavo")&&
   economicsCss.includes(".resonance-econ-scenarios"),
   "Difficulty Analyzer must reveal cost/reward/net of good and bad strategies");
+ const paymentStart=ui.indexOf("const advance=(submit:boolean)=>");
+ const paymentEnd=ui.indexOf("const claim=()=>",paymentStart);
+ const payment=ui.slice(paymentStart,paymentEnd);
+ assert(paymentStart>0&&paymentEnd>paymentStart&&
+  payment.includes("const net=reward-upkeep")&&
+  payment.includes("setTreasury(old=>old+net)")&&
+  payment.includes("const reward=submit?currentReward:0")&&
+  payment.includes("onEvolve()"),
+  "Every Mutatron evolution must debit board upkeep, with or without submission");
+ assert(ui.includes('onClick={()=>advance(false)}')&&
+  ui.includes("Tutti a Home (senza rimborso)")&&
+  !ui.includes("setPawns([]);setTreasury(initialBudget);setMoveFrom(null);"),
+  "Skip and Home reset must not allow free infinite-energy farming");
+ assert(ui.includes("Risonanza locale")&&
+  ui.includes("Armonia strutturale")&&
+  ui.includes("Grafo dei Polytroni")&&
+  ui.includes("Simmetria delle posizioni")&&
+  ui.includes("Regole di risonanza")&&
+  ui.includes("Costo aggiuntivo ad ogni Evolve")&&
+  ui.includes("marginalCycleNet")&&
+  ui.includes("visual.graphResults.map"),
+  "Separate local and geometric scores must be visible and cycle costs predicted");
  assert(css.includes("Desktop research dashboard")&&
   css.includes(".resonance-sidebar .kaleido-control-block")&&
   css.includes(".resonance-budget-table")&&

@@ -27,8 +27,9 @@ export default function ResonanceEconomicsPanel({
    Queste sono <strong>configurazioni complete simulate da zero</strong>:
    puoi confrontare strategie ottimizzate, copiate, improvvisate e
    volutamente sfavorevoli. Per ciascuna il saldo è il
-   <strong> ricavo di una commissione − spesa di acquisto</strong>.
-   Il capitale resta riutilizzabile nelle commissioni successive.
+   <strong> ricavo della commissione − costo di ogni Evolve</strong>.
+   Sono riportati anche gli acquisti iniziali: ogni Polytrone in plancia
+   costa nuovamente a ogni evoluzione, mentre a Home non costa.
   </p>
   <div className="resonance-econ-scenarios">
    {report.scenarios.map(s=>
@@ -42,9 +43,13 @@ export default function ResonanceEconomicsPanel({
       <span>{s.pieces} Polytroni · {fmt(s.quality)}%</span>
      </span>
      <span className="resonance-econ-values">
-      <span><small>Spesa</small><b>−{s.spent} E</b></span>
+      <span><small>Acquisti iniziali</small><b>−{s.spent} E</b></span>
+      <span><small>Costo ogni Evolve</small><b>−{s.upkeep} E</b></span>
       <span><small>Ricavo</small><b>+{s.reward} E</b></span>
-      <span><small>Saldo</small>
+      <span><small>Saldo per ciclo</small>
+       <b className={s.cycleNet>=0?"resonance-positive":"resonance-negative"}>
+        {signed(s.cycleNet)} E</b></span>
+      <span><small>Primo ciclo, inclusi acquisti</small>
        <b className={s.net>=0?"resonance-positive":"resonance-negative"}>
         {signed(s.net)} E</b></span>
      </span>
@@ -66,10 +71,12 @@ export default function ResonanceEconomicsPanel({
    {report.bands.map(b=>
     <div key={b.budget} className="resonance-econ-frontier-item">
      <strong>Budget {b.budget} E · {fmt(b.score)}%</strong>
-     <span>{b.pieces} Polytroni · Spesa −{b.spent} E</span>
-     <span>Ricavo +{b.reward} E ·
+     <span>{b.pieces} Polytroni · Acquisto iniziale −{b.spent} E</span>
+     <span>Ricavo +{b.reward} E · Evoluzione −{b.upkeep} E</span>
+     <span><b className={b.cycleNet>=0?"resonance-positive":"resonance-negative"}>
+       Ciclo {signed(b.cycleNet)} E</b> ·
       {" "}<b className={b.net>=0?"resonance-positive":"resonance-negative"}>
-       Saldo {signed(b.net)} E</b>
+       Primo ciclo {signed(b.net)} E</b>
      </span>
     </div>)}
   </div>
@@ -78,7 +85,7 @@ export default function ResonanceEconomicsPanel({
    <div>
     <strong>{risk.uneconomicPurchases}/{risk.purchasesSampled}</strong>
     <span>acquisti in perdita nel campione: incremento della
-     ricompensa inferiore al costo</span>
+     ricompensa inferiore a acquisto + costo della prossima evoluzione</span>
    </div>
    <div>
     <strong>{risk.negligiblePurchases}/{risk.purchasesSampled}</strong>
@@ -86,8 +93,8 @@ export default function ResonanceEconomicsPanel({
    </div>
    <div>
     <strong>{risk.worseningPurchases}</strong>
-    <span>acquisti che riducono la qualità: il modello attuale
-     non prevede contributi negativi aggiungendo un nuovo Polytrone</span>
+    <span>acquisti che riducono la qualità globale: l'armonia
+     geometrica può peggiorare, anche se la risonanza locale cresce</span>
    </div>
    <div>
     <strong>{risk.worseningRelocations}/{risk.relocationsSampled}</strong>
@@ -99,8 +106,10 @@ export default function ResonanceEconomicsPanel({
     <strong>Esempio di acquisto dannoso al budget:</strong>
     {" "}manifestazione {risk.worstPurchase.pawn.number}
     {" "}in {place(risk.worstPurchase.pawn.key)}.
-    Spesa {risk.worstPurchase.cost} E,
+    Acquisto {risk.worstPurchase.cost} E,
+    evoluzione aggiuntiva {risk.worstPurchase.cost} E,
     ricavo aggiuntivo {signed(risk.worstPurchase.rewardGain)} E,
+    saldo dei prossimi cicli {signed(risk.worstPurchase.cycleNetGain)} E,
     <b className={risk.worstPurchase.netGain>=0?
      "resonance-positive":"resonance-negative"}>
      {" "}saldo {signed(risk.worstPurchase.netGain)} E</b>.
@@ -116,8 +125,8 @@ export default function ResonanceEconomicsPanel({
    Confronti euristici, non ottimi globali garantiti. I singoli punteggi
    e saldi sono esatti secondo l'evaluator e la ricompensa sperimentale.
    Il campione di acquisti e spostamenti è deterministico ed esplorativo,
-   non una probabilità statistica di errore. Nessun costo di Evolve,
-   di manutenzione o valore di rivendita è incluso.
+   non una probabilità statistica di errore. Il costo di ogni Evolve
+   è incluso; non sono inclusi rivendite o profitti di commissioni future.
   </p>
  </>;
 }

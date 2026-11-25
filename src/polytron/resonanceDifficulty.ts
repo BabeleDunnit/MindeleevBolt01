@@ -2,8 +2,9 @@
  * Exploratory difficulty & economics analyzer for any Kaleidoscope request.
  *
  * All monetary numbers use the exact live resonanceReward + resonanceCost:
- * one-off reward minus purchases from an EMPTY board. Already-owned Polytrons
- * are sunk capital; next-move economics use MARGINAL reward minus new expense.
+ * a commission charges the upkeep of EVERY pawn on the board, EVERY evolve.
+ * From an empty board, buying the pawns is an additional one-off expense.
+ * Next-move economics show both cycle and first-cycle marginal balances.
  * The solver is bounded greedy, and never claims to find a global optimum.
  */
 import type {KaleidoLayout,KaleidoTile} from "@/polytron/kaleidoscopeGenerator";
@@ -17,7 +18,8 @@ import {
 
 export type DifficultyBand={
  budget:number;score:number;spent:number;pieces:number;
- reward:number;net:number;efficiency:number|null
+ reward:number;upkeep:number;cycleNet:number;
+ net:number;efficiency:number|null
 };
 export type DifficultyScenario=ResonanceEconomics&{
  id:"quality"|"economic"|"literal"|"unplanned"|"incompatible";
@@ -26,7 +28,7 @@ export type DifficultyScenario=ResonanceEconomics&{
 };
 export type PoorPurchase={
  pawn:ResonancePawn;scoreGain:number;rewardGain:number;
- cost:number;netGain:number
+ cost:number;cycleNetGain:number;netGain:number
 };
 export type PoorRelocation={
  from:string;to:string;scoreChange:number;rewardChange:number
@@ -51,6 +53,7 @@ export type DifficultyReport={
  nextMove:ResonancePawn|null;
  nextMoveQuality:number|null;
  nextMoveRewardGain:number|null;
+ nextMoveCycleNetGain:number|null;
  nextMoveNetGain:number|null;
  method:"bounded-greedy-estimate"
 };
@@ -197,9 +200,9 @@ function economicallyPreferredPrefix(
  for(let n=1;n<=order.length;n++){
   const trial=order.slice(0,n);
   const current=resonanceEconomics(layout,trial,settings);
-  if(current.net>bestNet||current.net===bestNet&&
+  if(current.cycleNet>bestNet||current.cycleNet===bestNet&&
      current.reward>bestReward){
-   best=trial;bestNet=current.net;bestReward=current.reward;
+   best=trial;bestNet=current.cycleNet;bestReward=current.reward;
   }
  }
  return best;
@@ -270,8 +273,9 @@ function incompatible(layout:KaleidoLayout,budget:number):ResonancePawn[]{
 /**
  * Sample affordable incremental purchases and free relocations from the
  * player's current board. NOT an unbiased probability estimate.
- * A new placement never lowers quality under this positive-only evaluator;
- * it can nonetheless have negative marginal energy return.
+ * Adding a Polytron always improves/maintains LOCAL positive resonance,
+ * but can LOWER the independent GLOBAL topology coherence. Each pawn adds
+ * another upkeep charge to every future evolution.
  */
 function samplePlacementRisks(
  layout:KaleidoLayout,budget:number,
@@ -302,13 +306,14 @@ function samplePlacementRisks(
   const quality=scoreResonance(layout,[...owned,pawn],settings).quality;
   const scoreGain=quality-current;
   const rewardGain=resonanceReward(layout,quality)-reward;
-  const netGain=rewardGain-cost;
+  const cycleNetGain=rewardGain-cost;
+  const netGain=cycleNetGain-cost;
   purchasesSampled++;
   if(netGain<0)uneconomicPurchases++;
   if(scoreGain<.01)negligiblePurchases++;
   if(scoreGain<-.000001)worseningPurchases++;
   if(!worstPurchase||netGain<worstPurchase.netGain)
-   worstPurchase={pawn,scoreGain,rewardGain,cost,netGain};
+   worstPurchase={pawn,scoreGain,rewardGain,cost,cycleNetGain,netGain};
  }
  let relocationsSampled=0,worseningRelocations=0;
  let worstRelocation:PoorRelocation|null=null;
@@ -349,7 +354,8 @@ export function analyzeResonanceDifficulty(
   const economics=resonanceEconomics(layout,better.placements,settings);
   bands.push({budget:b,score:better.score,
    spent:better.spent,pieces:better.placements.length,
-   reward:economics.reward,net:economics.net,
+   reward:economics.reward,upkeep:economics.upkeep,
+   cycleNet:economics.cycleNet,net:economics.net,
    efficiency:economics.efficiency});
  }
  const selected=computed.get(budget)!;
@@ -358,8 +364,8 @@ export function analyzeResonanceDifficulty(
   solution("quality","Copertura greedy",
    "Massimizza la risonanza seguendo acquisti con buon rapporto copertura/prezzo.",
    layout,budget,selected.placements,settings),
-  solution("economic","Saldo più favorevole",
-   "Miglior saldo trovato fermandosi prima lungo la traiettoria greedy.",
+  solution("economic","Miglior saldo di ciclo",
+   "Miglior guadagno operativo trovato fermandosi prima lungo la traiettoria greedy.",
    layout,budget,economical,settings),
   solution("literal","Copia dei tiles",
    "Compra le manifestazioni indicate e le posa direttamente sugli indizi.",
@@ -383,8 +389,10 @@ export function analyzeResonanceDifficulty(
   scoreResonance(layout,[...owned,nextMove],settings).quality:null;
  const nextMoveRewardGain=nextMoveQuality===null?null:
   resonanceReward(layout,nextMoveQuality)-resonanceReward(layout,currentQuality);
- const nextMoveNetGain=nextMoveRewardGain===null?null:
+ const nextMoveCycleNetGain=nextMoveRewardGain===null?null:
   nextMoveRewardGain-resonanceCost(nextMove!.number);
+ const nextMoveNetGain=nextMoveCycleNetGain===null?null:
+  nextMoveCycleNetGain-resonanceCost(nextMove!.number);
  const rating=selected.score>=78?"accessibile":
   selected.score>=55?"intermedia":"impegnativa";
  return {
@@ -393,7 +401,8 @@ export function analyzeResonanceDifficulty(
   budget,expectedScore:selected.score,spent:selected.spent,
   placements:selected.placements.length,estimatedCost70,rating,
   baselineSolution:selected.placements,
-  nextMove,nextMoveQuality,nextMoveRewardGain,nextMoveNetGain,
+  nextMove,nextMoveQuality,nextMoveRewardGain,
+  nextMoveCycleNetGain,nextMoveNetGain,
   method:"bounded-greedy-estimate"
  };
 }

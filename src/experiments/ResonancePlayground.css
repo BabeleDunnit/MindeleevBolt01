@@ -343,3 +343,24 @@
 .resonance-target-grid strong{
  color:#f6f0df;font-size:12px;overflow-wrap:anywhere
 }
+
+/* The evaluator exposes two mathematically distinct score axes. */
+.resonance-score-axis{
+ display:flex;flex-wrap:wrap;gap:5px 12px;align-items:baseline;
+ justify-content:space-between;
+ border-bottom:1px solid #53717d;padding:10px 0 7px;
+ margin:5px 0 10px
+}
+.resonance-score-axis strong{
+ font-size:12px;color:#edddab
+}
+.resonance-score-axis span{
+ font-size:11px;color:#94cbb8;font-variant-numeric:tabular-nums
+}
+.resonance-rules{
+ border-color:#537b8b!important;background:#11333f!important
+}
+.resonance-net-line{
+ background:#1b4144;padding:9px 7px!important;
+ border:1px solid #426f6d;border-radius:8px
+}
