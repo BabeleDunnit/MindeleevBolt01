@@ -1,23 +1,48 @@
 /**
- * General-purpose difficulty analyzer for arbitrary kaleidoscope requests.
+ * Exploratory difficulty & economics analyzer for any Kaleidoscope request.
  *
- * The evaluator is exact for a supplied composition. Search is intentionally
- * an explicitly LABELLED heuristic: bounded greedy budgeted maximum coverage,
- * not a proof of the global optimum or of the true minimum cost to solve.
- * It runs in a dedicated Web Worker so mobile interaction remains responsive.
+ * All monetary numbers use the exact live resonanceReward + resonanceCost:
+ * one-off reward minus purchases from an EMPTY board. Already-owned Polytrons
+ * are sunk capital; next-move economics use MARGINAL reward minus new expense.
+ * The solver is bounded greedy, and never claims to find a global optimum.
  */
-import type {KaleidoLayout,KaleidoTile,KaleidoPoint} from "@/polytron/kaleidoscopeGenerator";
+import type {KaleidoLayout,KaleidoTile} from "@/polytron/kaleidoscopeGenerator";
 import {
  evaluateResonance,resonanceComplexity,resonanceHexDistance,
  resonanceFalloff,resonanceCost,resonanceCompatibility,
- RESONANCE_WEIGHTS,DEFAULT_RESONANCE_SETTINGS,
- type ResonancePawn,type ResonanceSettings
+ resonancePaletteAffinity,resonanceEconomics,scoreResonance,
+ resonanceReward,RESONANCE_WEIGHTS,DEFAULT_RESONANCE_SETTINGS,
+ type ResonancePawn,type ResonanceSettings,type ResonanceEconomics
 } from "@/polytron/resonanceField";
 
-export type DifficultyBand={budget:number;score:number;spent:number;pieces:number};
+export type DifficultyBand={
+ budget:number;score:number;spent:number;pieces:number;
+ reward:number;net:number;efficiency:number|null
+};
+export type DifficultyScenario=ResonanceEconomics&{
+ id:"quality"|"economic"|"literal"|"unplanned"|"incompatible";
+ name:string;description:string;
+ placements:ResonancePawn[];budget:number
+};
+export type PoorPurchase={
+ pawn:ResonancePawn;scoreGain:number;rewardGain:number;
+ cost:number;netGain:number
+};
+export type PoorRelocation={
+ from:string;to:string;scoreChange:number;rewardChange:number
+};
+export type PlacementRisk={
+ purchasesSampled:number;uneconomicPurchases:number;
+ negligiblePurchases:number;worseningPurchases:number;
+ worstPurchase:PoorPurchase|null;
+ relocationsSampled:number;worseningRelocations:number;
+ worstRelocation:PoorRelocation|null
+};
 export type DifficultyReport={
  structural:ReturnType<typeof resonanceComplexity>;
  bands:DifficultyBand[];
+ scenarios:DifficultyScenario[];
+ placementRisk:PlacementRisk;
  budget:number;
  expectedScore:number;spent:number;placements:number;
  estimatedCost70:number|null;
@@ -25,7 +50,9 @@ export type DifficultyReport={
  baselineSolution:ResonancePawn[];
  nextMove:ResonancePawn|null;
  nextMoveQuality:number|null;
- method:"bounded-greedy-estimate";
+ nextMoveRewardGain:number|null;
+ nextMoveNetGain:number|null;
+ method:"bounded-greedy-estimate"
 };
 type Template=Pick<ResonancePawn,"number"|"paletteRow"|"paletteCol">;
 type Candidate={pawn:ResonancePawn;cost:number;
@@ -36,24 +63,29 @@ const TARGET_QUALITY=70;
 const CLOSE_ENOUGH=.0000001;
 const PALETTE_LIMIT=8;
 
+function hash(a:number,b:number,c:number):number{
+ let v=(a*1664525+b*1013904223+c*2246822519)>>>0;
+ v^=v>>>16;v=Math.imul(v,0x7feb352d);
+ v^=v>>>15;return v>>>0;
+}
 function templatesForLayout(layout:KaleidoLayout):Template[]{
- const paletteCounts=new Map<string,{count:number;row:number;col:number;tiles:KaleidoTile[]}>();
+ const counts=new Map<string,{count:number;row:number;col:number;
+  tiles:KaleidoTile[]}>();
  for(const tile of layout.tiles){
   const key=tile.paletteRow+","+tile.paletteCol;
-  let bucket=paletteCounts.get(key);
+  let bucket=counts.get(key);
   if(!bucket){
    bucket={count:0,row:tile.paletteRow,col:tile.paletteCol,tiles:[]};
-   paletteCounts.set(key,bucket);
+   counts.set(key,bucket);
   }
   bucket.count++;bucket.tiles.push(tile);
  }
- const paletteBuckets=[...paletteCounts.values()].sort((a,b)=>b.count-a.count||
+ const palettes=[...counts.values()].sort((a,b)=>b.count-a.count||
   a.row-b.row||a.col-b.col).slice(0,PALETTE_LIMIT);
  const pool:Template[]=[];
  const seen=new Set<string>();
- for(const palette of paletteBuckets){
-  const numbers=[1,2,3,4,5,
-   ...new Set(palette.tiles.map(t=>t.number))];
+ for(const palette of palettes){
+  const numbers=[1,2,3,4,5,...new Set(palette.tiles.map(t=>t.number))];
   for(const number of numbers){
    const signature=number+"|"+palette.row+"|"+palette.col;
    if(seen.has(signature))continue;
@@ -66,31 +98,28 @@ function templatesForLayout(layout:KaleidoLayout):Template[]{
 function compileCandidates(layout:KaleidoLayout,settings:ResonanceSettings):Candidate[]{
  const targets=layout.tiles;
  const templates=templatesForLayout(layout);
- const costAffordable=6+Math.max(5,layout.params.radius*15);
+ const affordable=6+Math.max(5,layout.params.radius*15);
+ const cells=layout.cells.filter(c=>c.ring>0);
+ const distances=cells.map(cell=>targets.map(t=>resonanceHexDistance(cell,t)));
  const candidates:Candidate[]=[];
- const cellDistances=new Map<string,number[]>();
- for(const cell of layout.cells.filter(c=>c.ring>0))
-  cellDistances.set(cell.key,targets.map(t=>resonanceHexDistance(cell,t)));
  for(const template of templates){
   const cost=resonanceCost(template.number);
-  // Avoid filling the solver with expensive choices that cannot be reached
-  // by any of its operating budget bands.
-  if(cost>costAffordable)continue;
+  if(cost>affordable)continue;
   const matches=targets.map(hint=>resonanceCompatibility(template,hint));
-  for(const [key,distances] of cellDistances){
+  for(let j=0;j<cells.length;j++){
    const color=new Float32Array(targets.length);
    const group=new Float32Array(targets.length);
    const period=new Float32Array(targets.length);
    let reaches=false;
    for(let i=0;i<targets.length;i++){
-    const k=resonanceFalloff(distances[i],settings);
+    const k=resonanceFalloff(distances[j][i],settings);
     color[i]=k*matches[i].color;
     group[i]=k*matches[i].group;
     period[i]=k*matches[i].period;
     if(k>0)reaches=true;
    }
    if(reaches)candidates.push({
-    pawn:{...template,key},cost,color,group,period
+    pawn:{...template,key:cells[j].key},cost,color,group,period
    });
   }
  }
@@ -107,8 +136,6 @@ function greedy(
  const occupied=new Set(initial.map(p=>p.key));
  const placements=[...initial];
  let spent=initial.reduce((sum,p)=>sum+resonanceCost(p.number),0);
- // Pre-apply the purchased Polytrons, so the solver can also suggest a
- // next move from an existing player-built composition.
  for(const p of initial){
   const cell=layout.cells.find(c=>c.key===p.key);
   if(!cell)continue;
@@ -122,9 +149,8 @@ function greedy(
    remPeriod[i]*=1-k*m.period;
   }
  }
- const allowable=budget-spent;
- if(allowable<=0)return {
-  score:evaluateResonance(layout,placements,settings).quality,
+ if(spent>=budget)return {
+  score:scoreResonance(layout,placements,settings).quality,
   spent,placements
  };
  for(let step=0;step<MAX_STEPS&&spent<budget;step++){
@@ -138,8 +164,6 @@ function greedy(
      RESONANCE_WEIGHTS.period*remPeriod[i]*candidate.period[i];
    }
    gain/=n||1;
-   // Economy vs coverage: favor cheap high-yield polytrons, but not so
-   // strongly that an expensive exact match is always discarded.
    const value=gain/Math.pow(candidate.cost,.78);
    if(value>bestValue+CLOSE_ENOUGH){
     best=candidate;bestValue=value;bestGain=gain;
@@ -153,8 +177,157 @@ function greedy(
    remPeriod[i]*=1-best.period[i];
   }
  }
- return {score:evaluateResonance(layout,placements,settings).quality,
+ return {score:scoreResonance(layout,placements,settings).quality,
   spent,placements};
+}
+function solution(
+ id:DifficultyScenario["id"],name:string,description:string,
+ layout:KaleidoLayout,budget:number,pawns:ResonancePawn[],
+ settings:ResonanceSettings
+):DifficultyScenario{
+ const stats=resonanceEconomics(layout,pawns,settings);
+ if(stats.spent>budget)throw Error("Generated scenario exceeds its budget");
+ return {id,name,description,budget,placements:pawns,...stats};
+}
+function economicallyPreferredPrefix(
+ layout:KaleidoLayout,order:ResonancePawn[],
+ settings:ResonanceSettings
+):ResonancePawn[]{
+ let best:ResonancePawn[]=[],bestNet=0,bestReward=0;
+ for(let n=1;n<=order.length;n++){
+  const trial=order.slice(0,n);
+  const current=resonanceEconomics(layout,trial,settings);
+  if(current.net>bestNet||current.net===bestNet&&
+     current.reward>bestReward){
+   best=trial;bestNet=current.net;bestReward=current.reward;
+  }
+ }
+ return best;
+}
+/** A literal copier pays for the requested tiles, ignoring distance benefits. */
+function literalCopy(layout:KaleidoLayout,budget:number):ResonancePawn[]{
+ const available=[...layout.tiles].sort((a,b)=>
+  resonanceCost(a.number)-resonanceCost(b.number)||
+  a.ring-b.ring||a.idx-b.idx);
+ const picks:ResonancePawn[]=[];
+ let spent=0;
+ for(const t of available){
+  const cost=resonanceCost(t.number);
+  if(spent+cost>budget)continue;
+  picks.push({key:t.key,number:t.number,
+   paletteRow:t.paletteRow,paletteCol:t.paletteCol});
+  spent+=cost;
+ }
+ return picks;
+}
+/** Deterministic, affordable, non-optimizing placements. */
+function unplanned(layout:KaleidoLayout,budget:number):ResonancePawn[]{
+ const cells=layout.cells.filter(c=>c.ring>0);
+ const tiles=layout.tiles;
+ if(!tiles.length)return [];
+ const indices=cells.map((cell,i)=>({cell,h:hash(layout.params.seed,
+  layout.params.generation,i)})).sort((a,b)=>a.h-b.h);
+ const choices:ResonancePawn[]=[];
+ let spent=0;
+ for(let i=0;i<indices.length&&choices.length<Math.min(12,cells.length);i++){
+  const t=tiles[hash(i,layout.params.seed,47)%tiles.length];
+  const number=[1,2,3,4,5,11,16,21][hash(i,layout.params.seed,83)%8];
+  const cost=resonanceCost(number);
+  if(spent+cost>budget)continue;
+  const row=(t.paletteRow+3+i%6)%12;
+  const col=(t.paletteCol+7+i%5)%12;
+  choices.push({key:indices[i].cell.key,number,
+   paletteRow:row,paletteCol:col});
+  spent+=cost;
+ }
+ return choices;
+}
+/** Deliberately expensive and chromatically mismatched purchase. */
+function incompatible(layout:KaleidoLayout,budget:number):ResonancePawn[]{
+ const cells=layout.cells.filter(c=>c.ring>0);
+ if(!cells.length||budget<2)return [];
+ const hints=layout.tiles;
+ const dominant=hints[0];
+ if(!dominant)return [];
+ let worstRow=0,worstCol=0,minAffinity=Infinity;
+ for(let row=0;row<12;row++)for(let col=0;col<12;col++){
+  const affinity=hints.reduce((sum,h)=>sum+
+   resonancePaletteAffinity(row,col,h.paletteRow,h.paletteCol),0);
+  if(affinity<minAffinity){
+   minAffinity=affinity;worstRow=row;worstCol=col;
+  }
+ }
+ const cell=[...cells].sort((a,b)=>{
+  const ad=hints.reduce((s,t)=>s+resonanceHexDistance(a,t),0);
+  const bd=hints.reduce((s,t)=>s+resonanceHexDistance(b,t),0);
+  return bd-ad||a.key.localeCompare(b.key);
+ })[0];
+ const cost=Math.min(budget,96);
+ // Numbers 1,6,11,... are always group T and cost 2,3,4,...E.
+ const number=1+5*(cost-2);
+ return [{key:cell.key,number,paletteRow:worstRow,paletteCol:worstCol}];
+}
+/**
+ * Sample affordable incremental purchases and free relocations from the
+ * player's current board. NOT an unbiased probability estimate.
+ * A new placement never lowers quality under this positive-only evaluator;
+ * it can nonetheless have negative marginal energy return.
+ */
+function samplePlacementRisks(
+ layout:KaleidoLayout,budget:number,
+ settings:ResonanceSettings,owned:ResonancePawn[]
+):PlacementRisk{
+ const occupied=new Set(owned.map(p=>p.key));
+ const free=layout.cells.filter(c=>c.ring>0&&!occupied.has(c.key));
+ const current=scoreResonance(layout,owned,settings).quality;
+ const reward=resonanceReward(layout,current);
+ const palettes=[...new Map(layout.tiles.map(t=>[
+  t.paletteRow+","+t.paletteCol,[t.paletteRow,t.paletteCol] as const
+ ])).values()];
+ const paletteOptions:readonly (readonly [number,number])[]=[
+  ...palettes.slice(0,5),[0,0],[1,1],[10,10],[11,11],[4,8]
+ ];
+ const numbers=[1,2,3,4,5,11,26,1+5*(Math.max(0,Math.min(budget,96)-2))];
+ let purchasesSampled=0,uneconomicPurchases=0,negligiblePurchases=0,
+  worseningPurchases=0;
+ let worstPurchase:PoorPurchase|null=null;
+ const maxSamples=Math.min(100,free.length*paletteOptions.length);
+ for(let i=0;i<maxSamples;i++){
+  const cell=free[(i*7+Math.floor(i/Math.max(1,free.length)))%free.length];
+  const [row,col]=paletteOptions[(i*3+Math.floor(i/7))%paletteOptions.length];
+  const number=numbers[(i+Math.floor(i/5))%numbers.length];
+  const cost=resonanceCost(number);
+  if(cost>budget)continue;
+  const pawn={key:cell.key,number,paletteRow:row,paletteCol:col};
+  const quality=scoreResonance(layout,[...owned,pawn],settings).quality;
+  const scoreGain=quality-current;
+  const rewardGain=resonanceReward(layout,quality)-reward;
+  const netGain=rewardGain-cost;
+  purchasesSampled++;
+  if(netGain<0)uneconomicPurchases++;
+  if(scoreGain<.01)negligiblePurchases++;
+  if(scoreGain<-.000001)worseningPurchases++;
+  if(!worstPurchase||netGain<worstPurchase.netGain)
+   worstPurchase={pawn,scoreGain,rewardGain,cost,netGain};
+ }
+ let relocationsSampled=0,worseningRelocations=0;
+ let worstRelocation:PoorRelocation|null=null;
+ for(const pawn of owned.slice(0,6)){
+  for(const cell of free.slice(0,16)){
+   const trial=owned.map(p=>p.key===pawn.key?{...p,key:cell.key}:p);
+   const quality=scoreResonance(layout,trial,settings).quality;
+   const scoreChange=quality-current;
+   const rewardChange=resonanceReward(layout,quality)-reward;
+   relocationsSampled++;
+   if(scoreChange<-.01)worseningRelocations++;
+   if(!worstRelocation||scoreChange<worstRelocation.scoreChange)
+    worstRelocation={from:pawn.key,to:cell.key,
+     scoreChange,rewardChange};
+  }
+ }
+ return {purchasesSampled,uneconomicPurchases,negligiblePurchases,
+  worseningPurchases,worstPurchase,relocationsSampled,
+  worseningRelocations,worstRelocation};
 }
 export function analyzeResonanceDifficulty(
  layout:KaleidoLayout,budget:number,
@@ -172,29 +345,55 @@ export function analyzeResonanceDifficulty(
  for(const b of [...new Set(budgets)]){
   const trial=greedy(layout,candidates,b,settings);
   if(!better||trial.score>better.score)better=trial;
-  // Keep the best actually-found feasible solution at increasing budgets.
   computed.set(b,better);
+  const economics=resonanceEconomics(layout,better.placements,settings);
   bands.push({budget:b,score:better.score,
-   spent:better.spent,pieces:better.placements.length});
+   spent:better.spent,pieces:better.placements.length,
+   reward:economics.reward,net:economics.net,
+   efficiency:economics.efficiency});
  }
  const selected=computed.get(budget)!;
+ const economical=economicallyPreferredPrefix(layout,selected.placements,settings);
+ const scenarios:DifficultyScenario[]=[
+  solution("quality","Copertura greedy",
+   "Massimizza la risonanza seguendo acquisti con buon rapporto copertura/prezzo.",
+   layout,budget,selected.placements,settings),
+  solution("economic","Saldo più favorevole",
+   "Miglior saldo trovato fermandosi prima lungo la traiettoria greedy.",
+   layout,budget,economical,settings),
+  solution("literal","Copia dei tiles",
+   "Compra le manifestazioni indicate e le posa direttamente sugli indizi.",
+   layout,budget,literalCopy(layout,budget),settings),
+  solution("unplanned","Piazze casuali",
+   "Acquisti distribuiti senza usare la risonanza per scegliere le posizioni.",
+   layout,budget,unplanned(layout,budget),settings),
+  solution("incompatible","Acquisto sfavorevole",
+   "Una manifestazione costosa, cromaticamente distante e lontana dagli indizi.",
+   layout,budget,incompatible(layout,budget),settings)
+ ];
  const cost70=bands.find(b=>b.score>=TARGET_QUALITY);
  const estimatedCost70=cost70?.spent??null;
  const currentCost=owned.reduce((sum,p)=>sum+resonanceCost(p.number),0);
- const nextBudget=Math.min(10000,Math.max(2,Math.floor(budget-currentCost)));
- const suggestion=greedy(layout,candidates,Math.max(currentCost+nextBudget,
-  currentCost+2),settings,owned);
+ const suggestion=greedy(layout,candidates,
+  Math.max(currentCost+Math.max(2,budget-currentCost),currentCost+2),
+  settings,owned);
  const nextMove=suggestion.placements[owned.length]??null;
+ const currentQuality=scoreResonance(layout,owned,settings).quality;
  const nextMoveQuality=nextMove?
-  evaluateResonance(layout,[...owned,nextMove],settings).quality:null;
+  scoreResonance(layout,[...owned,nextMove],settings).quality:null;
+ const nextMoveRewardGain=nextMoveQuality===null?null:
+  resonanceReward(layout,nextMoveQuality)-resonanceReward(layout,currentQuality);
+ const nextMoveNetGain=nextMoveRewardGain===null?null:
+  nextMoveRewardGain-resonanceCost(nextMove!.number);
  const rating=selected.score>=78?"accessibile":
   selected.score>=55?"intermedia":"impegnativa";
  return {
-  structural:resonanceComplexity(layout),bands,budget,
-  expectedScore:selected.score,spent:selected.spent,
-  placements:selected.placements.length,
-  estimatedCost70,rating,
+  structural:resonanceComplexity(layout),bands,scenarios,
+  placementRisk:samplePlacementRisks(layout,budget,settings,owned),
+  budget,expectedScore:selected.score,spent:selected.spent,
+  placements:selected.placements.length,estimatedCost70,rating,
   baselineSolution:selected.placements,
-  nextMove,nextMoveQuality,method:"bounded-greedy-estimate"
+  nextMove,nextMoveQuality,nextMoveRewardGain,nextMoveNetGain,
+  method:"bounded-greedy-estimate"
  };
 }

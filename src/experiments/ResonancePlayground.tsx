@@ -1,5 +1,6 @@
 import {useEffect,useMemo,useState} from "react";
 import {SharedPeriodic3D} from "@/experiments/PolytronPeriodicLab";
+import ResonanceEconomicsPanel from "@/experiments/ResonanceEconomicsPanel";
 import {gradientPair,LATIN_SOURCES,GREEK_DESTINATIONS} from "@/polytron/gradientPalettes";
 import {rcAxial,rcPolygon} from "@/polytron/rc01Board";
 import type {KaleidoLayout,KaleidoTile} from "@/polytron/kaleidoscopeGenerator";
@@ -50,6 +51,7 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
  const [showRays,setShowRays]=useState(true);
  const [showHeat,setShowHeat]=useState(true);
  const [showPlan,setShowPlan]=useState(false);
+ const [selectedScenarioId,setSelectedScenarioId]=useState("quality");
  const [showGraph,setShowGraph]=useState(true);
  const [difficulty,setDifficulty]=useState<DifficultyReport|null>(null);
  const [analyzerState,setAnalyzerState]=useState("Analisi in preparazione");
@@ -96,6 +98,12 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
    .sort((a,b)=>b.strength-a.strength).slice(0,20);
  },[showRays,planned,preview,candidate?.key,moveFrom]);
  const currentReward=resonanceReward(layout,planned.quality);
+ const previewReward=preview?resonanceReward(layout,preview.quality):null;
+ const marginalReward=previewReward===null?null:previewReward-currentReward;
+ const marginalNet=marginalReward===null?null:marginalReward-candidateCost;
+ const fullNet=currentReward-planned.totalCost;
+ const selectedScenario=difficulty?.scenarios.find(x=>x.id===selectedScenarioId)
+  ??difficulty?.scenarios[0];
  const hintsByKey=new Map(visual.hintResults.map(h=>[h.key,h]));
  const occupiedCost=planned.totalCost;
  const plannerBudget=clamp(treasury+occupiedCost,2,10000);
@@ -297,11 +305,12 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
        <circle cx={p.x} cy={p.y} r={Math.max(5,p.size*.13)} fill="#ead5a0"/>
       </g>;
      })}
-     {showPlan&&difficulty?.baselineSolution.map(pawn=>{
+     {showPlan&&selectedScenario?.placements.map(pawn=>{
       const p=circleFor(pawn.key);
       return <polygon key={pawn.key}
        points={rcPolygon(p.x,p.y,p.size*.72)}
-       fill="#86c9da" fillOpacity=".15" stroke="#86c9da"
+       fill={selectedScenario.net>=0?"#78d5ab":"#ec927b"}
+       fillOpacity=".15" stroke={selectedScenario.net>=0?"#86c9da":"#f2a293"}
        strokeWidth="2" strokeDasharray="7 4"/>;
      })}
      {pawns.map(pawn=>{
@@ -513,6 +522,21 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
        <span>Costo adesso</span>
        <b>{moveFrom?"0 (spostamento)":candidateCost+" E"}</b>
       </div>
+      <div className="resonance-forecast-row">
+       <span>Incremento della ricompensa</span>
+       <b className={(marginalReward??0)>0?"resonance-positive":
+        (marginalReward??0)<0?"resonance-negative":""}>
+        {marginalReward!==null&&marginalReward>0?"+":""}{marginalReward} E</b>
+      </div>
+      <div className="resonance-forecast-row resonance-net-line">
+       <span>Saldo marginale (ricavo aggiuntivo − costo)</span>
+       <b className={(marginalNet??0)>=0?"resonance-positive":"resonance-negative"}>
+        {marginalNet!==null&&marginalNet>0?"+":""}{marginalNet} E</b>
+      </div>
+      {marginalNet!==null&&marginalNet<0&&
+       <p className="resonance-warning">
+        Questo piazzamento non recupera la spesa con la ricompensa
+        di questa commissione.</p>}
       {!canPurchase&&<p className="resonance-warning">
        Energia insufficiente per acquistare questa manifestazione.</p>}
       <button className="resonance-confirm" disabled={!canPurchase}
@@ -551,6 +575,17 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
      <span>Ricompensa per presentare ora</span>
      <b className="resonance-positive">+{currentReward} E</b>
     </div>
+    <div className="resonance-forecast-row">
+     <span>Capitale acquistato sulla plancia</span>
+     <b>−{occupiedCost} E</b>
+    </div>
+    <div className="resonance-forecast-row resonance-net-line">
+     <span>Saldo teorico da zero (una commissione)</span>
+     <b className={fullNet>=0?"resonance-positive":"resonance-negative"}>
+      {fullNet>0?"+":""}{fullNet} E</b>
+    </div>
+    <p>Il capitale già acquistato può essere riutilizzato nelle commissioni
+     successive: questo saldo da zero non si ripete a ogni Evolve.</p>
     <button type="button" className="resonance-submit"
      disabled={claimed} onClick={claim}>
      Presenta al Mutatron · +{currentReward} E e prossima richiesta</button>
@@ -586,18 +621,16 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
        <strong>{difficulty.rating}</strong></div>
       <div><small>Qualità stimata</small>
        <strong>{fmt(difficulty.expectedScore)}%</strong></div>
-      <div><small>70% raggiunto a</small>
+      <div><small>70% trovato spendendo</small>
        <strong>{difficulty.estimatedCost70===null?"Non trovato":
         difficulty.estimatedCost70+" E"}</strong></div>
      </div>
-     <table className="resonance-budget-table">
-      <thead><tr><th>Budget</th><th>Qualità trovata</th>
-       <th>Spesi</th><th>Polytroni</th></tr></thead>
-      <tbody>{difficulty.bands.map(b=>
-       <tr key={b.budget}><td>{b.budget} E</td>
-        <td>{fmt(b.score)}%</td><td>{b.spent} E</td>
-        <td>{b.pieces}</td></tr>)}</tbody>
-     </table>
+     <ResonanceEconomicsPanel
+      report={difficulty} selectedId={selectedScenarioId}
+      showPlan={showPlan} onSelect={id=>{
+       setSelectedScenarioId(id);setShowPlan(true);
+      }}
+      onToggle={setShowPlan} cells={valid}/>
      <div className="resonance-analysis-detail">
       {difficulty.structural.orbits} orbite occupate ·
       {" "}{difficulty.structural.palettes} palette ·
@@ -605,15 +638,18 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
       {" "}{difficulty.structural.periods} periodi ·
       {" "}{difficulty.structural.edges} archi.
      </div>
-     <label className="kaleido-check">
-      <input type="checkbox" checked={showPlan}
-       onChange={e=>setShowPlan(e.target.checked)}/>
-      Sovrapponi la composizione stimata dal solver
-     </label>
      {difficulty.nextMove&&<div className="resonance-suggest">
       <p>Possibile prossima mossa: manifestazione {difficulty.nextMove.number}
        {" "}in {fromLabel(valid.get(difficulty.nextMove.key)!)}.
-       {" "}Corrispondenza prevista {fmt(difficulty.nextMoveQuality??0)}%.</p>
+       {" "}Corrispondenza prevista {fmt(difficulty.nextMoveQuality??0)}%.
+       {" "}Ricavo aggiuntivo
+       {" "}{difficulty.nextMoveRewardGain!==null&&difficulty.nextMoveRewardGain>0?"+":""}
+       {difficulty.nextMoveRewardGain} E;
+       {" "}saldo marginale
+       {" "}<b className={(difficulty.nextMoveNetGain??0)>=0?
+        "resonance-positive":"resonance-negative"}>
+        {difficulty.nextMoveNetGain!==null&&difficulty.nextMoveNetGain>0?"+":""}
+        {difficulty.nextMoveNetGain} E</b>.</p>
       <button type="button" onClick={suggest}
        disabled={treasury<resonanceCost(difficulty.nextMove.number)}>
        Prepara la mossa suggerita</button>
@@ -621,8 +657,9 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
     </>}
     <p className="resonance-method-note">
      Metodo: ricerca greedy limitata, non ottimo matematico garantito.
-     Il costo minimo e la difficoltà sono stime sperimentali.
-     I grafi e le simmetrie rientrano nell'evaluator esatto.
+     Le configurazioni sono esempi fattibili, non tutte le possibilità.
+     Il costo minimo e la difficoltà sono stime; gli importi
+     sono invece calcolati con le regole economiche correnti.
     </p>
    </section>
   </aside>

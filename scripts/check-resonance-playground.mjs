@@ -88,6 +88,48 @@ try{
  assert(report.baselineSolution.length>0);
  assert.equal(report.spent,
   report.baselineSolution.reduce((s,p)=>s+r.resonanceCost(p.number),0));
+ // Every displayed figure must use the exact same live reward/cost model.
+ assert.equal(report.scenarios.length,5);
+ assert.deepEqual(report.scenarios.map(s=>s.id),
+  ["quality","economic","literal","unplanned","incompatible"]);
+ assert(report.scenarios.some(s=>s.net<0),
+  "The analyzer must expose genuinely loss-making configurations");
+ for(const scenario of report.scenarios){
+  assert(scenario.spent<=report.budget);
+  assert.equal(scenario.spent,scenario.placements.reduce(
+   (total,p)=>total+r.resonanceCost(p.number),0));
+  const exact=r.evaluateResonance(layout,scenario.placements,{reach:2});
+  assert(Math.abs(scenario.quality-exact.quality)<1e-9);
+  assert.equal(scenario.reward,r.resonanceReward(layout,scenario.quality));
+  assert.equal(scenario.net,scenario.reward-scenario.spent);
+  assert.equal(scenario.pieces,scenario.placements.length);
+ }
+ for(const band of report.bands){
+  assert.equal(band.reward,r.resonanceReward(layout,band.score));
+  assert.equal(band.net,band.reward-band.spent);
+  assert.equal(band.efficiency,
+   band.spent?band.reward/band.spent:null);
+ }
+ assert.equal(r.resonanceEconomics(layout,[],{reach:2}).net,0);
+ assert.equal(r.resonanceEconomics(layout,[same],{reach:2}).spent,
+  r.resonanceCost(same.number));
+ assert(Math.abs(r.scoreResonance(layout,[same,pair],{reach:2}).quality-
+  r.evaluateResonance(layout,[same,pair],{reach:2}).quality)<1e-9);
+ assert(report.placementRisk.purchasesSampled>0);
+ assert(report.placementRisk.uneconomicPurchases>0,
+  "The exploratory sample should find an acquisition with negative net return");
+ assert.equal(report.placementRisk.worseningPurchases,0,
+  "Positive-only saturating affinities cannot lower quality on a new purchase");
+ assert.equal(report.placementRisk.relocationsSampled,0,
+  "Empty starting board has no Polytrons to relocate");
+ const reportAfterPurchase=difficulty.analyzeResonanceDifficulty(
+  layout,22,{reach:2},[same,pair]);
+ assert(reportAfterPurchase.placementRisk.relocationsSampled>0,
+  "The risk analyzer must also sample existing pawn relocations");
+ assert(reportAfterPurchase.nextMoveNetGain===null||
+  reportAfterPurchase.nextMoveNetGain===
+  reportAfterPurchase.nextMoveRewardGain-
+   r.resonanceCost(reportAfterPurchase.nextMove.number));
  const current=difficulty.analyzeResonanceDifficulty(layout,22,{reach:2},[same]);
  assert(current.nextMoveQuality===null||current.nextMoveQuality>=one.quality,
   "A suggested next placement should not reduce score");
@@ -137,6 +179,25 @@ try{
   "Several real/hint viewports must coexist on the shared canvas");
  assert(css.includes(".resonance-cell-hit")&&
   css.includes("@media(max-width:530px)"));
+ const economicsUi=await readFile(
+  "src/experiments/ResonanceEconomicsPanel.tsx","utf8");
+ const economicsCss=await readFile(
+  "src/experiments/ResonanceEconomicsPanel.css","utf8");
+ assert(ui.includes("ResonanceEconomicsPanel")&&
+  ui.includes("marginalReward")&&ui.includes("marginalNet")&&
+  ui.includes("Saldo teorico da zero")&&
+  ui.includes("nextMoveNetGain")&&
+  ui.includes("selectedScenario?.placements.map"),
+  "The user must see marginal spending and compare scenario overlays");
+ assert(economicsUi.includes("Cinque strategie")&&
+  economicsUi.includes("Frontiera: qualità vs energia")&&
+  economicsUi.includes("Si può sbagliare?")&&
+  economicsUi.includes("uneconomicPurchases")&&
+  economicsUi.includes("worseningRelocations")&&
+  economicsUi.includes("Spesa")&&
+  economicsUi.includes("Ricavo")&&economicsUi.includes("Saldo")&&
+  economicsCss.includes(".resonance-econ-scenarios"),
+  "Difficulty Analyzer must reveal cost/reward/net of good and bad strategies");
  assert(css.includes("Desktop research dashboard")&&
   css.includes(".resonance-sidebar .kaleido-control-block")&&
   css.includes(".resonance-budget-table")&&

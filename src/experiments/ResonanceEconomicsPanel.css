@@ -1,0 +1,92 @@
+.resonance-econ-title{
+ font-size:13px;line-height:1.3;color:#dfecda;
+ margin:16px 0 8px;
+}
+.resonance-econ-copy,.resonance-econ-disclaimer{
+ font-size:11px!important;line-height:1.55!important;color:#adcbd1!important;
+ margin:4px 0 12px!important
+}
+.resonance-econ-scenarios{display:grid;grid-template-columns:1fr;gap:8px}
+.resonance-econ-scenario{
+ width:100%;min-width:0;
+ display:grid;gap:6px;text-align:left;
+ padding:9px 11px;
+ border:1px solid #47727c;border-radius:10px;
+ background:#193c48;color:#e2f2ed;cursor:pointer;
+}
+.resonance-econ-scenario:hover{
+ border-color:#a0dcc1;background:#235363
+}
+.resonance-econ-scenario.is-selected{
+ border:2px solid #e5d49a;padding:8px 10px;
+ background:#284d50
+}
+.resonance-econ-scenario:focus-visible{
+ outline:2px solid #a9edc1;outline-offset:2px
+}
+.resonance-econ-scenario-head{
+ display:flex;align-items:baseline;justify-content:space-between;
+ flex-wrap:wrap;gap:4px;font-size:12px
+}
+.resonance-econ-scenario-head span{
+ font-size:10px;color:#c3d8d4;font-variant-numeric:tabular-nums
+}
+.resonance-econ-values{
+ display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+ gap:5px;font-variant-numeric:tabular-nums;
+}
+.resonance-econ-values>span{
+ background:#102c39;border-radius:6px;padding:5px 4px;
+ display:grid;gap:2px;text-align:center;min-width:0
+}
+.resonance-econ-values small{color:#9fbac2;font-size:10px}
+.resonance-econ-values b{font-size:13px;white-space:nowrap}
+.resonance-econ-description{
+ font-size:10px;line-height:1.4;color:#b5cdd2
+}
+.resonance-econ-show{
+ display:flex;align-items:center;gap:8px;cursor:pointer;
+ font-size:11px;margin:10px 0;color:#c7e0db
+}
+.resonance-econ-show input{accent-color:#93d4b1}
+.resonance-econ-overlay{
+ background:#285157!important;color:#d7f1e2!important;
+ padding:8px 10px;border-radius:8px;
+ border-left:3px solid #b8d4a8
+}
+.resonance-econ-frontier{display:grid;gap:6px}
+.resonance-econ-frontier-item{
+ display:grid;gap:4px;padding:9px;
+ border:1px solid #375c70;border-radius:9px;
+ background:#183744;color:#b9d0d3;
+ font-size:11px;font-variant-numeric:tabular-nums
+}
+.resonance-econ-frontier-item strong{color:#deefec}
+.resonance-econ-risks{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.resonance-econ-risks>div{
+ padding:9px 8px;min-width:0;display:grid;gap:3px;
+ border-radius:8px;background:#1c414b;border:1px solid #3a626c
+}
+.resonance-econ-risks strong{
+ font-size:17px;font-variant-numeric:tabular-nums;color:#f2d79d
+}
+.resonance-econ-risks span{
+ font-size:10px;color:#bcd4d5;line-height:1.4
+}
+.resonance-econ-example{
+ background:#3e3136!important;padding:9px;
+ border:1px solid #8b6161;border-radius:9px;
+ line-height:1.45!important
+}
+.resonance-econ-disclaimer{
+ padding:10px 0 0;border-top:1px solid #365962;
+}
+@media(min-width:1620px){
+ .resonance-lab .resonance-sidebar .resonance-analysis{
+  break-inside:avoid-column
+ }
+}
+@media(max-width:530px){
+ .resonance-econ-scenario{padding:10px}
+ .resonance-econ-scenario.is-selected{padding:9px}
+}

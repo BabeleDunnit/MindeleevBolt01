@@ -189,6 +189,39 @@ function RESonance(color:number,group:number,period:number):number{
  return RESONANCE_WEIGHTS.color*color+
   RESONANCE_WEIGHTS.group*group+RESONANCE_WEIGHTS.period*period;
 }
+/**
+ * Exact overall score without O(pawns) marginal re-evaluations.
+ * Use for budget-search candidates and large samples of hypothetical moves.
+ */
+export function scoreResonance(
+ layout:KaleidoLayout,pawns:ResonancePawn[],
+ settings:ResonanceSettings=DEFAULT_RESONANCE_SETTINGS
+):Omit<ResonanceScore,"perPawnGain">{
+ return scoreCore(layout,pawns,settings,false);
+}
+/**
+ * One-off commission economics. "Net" compares a reward received once
+ * to buying ALL pieces from scratch; already-owned pieces are sunk capital.
+ * Values may be negative. Pawn resale, future commissions and maintenance
+ * are intentionally excluded, so this is not a lifetime profitability model.
+ */
+export type ResonanceEconomics={
+ quality:number;spent:number;reward:number;net:number;
+ efficiency:number|null;pieces:number
+};
+export function resonanceEconomics(
+ layout:KaleidoLayout,pawns:ResonancePawn[],
+ settings:ResonanceSettings=DEFAULT_RESONANCE_SETTINGS
+):ResonanceEconomics{
+ const score=scoreResonance(layout,pawns,settings);
+ const reward=resonanceReward(layout,score.quality);
+ return {
+  quality:score.quality,spent:score.totalCost,reward,
+  net:reward-score.totalCost,
+  efficiency:score.totalCost?reward/score.totalCost:null,
+  pieces:pawns.length
+ };
+}
 export function evaluateResonance(
  layout:KaleidoLayout,pawns:ResonancePawn[],
  settings:ResonanceSettings=DEFAULT_RESONANCE_SETTINGS
