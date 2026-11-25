@@ -10,7 +10,7 @@ import {
  type ResonancePawn,type ResonanceSettings,type ResonanceScore
 } from "@/polytron/resonanceField";
 import type {DifficultyReport} from "@/polytron/resonanceDifficulty";
-import {groupOf,periodOf,GROUP_CODES} from "@/polytron/mindeleevLife";
+import {groupOf,periodOf,GROUP_CODES,GROUP_LABELS} from "@/polytron/mindeleevLife";
 import {dnaFromPolitronNumber} from "@/polytron/politronicNumber";
 import {sealName} from "@/polytron/spectralFutures";
 import "./ResonancePlayground.css";
@@ -88,6 +88,9 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
  const visual=preview??planned;
  const selectedPawn=moveFrom?pawnByKey.get(moveFrom):null;
  const activePosition=candidate?valid.get(candidate.key):null;
+ // Kaleidoscope tiles are *hints*, not player-owned Polytron identities.
+ // Their polytronic number is a manifestation, never a Seal #.
+ const activeHint=candidate?tileByKey.get(candidate.key):undefined;
  const sortedRays=useMemo(()=>{
   if(!showRays)return [];
   if(candidate&&preview)return preview.contributions.filter(c=>
@@ -517,8 +520,34 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
       <p>{moveFrom?"Sposta":fromHome?"Richiama":"Acquista"} manifestazione
        <b> {candidate.number}</b>
        {" "}in {fromLabel(activePosition)}.
-       {tileByKey.has(candidate.key)?" Cella con indizio del Mutatron.":" Cella senza indizio."}
+       {activeHint?" Cella con indizio del Mutatron.":" Cella senza indizio."}
       </p>
+      {activeHint&&<div className="resonance-target-details"
+       aria-label="Proprietà del tile richiesto dal Mutatron">
+       <div className="resonance-target-title">
+        <strong>Tile richiesto dal Mutatron</strong>
+        <span>Indizio nella cella {fromLabel(activeHint)}</span>
+       </div>
+       <div className="resonance-target-palette">
+        <span className="resonance-target-swatch" aria-hidden="true"
+         style={{background:"linear-gradient(115deg,"+
+          LATIN_SOURCES[activeHint.paletteRow].hex+","+
+          GREEK_DESTINATIONS[activeHint.paletteCol].hex+")"}}/>
+        <span>Palette</span>
+        <strong>{LATIN_SOURCES[activeHint.paletteRow].name}
+         {" → "}{GREEK_DESTINATIONS[activeHint.paletteCol].name}</strong>
+       </div>
+       <div className="resonance-target-grid">
+        <div><span>Numero polytronico</span>
+         <strong>{activeHint.number}</strong></div>
+        <div><span>Periodo</span>
+         <strong>{periodOf(activeHint.number)}</strong></div>
+        <div><span>Gruppo</span>
+         <strong>{GROUP_LABELS[groupOf(activeHint.number)-1]}
+          {" ("}{GROUP_CODES[groupOf(activeHint.number)-1]}{")"}</strong>
+        </div>
+       </div>
+      </div>}
       <div className="resonance-forecast-row">
        <span>Qualità attuale</span><b>{fmt(planned.quality)}%</b>
       </div>

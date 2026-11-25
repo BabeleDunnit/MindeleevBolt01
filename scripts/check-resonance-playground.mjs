@@ -157,6 +157,21 @@ try{
  assert(ui.includes("Conferma acquisto")&&
   ui.includes("Conferma spostamento")&&
   ui.includes("Ritira"));
+ assert(ui.includes("activeHint=candidate?tileByKey.get(candidate.key):undefined")&&
+  ui.includes("{activeHint&&<div className=\"resonance-target-details\"")&&
+  ui.includes("Tile richiesto dal Mutatron")&&
+  ui.includes("Numero polytronico")&&ui.includes("Periodo")&&
+  ui.includes("Gruppo")&&
+  ui.includes("LATIN_SOURCES[activeHint.paletteRow].name")&&
+  ui.includes("GREEK_DESTINATIONS[activeHint.paletteCol].name")&&
+  ui.includes("GROUP_LABELS[groupOf(activeHint.number)-1]")&&
+  ui.includes("periodOf(activeHint.number)")&&
+  ui.includes("activeHint.number"),
+  "Preview must disclose the matched target tile's palette, polytronic number, period and group, never confuse tile and purchased Polytron");
+ assert(css.includes(".resonance-target-details")&&
+  css.includes(".resonance-target-swatch")&&
+  css.includes(".resonance-target-grid"),
+  "Tile metadata should remain readable as a grouped desktop and mobile card");
  assert(ui.includes("Cancella acquisto")&&
   ui.includes("resonance-cancel-purchase")&&
   ui.includes("onClick={cancelPending}")&&
