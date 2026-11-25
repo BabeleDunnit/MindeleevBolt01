@@ -364,3 +364,14 @@
  background:#1b4144;padding:9px 7px!important;
  border:1px solid #426f6d;border-radius:8px
 }
+
+/* Prototype-only: edit the manifestation of an already placed individual. */
+.resonance-edit-panel{
+ margin:12px 0;padding:12px;border:1px solid #7fa9a0;
+ background:#173a42;border-radius:10px;display:grid;gap:9px
+}
+.resonance-edit-panel h3{margin:0;color:#f1e0ad;font-size:14px}
+.resonance-edit-panel p{margin:0;font-size:11px;line-height:1.5;color:#d1e3dd}
+.resonance-edit-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.resonance-edit-grid label{display:grid;gap:5px;font-size:11px}
+@media(max-width:700px){.resonance-edit-grid{grid-template-columns:1fr}}
