@@ -8,6 +8,7 @@ import IslandAffinityLab from "@/experiments/IslandAffinityLab";
 import PlanarRapierLab from "@/experiments/PlanarRapierLab";
 import PolytronPeriodicLab from "@/experiments/PolytronPeriodicLab";
 import PrimeManifestationsLab from "@/experiments/PrimeManifestationsLab";
+import KaleidoscopeLab from "@/experiments/KaleidoscopeLab";
 import GradientPaletteLab from "@/experiments/GradientPaletteLab";
 import MindeleevLifeLab from "@/experiments/MindeleevLifeLab";
 import MindeleevSpectralLab from "@/experiments/MindeleevSpectralLab";
@@ -93,6 +94,7 @@ function App() {
   if (new URLSearchParams(window.location.search).get("experiment") === "orbital-mut") return <PlanarRapierLab initialMode="gravity" />;
   if (new URLSearchParams(window.location.search).get("experiment") === "polytron-periodic") return <PolytronPeriodicLab />;
   if (new URLSearchParams(window.location.search).get("experiment") === "polytron-primes") return <PrimeManifestationsLab />;
+  if (new URLSearchParams(window.location.search).get("experiment") === "kaleidoscope-lab") return <KaleidoscopeLab />;
   if (new URLSearchParams(window.location.search).get("experiment") === "mindeleev-life") return <MindeleevLifeLab />;
   if (new URLSearchParams(window.location.search).get("experiment") === "mindeleev-spectral") return <MindeleevSpectralLab />;
   if (new URLSearchParams(window.location.search).get("experiment") === "mindeleev-rc01") return <MindeleevRC01 />;

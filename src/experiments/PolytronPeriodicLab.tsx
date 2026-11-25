@@ -96,15 +96,18 @@ export function SharedPeriodic3D({palette,rotate,gradient}:{palette:number;rotat
   // Flattened tiles never use perspective distortion.
   const flatCamera=new THREE.OrthographicCamera(-1.6,1.6,1.6,-1.6,.05,60);
   const cache=new Map<string,{solid:THREE.BufferGeometry;edges:THREE.BufferGeometry;scale:number}>();
-  const CACHE_MAX=100;
-  const getGeo=(dna:string)=>{
-   let value=cache.get(dna);
-   if(value){cache.delete(dna);cache.set(dna,value);return value;}
-   const geos=polytronGeometry(dna,()=>palette,gradient);
+  const CACHE_MAX=110;
+  const getGeo=(dna:string,localGradient:GradientSelection|undefined=gradient)=>{
+   // Per-cell palette for kaleidoscopes; periodic table remains unchanged.
+   const key=dna+"|"+(localGradient?.pair.id??"legacy")+
+    "|"+(localGradient?.order??palette);
+   let value=cache.get(key);
+   if(value){cache.delete(key);cache.set(key,value);return value;}
+   const geos=polytronGeometry(dna,()=>palette,localGradient);
    geos.solid.computeBoundingSphere();
    const radius=geos.solid.boundingSphere?.radius??2;
    value={...geos,scale:1.33/Math.max(.2,radius)};
-   cache.set(dna,value);
+   cache.set(key,value);
    if(cache.size>CACHE_MAX){
     const first=cache.keys().next().value;
     if(first!==undefined){
@@ -133,6 +136,14 @@ export function SharedPeriodic3D({palette,rotate,gradient}:{palette:number;rotat
     if(rect.bottom<=0||rect.top>=h||rect.right<=0||rect.left>=w)continue;
     const dna=cell.dataset.dna;
     if(!dna)continue;
+    const hasTilePalette=cell.hasAttribute("data-kaleido-row")&&
+     cell.hasAttribute("data-kaleido-col");
+    const colorRow=Number(cell.dataset.kaleidoRow);
+    const colorCol=Number(cell.dataset.kaleidoCol);
+    const tileGradient=hasTilePalette&&Number.isInteger(colorRow)&&
+     Number.isInteger(colorCol)&&colorRow>=0&&colorRow<12&&
+     colorCol>=0&&colorCol<12?
+     {pair:gradientPair(colorRow,colorCol),order:"contrast" as const}:gradient;
     const x=Math.max(0,Math.round(rect.left));
     const y=Math.max(0,Math.round(h-rect.bottom));
     const right=Math.min(w,Math.round(rect.right));
@@ -140,7 +151,7 @@ export function SharedPeriodic3D({palette,rotate,gradient}:{palette:number;rotat
     const width=right-x,height=top-y;
     if(width<12||height<12)continue;
     let geo;
-    try{geo=getGeo(dna);}
+    try{geo=getGeo(dna,tileGradient);}
     catch{continue;}
     mesh.geometry=geo.solid;edges.geometry=geo.edges;
     const kind=(cell.dataset.viewKind??"solid") as PeriodicViewKind;
@@ -151,6 +162,11 @@ export function SharedPeriodic3D({palette,rotate,gradient}:{palette:number;rotat
     const scale=periodicViewScale(kind,geo.scale);
     group.scale.set(scale.x,scale.y,scale.z);
     group.rotation.set(0,0,0);
+    if(kind==="flat-z"){
+     const angle=Number(cell.dataset.kaleidoAngle??"0");
+     if(Number.isFinite(angle))group.rotation.z=angle;
+     if(cell.dataset.kaleidoMirror==="true")group.scale.x*=-1;
+    }
     let activeCamera:THREE.Camera=camera;
     if(kind==="solid"){
      group.rotation.y=rotateRef.current?time*.00034:.42;

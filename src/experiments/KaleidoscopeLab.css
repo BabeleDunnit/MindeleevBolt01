@@ -1,0 +1,230 @@
+.kaleido-app{
+ min-height:100vh;background:#071522;color:#e9f8ff;
+ font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+ padding:clamp(12px,2vw,28px);padding-bottom:42px
+}
+.kaleido-app *{box-sizing:border-box}
+.kaleido-app button,.kaleido-app select,.kaleido-app input{
+ font:inherit
+}
+.kaleido-header{
+ display:flex;justify-content:space-between;align-items:flex-start;
+ gap:18px;max-width:1320px;margin:0 auto 18px
+}
+.kaleido-eyebrow{
+ color:#83dec8;font-size:11px;font-weight:800;letter-spacing:.18em;margin:0 0 8px
+}
+.kaleido-header h1{
+ font-size:clamp(25px,4vw,42px);letter-spacing:-.04em;
+ line-height:1.07;margin:0 0 9px
+}
+.kaleido-header p:not(.kaleido-eyebrow){
+ color:#a7c1cd;font-size:14px;line-height:1.6;
+ max-width:790px;margin:0
+}
+.kaleido-back{
+ display:inline-flex;flex-shrink:0;text-decoration:none;
+ color:#a0f0d5;background:#173443;border:1px solid #416b78;
+ padding:10px 13px;border-radius:10px;font-size:12px;font-weight:750
+}
+.kaleido-back:hover,.kaleido-back:focus-visible{background:#245565}
+.kaleido-layout{
+ max-width:1320px;margin:0 auto;
+ display:grid;grid-template-columns:minmax(0,1.7fr) minmax(285px,.78fr);
+ gap:18px;align-items:start
+}
+.kaleido-stage{
+ min-width:0;border-radius:18px;
+ border:1px solid #315564;
+ overflow:hidden;background:#0b2431;
+ box-shadow:0 8px 26px #0003
+}
+.kaleido-stage-head,.kaleido-stage-foot{
+ display:flex;gap:12px;align-items:center;
+ justify-content:space-between;padding:14px 17px
+}
+.kaleido-stage-head{
+ background:linear-gradient(120deg,#143d4c,#132e3e);
+ border-bottom:1px solid #406274
+}
+.kaleido-stage-head>div:first-child{
+ display:grid;gap:4px;min-width:0
+}
+.kaleido-stage-head strong{color:#f4e4c6;font-size:18px}
+.kaleido-stage-head span{
+ color:#a9c6cf;font-size:12px;line-height:1.35
+}
+.kaleido-generation{
+ flex-shrink:0;display:flex;align-items:center;gap:5px;
+ color:#80c6b4;font-weight:750;font-size:10px;
+ letter-spacing:.08em
+}
+.kaleido-generation b{font-size:17px;color:#ebf9ea}
+.kaleido-artboard{
+ position:relative;width:100%;aspect-ratio:1;
+ isolation:isolate;
+ background:radial-gradient(circle,#214451,#081925 70%);
+}
+.kaleido-svg{
+ width:100%;height:100%;display:block;position:absolute;
+ inset:0;z-index:1;pointer-events:none
+}
+.kaleido-tile-layer,.kaleido-select-layer{
+ position:absolute;inset:0;pointer-events:none
+}
+.kaleido-tile-layer{z-index:2}
+.kaleido-select-layer{z-index:110}
+.kaleido-polytron{
+ position:absolute;transform:translate(-50%,-50%);
+ pointer-events:none;
+}
+.kaleido-hotspot{
+ position:absolute;transform:translate(-50%,-50%);
+ pointer-events:auto;border:1px solid transparent;border-radius:40%;
+ padding:0;background:transparent;cursor:pointer;
+}
+.kaleido-hotspot:hover{
+ border-color:#c3e7d8a0;background:#ffffff08
+}
+.kaleido-hotspot:focus-visible,.kaleido-hotspot.is-selected{
+ border:2px solid #efd899;outline:0;background:#ebd99909
+}
+.kaleido-stage-foot{
+ color:#a8c9c8;font-size:12px;
+ border-top:1px solid #305261;background:#102f3c;
+ font-variant-numeric:tabular-nums
+}
+.kaleido-controls{display:grid;gap:12px;min-width:0}
+.kaleido-control-block,.kaleido-stats,.kaleido-selected{
+ background:#102d3a;border:1px solid #355b68;
+ border-radius:14px;padding:15px;
+}
+.kaleido-controls h2{
+ font-size:14px;margin:0 0 8px;color:#e1f2ed;line-height:1.3
+}
+.kaleido-section-top{
+ display:flex;justify-content:space-between;align-items:center;gap:8px
+}
+.kaleido-section-top strong{
+ font-size:19px;font-variant-numeric:tabular-nums;color:#f2dca1
+}
+.kaleido-controls p{
+ color:#aac2ca;font-size:12px;line-height:1.58;margin:6px 0 13px
+}
+.kaleido-radius-picker{display:flex;align-items:center;gap:9px}
+.kaleido-radius-picker button{
+ flex:0 0 37px;height:37px;border-radius:10px;
+ background:#254955;border:1px solid #56828b;color:#e7f7f3;
+ cursor:pointer;font-size:21px;font-weight:600
+}
+.kaleido-radius-picker button:disabled{
+ cursor:default;opacity:.25
+}
+.kaleido-radius-picker input{
+ flex:1;min-width:0;accent-color:#7de1bc;cursor:pointer
+}
+.kaleido-radius-markers{
+ display:grid;grid-template-columns:repeat(5,1fr);
+ gap:6px;margin:11px 46px 7px
+}
+.kaleido-radius-markers button{
+ padding:6px;border:1px solid #315967;color:#a9c1c5;
+ background:#173b48;border-radius:7px;font-size:12px;
+ cursor:pointer;font-variant-numeric:tabular-nums
+}
+.kaleido-radius-markers button.active{
+ color:#09291f;background:#9be0c6;border-color:#c0f1d7;font-weight:850
+}
+.kaleido-radius-foot{
+ display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;
+ color:#87c4c1;font-size:11px
+}
+.kaleido-family-grid{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+ gap:8px
+}
+.kaleido-family-grid button{
+ padding:10px 8px;border-radius:10px;cursor:pointer;
+ background:#194150;border:1px solid #497180;
+ font-size:12px;font-weight:750;color:#c6e7e7
+}
+.kaleido-family-grid button.active{
+ border-color:#aed9b0;background:#29695b;color:#f0fff0
+}
+.kaleido-field-label{
+ display:block;font-size:12px;font-weight:750;
+ color:#cbe4e0;margin-bottom:7px
+}
+.kaleido-control-block select{
+ width:100%;padding:10px 12px;color:#e8f7f3;
+ border:1px solid #568290;background:#173f4c;
+ border-radius:9px;font-size:12px
+}
+.kaleido-check{
+ margin-top:12px;display:flex;align-items:center;gap:8px;
+ color:#bfd7dc;font-size:12px
+}
+.kaleido-check input{accent-color:#83dcb6}
+.kaleido-actions{display:grid;gap:9px}
+.kaleido-evolve,.kaleido-genesis{
+ border:1px solid transparent;border-radius:13px;
+ width:100%;padding:13px 15px;cursor:pointer;
+ font-weight:850
+}
+.kaleido-evolve{
+ display:flex;align-items:center;justify-content:center;gap:12px;
+ font-size:18px;background:linear-gradient(125deg,#327d65,#419d75);
+ color:#fafff6;border-color:#70bd94;box-shadow:0 3px 9px #0003
+}
+.kaleido-evolve small{font-size:11px;font-weight:650;opacity:.82}
+.kaleido-genesis{
+ color:#bee8e3;background:#173849;border-color:#477381;
+ font-size:12px
+}
+.kaleido-app button:hover:not(:disabled){filter:brightness(1.1)}
+.kaleido-app button:focus-visible,.kaleido-back:focus-visible{
+ outline:2px solid #a0f5c1;outline-offset:2px
+}
+.kaleido-stats>div{
+ display:flex;justify-content:space-between;gap:8px;
+ border-top:1px solid #ffffff12;padding:8px 0;
+ font-size:12px;color:#b5cbd1
+}
+.kaleido-stats strong{color:#e8f7ed;font-variant-numeric:tabular-nums}
+.kaleido-stats p{font-size:11px;margin:9px 0 0}
+.kaleido-selected{border-color:#bca86a}
+.kaleido-selected div{
+ display:flex;align-items:center;justify-content:space-between
+}
+.kaleido-selected div strong{font-size:19px;color:#f5dfae}
+.kaleido-selected code{color:#a7decf}
+.kaleido-selected a{
+ color:#b4eccc;text-decoration:underline;font-size:12px
+}
+.kaleido-footer{
+ max-width:1320px;margin:18px auto 0;padding:15px;
+ border-top:1px solid #244753;color:#a2c2c7;
+ font-size:12px;line-height:1.6
+}
+.kaleido-footer strong{color:#eed6a4}
+@media(max-width:870px){
+ .kaleido-header{flex-direction:column}
+ .kaleido-layout{grid-template-columns:1fr}
+ .kaleido-controls{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .kaleido-actions{align-self:start}
+ .kaleido-stage{max-width:720px;width:100%;margin:0 auto}
+}
+@media(max-width:530px){
+ .kaleido-app{padding:10px}
+ .kaleido-layout{gap:12px}
+ .kaleido-controls{grid-template-columns:1fr}
+ .kaleido-stage-head,.kaleido-stage-foot{padding:10px 12px}
+ .kaleido-stage-head strong{font-size:16px}
+ .kaleido-stage-head span{font-size:10px}
+ .kaleido-generation{font-size:9px}
+ .kaleido-stage-foot{font-size:10px}
+ .kaleido-control-block,.kaleido-stats,.kaleido-selected{padding:13px}
+}
+@media(prefers-reduced-motion:reduce){
+ .kaleido-app *{transition:none!important;animation:none!important}
+}
