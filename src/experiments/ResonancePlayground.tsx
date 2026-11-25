@@ -1,4 +1,4 @@
-import {useEffect,useMemo,useState} from "react";
+import {useEffect,useMemo,useRef,useState} from "react";
 import {SharedPeriodic3D} from "@/experiments/PolytronPeriodicLab";
 import ResonanceEconomicsPanel from "@/experiments/ResonanceEconomicsPanel";
 import {gradientPair,LATIN_SOURCES,GREEK_DESTINATIONS} from "@/polytron/gradientPalettes";
@@ -10,6 +10,7 @@ import {
  type ResonancePawn,type ResonanceSettings,type ResonanceScore
 } from "@/polytron/resonanceField";
 import type {DifficultyReport} from "@/polytron/resonanceDifficulty";
+import {polytronDance,type DanceResult} from "@/polytron/polytronDance";
 import {groupOf,periodOf,GROUP_CODES,GROUP_LABELS} from "@/polytron/mindeleevLife";
 import {dnaFromPolitronNumber} from "@/polytron/politronicNumber";
 import {sealName} from "@/polytron/spectralFutures";
@@ -42,6 +43,9 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
  const [nextSeal,setNextSeal]=useState(1);
  const [completedRequests,setCompletedRequests]=useState(0);
  const [number,setNumber]=useState(2);
+ const [editNumber,setEditNumber]=useState(2);
+ const [danceInfo,setDanceInfo]=useState<DanceResult<OwnedPolytron>|null>(null);
+ const lastEvolution=useRef({recipe:"",generation:-1});
  const [paletteRow,setPaletteRow]=useState(10);
  const [paletteCol,setPaletteCol]=useState(10);
  const [settings,setSettings]=useState<ResonanceSettings>(DEFAULT_RESONANCE_SETTINGS);
@@ -89,6 +93,15 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
   [layout,trialPawns,settings]);
  const visual=preview??planned;
  const selectedPawn=moveFrom?pawnByKey.get(moveFrom):null;
+ const editedEnergy=selectedPawn?resonanceEnergy(editNumber):0;
+ const previousEnergy=selectedPawn?resonanceEnergy(selectedPawn.number):0;
+ const editFits=Boolean(selectedPawn)&&
+  committedEnergy-previousEnergy+editedEnergy<=treasury;
+ const editedPawns=useMemo(()=>selectedPawn?pawns.map(p=>p.seal===selectedPawn.seal?
+  {...p,number:editNumber}:p):null,[pawns,selectedPawn?.seal,editNumber]);
+ const editedScore=useMemo(()=>editedPawns?
+  evaluateResonance(layout,editedPawns,settings):null,
+  [layout,editedPawns,settings]);
  const activePosition=candidate?valid.get(candidate.key):null;
  // Kaleidoscope tiles are *hints*, not player-owned Polytron identities.
  // Their polytronic number is a manifestation, never a Seal #.
@@ -128,11 +141,27 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
   setPawns([]);setHome([]);setTreasury(initialBudget);
   setReturnSeal(null);setNextSeal(1);
   setPreviewKey(null);setHoverKey(null);setMoveFrom(null);
-  setClaimed(false);setLastEvent("");
+  setClaimed(false);setLastEvent("");setDanceInfo(null);
  // Intentional: a new recipe is a new research scenario; evolution is not.
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },[recipeKey]);
  useEffect(()=>{setClaimed(false);},[layout.params.generation]);
+ // Target evolves first, then Dance reorganizes the owned board.
+ // A new recipe never triggers an inherited Dance.
+ useEffect(()=>{
+  const previous=lastEvolution.current;
+  lastEvolution.current={recipe:recipeKey,generation:layout.params.generation};
+  if(previous.recipe!==recipeKey||previous.generation<0||
+   previous.generation===layout.params.generation)return;
+  const result=polytronDance(layout,pawns,settings);
+  setPawns(result.pawns);
+  setDanceInfo(result);
+  setLastEvent("Polytron Dance: "+result.moved+" spostamenti · simmetria "+
+   fmt(result.beforeSymmetry)+"% → "+fmt(result.afterSymmetry)+
+   "% · Δ ricompensa "+(result.afterReward-result.beforeReward)+" E.");
+ // Only evolution/recipe must trigger Dance, not a reach change.
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ },[layout.params.generation,recipeKey]);
 
  useEffect(()=>{
   let active=true;
@@ -163,6 +192,7 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
   if(key==="0,0")return;
   if(pawnByKey.has(key)){
    setMoveFrom(prev=>prev===key?null:key);
+   setEditNumber(pawnByKey.get(key)!.number);
    setReturnSeal(null);
    setPreviewKey(null);
   }else setPreviewKey(key);
@@ -212,6 +242,15 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
    " torna a Home con "+energy+" E intatti: la capacità si libera.");
   setPreviewKey(null);setHoverKey(null);setMoveFrom(null);
   setReturnSeal(selectedPawn.seal);
+ };
+ const applyEdit=()=>{
+  if(!selectedPawn||!editFits)return;
+  setPawns(old=>old.map(p=>p.seal===selectedPawn.seal?
+   {...p,number:editNumber}:p));
+  setLastEvent("Polytrone #"+selectedPawn.seal+" modificato: "+
+   selectedPawn.number+" → "+editNumber+" · energia in plancia "+
+   (committedEnergy-previousEnergy+editedEnergy)+" E"+
+   " (variazione "+(editedEnergy-previousEnergy)+" E).");
  };
  const reset=()=>{
   setHome(old=>[...old,...pawns]);
@@ -496,7 +535,8 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
     {pawns.length>0&&<div className="resonance-owned-list">
      <span className="resonance-small-title">Polytroni conosciuti</span>
      {pawns.map(p=><button type="button" key={p.seal}
-      onClick={()=>{setMoveFrom(p.key);setReturnSeal(null);setPreviewKey(null);}}
+      onClick={()=>{setMoveFrom(p.key);setEditNumber(p.number);
+       setReturnSeal(null);setPreviewKey(null);}}
       className={moveFrom===p.key?"active":""}>
       <b>#{p.seal} · {p.name}</b>
       <span>manifestazione {p.number} · {GROUP_CODES[groupOf(p.number)-1]}
@@ -616,6 +656,38 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
      </>:
      <p>Tocca o sorvola una cella libera per vedere dove arrivano le influenze,
       quanto cresce la corrispondenza e quanta energia resta libera.</p>}
+    {selectedPawn&&<div className="resonance-edit-panel">
+     <h3>Modifica #{selectedPawn.seal} · {selectedPawn.name}</h3>
+     <p>La nuova manifestazione aggiorna energia impegnata, risonanza e
+      valutazione. L’identità del Polytrone rimane invariata.</p>
+     <div className="resonance-edit-grid">
+      <label>Gruppo
+       <select value={groupOf(editNumber)} onChange={e=>
+        setEditNumber((periodOf(editNumber)-1)*5+Number(e.target.value))}>
+        {GROUP_LABELS.map((g,i)=><option value={i+1} key={g}>
+         {GROUP_CODES[i]} · {g}</option>)}
+       </select></label>
+      <label>Periodo
+       <select value={periodOf(editNumber)} onChange={e=>
+        setEditNumber((Number(e.target.value)-1)*5+groupOf(editNumber))}>
+        {Array.from({length:100},(_,i)=><option key={i} value={i+1}>
+         {i+1}</option>)}
+       </select></label>
+      <label>Numero polytronico
+       <input type="number" min="1" max="500" value={editNumber}
+        onChange={e=>setEditNumber(clamp(Math.floor(Number(e.target.value)||1),1,500))}/>
+      </label>
+     </div>
+     <p>Energia {previousEnergy} → <strong>{editedEnergy} E</strong>
+      {" · "}Plancia {committedEnergy} →
+      {" "}{committedEnergy-previousEnergy+editedEnergy} / {treasury} E
+      {" · "}Qualità {fmt(planned.quality)} → {fmt(editedScore?.quality??planned.quality)}%</p>
+     {!editFits&&<p className="resonance-warning">Energia disponibile insufficiente:
+      scegli una manifestazione meno energetica.</p>}
+     <button type="button" className="resonance-confirm"
+      disabled={!editFits||editNumber===selectedPawn.number}
+      onClick={applyEdit}>Conferma modifica</button>
+    </div>}
     {selectedPawn&&<div className="resonance-sell-row">
      <span>#{selectedPawn.seal} · {selectedPawn.name} · manifestazione {selectedPawn.number} ·
       energia conservata {resonanceEnergy(selectedPawn.number)} E</span>
@@ -677,7 +749,13 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
      disabled={claimed} onClick={claim}>
      Presenta al Mutatron · +{currentReward} E ed Evolve</button>
     <p>Ogni commissione può essere presentata una sola volta.
-     I Polytroni rimangono sul Mutatron dopo l'evoluzione.</p>
+     Dopo Evolve i Polytroni danzano verso una disposizione più simmetrica,
+     senza guadagni di ricompensa dovuti alla Dance.</p>
+    {danceInfo&&<p className="resonance-action-message">
+     Ultima Dance: {danceInfo.moved} spostamenti · simmetria
+     {" "}{fmt(danceInfo.beforeSymmetry)}% → {fmt(danceInfo.afterSymmetry)}% ·
+     {" "}Δ ricompensa {danceInfo.afterReward-danceInfo.beforeReward} E.
+    </p>}
     <div className="resonance-two-actions">
      <button type="button" disabled={claimed} onClick={()=>advance(false)}>
       Evolve senza presentare · gratuito</button>
