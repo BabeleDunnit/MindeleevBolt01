@@ -331,8 +331,8 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
       const p=circleFor(pawn.key);
       return <polygon key={pawn.key}
        points={rcPolygon(p.x,p.y,p.size*.72)}
-       fill={selectedScenario.net>=0?"#78d5ab":"#ec927b"}
-       fillOpacity=".15" stroke={selectedScenario.net>=0?"#86c9da":"#f2a293"}
+       fill={selectedScenario.quality>=50?"#78d5ab":"#ec927b"}
+       fillOpacity=".15" stroke={selectedScenario.quality>=50?"#86c9da":"#f2a293"}
        strokeWidth="2" strokeDasharray="7 4"/>;
      })}
      {pawns.map(pawn=>{
