@@ -287,7 +287,9 @@ export function evaluateResonance(
  for(const pawn of pawns){
   const without=scoreCore(layout,pawns.filter(p=>p.key!==pawn.key),
    settings,false);
-  perPawnGain[pawn.key]=Math.max(0,full.quality-without.quality);
+  // Negative means this pawn harms global structure more than it
+  // helps local resonance; retain that information for gameplay analysis.
+  perPawnGain[pawn.key]=full.quality-without.quality;
  }
  return {...full,perPawnGain};
 }
