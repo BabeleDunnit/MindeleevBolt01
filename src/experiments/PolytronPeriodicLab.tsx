@@ -159,6 +159,20 @@ export function SharedPeriodic3D({palette,rotate,gradient}:{palette:number;rotat
     // border style; only the three orthographic tile views change materials.
     mesh.material=kind==="solid"?mat:flatMat;
     edges.material=kind==="solid"?edgeMat:flatEdgeMat;
+    // The research Playground layers translucent, flat-Z target hints
+    // underneath purchased 3D Polytrons in the SAME hex cell.
+    // Scissored viewport stacking must reset depth between those layers.
+    const rawAlpha=Number(cell.dataset.kaleidoOpacity??"1");
+    const alpha=Number.isFinite(rawAlpha)?
+     Math.max(0.05,Math.min(1,rawAlpha)):1;
+    const mainMaterial=mesh.material;
+    const lineMaterial=edges.material;
+    mainMaterial.transparent=alpha<1;
+    mainMaterial.opacity=alpha;
+    mainMaterial.depthWrite=alpha>=1;
+    lineMaterial.transparent=true;
+    lineMaterial.opacity=(kind==="solid"?.35:.77)*alpha;
+    lineMaterial.depthWrite=false;
     const scale=periodicViewScale(kind,geo.scale);
     group.scale.set(scale.x,scale.y,scale.z);
     group.rotation.set(0,0,0);
@@ -190,6 +204,7 @@ export function SharedPeriodic3D({palette,rotate,gradient}:{palette:number;rotat
      activeCamera=flatCamera;
     }
     renderer.setViewport(x,y,width,height);renderer.setScissor(x,y,width,height);
+    renderer.clearDepth();
     renderer.render(scene,activeCamera);
    }
    raf=requestAnimationFrame(frame);

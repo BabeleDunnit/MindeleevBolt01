@@ -1,0 +1,264 @@
+/* The Resonance Playground extends, but does not alter, the art generator. */
+.resonance-lab .kaleido-stage{background:#0c2632}
+.resonance-stage-head,.resonance-stage-foot{
+ display:flex;align-items:center;justify-content:space-between;
+ gap:10px;padding:13px 16px;background:#133240;
+ border-bottom:1px solid #416575
+}
+.resonance-stage-head>div:first-child{display:grid;gap:3px}
+.resonance-stage-head b{font-size:17px;color:#eddfc6}
+.resonance-stage-head small{font-size:11px;color:#a0c5c7;text-transform:capitalize}
+.resonance-head-score{display:grid;gap:2px;text-align:right}
+.resonance-head-score strong{font-size:29px;color:#d5f0d7;letter-spacing:-.04em}
+.resonance-head-score span{font-size:11px;font-weight:800}
+.resonance-stage-foot{
+ border-top:1px solid #416575;border-bottom:0;
+ color:#b6d9d4;font-size:11px;
+ flex-wrap:wrap
+}
+.resonance-artboard .resonance-target-tiles{z-index:2}
+.resonance-artboard .resonance-player-tiles{z-index:6}
+.resonance-artboard .kaleido-select-layer{z-index:110}
+.resonance-cell-hit{border-radius:25%;cursor:crosshair}
+.resonance-cell-hit.is-owned{cursor:grab}
+.resonance-cell-hit.is-owned:hover{border-color:#f8df9d}
+.resonance-cell-hit:hover{background:#9ce9cf13}
+.resonance-legend,.resonance-display-toggles{
+ display:flex;gap:9px 17px;flex-wrap:wrap;align-items:center;
+ background:#102a37;padding:9px 14px;
+ color:#b6cbd3;font-size:11px
+}
+.resonance-legend{border-top:1px solid #254e5d}
+.resonance-display-toggles{border-top:1px solid #254656}
+.resonance-legend span,.resonance-display-toggles label{
+ display:flex;align-items:center;gap:6px;cursor:default
+}
+.resonance-display-toggles label{cursor:pointer}
+.resonance-display-toggles input{accent-color:#77d5aa}
+.resonance-legend-dot{
+ width:9px;height:9px;display:inline-block;
+ border-radius:3px;border:2px solid
+}
+.resonance-legend-dot.is-hint{background:#7e456f;border-color:#e99bc8}
+.resonance-legend-dot.is-player{background:#d4b778;border-color:#ecd59b}
+.resonance-legend-dot.is-forecast{background:#297e61;border-color:#baf4b4}
+.resonance-legend-dot.is-ray{background:#4b8d83;border-color:#9fe8c4}
+.resonance-sidebar .kaleido-control-block{min-width:0}
+.resonance-sidebar h2{font-size:15px}
+.resonance-sidebar label{color:#b5d9d7}
+.resonance-sidebar input[type=number],.resonance-sidebar select{
+ width:100%;min-width:0;min-height:39px;
+ color:#e7f8f0;background:#163f4c;
+ border:1px solid #5d8491;border-radius:9px;
+ padding:9px 11px;font-size:14px
+}
+.resonance-sidebar input:focus-visible,.resonance-sidebar select:focus-visible{
+ outline:2px solid #9cecc0;outline-offset:1px
+}
+.resonance-budget-row{
+ display:grid;grid-template-columns:1fr 1fr;gap:10px;
+ align-items:end;margin-bottom:13px
+}
+.resonance-budget-row label{
+ font-size:11px;display:grid;gap:5px
+}
+.resonance-budget-row>div{
+ min-height:39px;display:flex;justify-content:space-between;
+ align-items:center;gap:4px;flex-wrap:wrap;
+ background:#183a47;border-radius:9px;padding:7px 9px;
+ border:1px solid #456d7b
+}
+.resonance-budget-row small{font-size:10px;color:#a4c4c5}
+.resonance-budget-row b{font-size:15px;color:#e6d5a8}
+.resonance-field-row{display:grid;gap:6px;margin:11px 0}
+.resonance-field-row label{font-size:11px;font-weight:730}
+.resonance-shortcuts{display:flex;gap:5px;flex-wrap:wrap}
+.resonance-shortcuts button{
+ background:#173d49;border:1px solid #466c7b;border-radius:6px;
+ color:#b6d9da;font-size:11px;font-weight:750;
+ padding:7px 8px;cursor:pointer
+}
+.resonance-shortcuts button.active{
+ background:#356657;color:white;border-color:#9ad9b9
+}
+.resonance-palette-selects{
+ display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:13px 0
+}
+.resonance-palette-selects label{
+ display:grid;gap:5px;font-size:11px
+}
+.resonance-cost-line{margin-top:10px!important}
+.resonance-cost-line strong{color:#f0d998}
+.resonance-cost-line a{color:#a2efd1;text-decoration:underline}
+.resonance-small-title{font-size:11px;font-weight:780;color:#b9d4d5}
+.resonance-palette-swatches{
+ display:flex;gap:6px;flex-wrap:wrap;margin-top:8px
+}
+.resonance-palette-swatches button{
+ width:27px;height:27px;border-radius:7px;
+ border:1px solid #d1e0de7a;cursor:pointer
+}
+.resonance-palette-swatches button.active{
+ outline:2px solid #fff1bc;outline-offset:2px
+}
+.resonance-palette-swatches button:disabled{cursor:default;opacity:.4}
+.resonance-forecast{
+ border-color:#638f85!important;background:#123a43!important
+}
+.resonance-forecast-row{
+ display:flex;align-items:center;justify-content:space-between;
+ gap:12px;margin:5px 0;padding:7px 0;
+ border-bottom:1px solid #ffffff15;color:#c2d8dc;font-size:12px
+}
+.resonance-forecast-row b{
+ color:#edf5ec;font-size:14px;font-variant-numeric:tabular-nums
+}
+.resonance-positive{color:#9cebc2!important}
+.resonance-negative{color:#f5a89d!important}
+.resonance-warning{color:#f9b7a4!important}
+.resonance-confirm,.resonance-submit{
+ width:100%;padding:12px 9px;border-radius:9px;
+ background:#36876e;color:#f4fff8;
+ border:1px solid #84cfac;cursor:pointer;font-size:13px;font-weight:850;
+ margin:11px 0 2px;min-height:46px
+}
+.resonance-confirm:disabled,.resonance-submit:disabled{
+ opacity:.35;cursor:not-allowed
+}
+.resonance-sell-row{
+ display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+ margin-top:12px;font-size:11px;color:#d9cba1
+}
+.resonance-sell-row button,.resonance-two-actions button{
+ border:1px solid #5c7884;border-radius:8px;
+ color:#c5e4e2;background:#1b4754;
+ cursor:pointer;padding:7px 11px;font-size:11px;font-weight:700
+}
+.resonance-sell-row button:first-of-type{
+ color:#f8cebd;border-color:#c38377
+}
+.resonance-action-message{font-size:11px!important;color:#99ddba!important}
+.resonance-meter{margin:10px 0}
+.resonance-meter>div:first-child{
+ display:flex;align-items:center;justify-content:space-between;
+ color:#bdd8dc;font-size:11px;margin-bottom:5px
+}
+.resonance-meter b{color:#edf9e8;font-variant-numeric:tabular-nums}
+.resonance-meter-track{
+ width:100%;height:8px;border-radius:20px;
+ background:#304e5b;overflow:hidden
+}
+.resonance-meter-track>div{
+ height:100%;background:linear-gradient(90deg,#388974,#93dbc3);
+ border-radius:20px
+}
+.resonance-submit{background:#6b6052;border-color:#bba37d}
+.resonance-two-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.resonance-analysis{
+ border-color:#576c83!important
+}
+.resonance-analysis-status{font-style:italic;font-size:11px!important}
+.resonance-analysis-grid{
+ display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0
+}
+.resonance-analysis-grid>div{
+ padding:9px;background:#1a3e4d;border:1px solid #3d6673;
+ border-radius:9px;display:grid;gap:3px
+}
+.resonance-analysis-grid small{font-size:10px;color:#afc8ce}
+.resonance-analysis-grid strong{
+ font-size:15px;color:#f0e4b8;font-variant-numeric:tabular-nums
+}
+.resonance-budget-table{
+ width:100%;border-collapse:collapse;font-size:11px;
+ font-variant-numeric:tabular-nums;margin-top:8px
+}
+.resonance-budget-table th{
+ color:#8ad9c4;text-align:left;font-weight:750;
+ border-bottom:1px solid #456d77;padding:7px 3px
+}
+.resonance-budget-table td{
+ border-bottom:1px solid #2d5261;padding:7px 3px;color:#d0e3e5
+}
+.resonance-budget-table th:not(:first-child),
+.resonance-budget-table td:not(:first-child){text-align:right}
+.resonance-analysis-detail{
+ font-size:11px;line-height:1.5;color:#bbd0d4;
+ margin-top:12px
+}
+.resonance-analysis .kaleido-check{font-size:11px;cursor:pointer}
+.resonance-suggest{
+ background:#173a45;padding:10px 12px;
+ margin-top:10px;border-radius:9px;border:1px solid #417080
+}
+.resonance-suggest button{
+ font-size:11px;color:#c8f5e5;background:#226455;
+ border:1px solid #63bd9d;border-radius:8px;
+ padding:9px;cursor:pointer;min-height:35px
+}
+.resonance-suggest button:disabled{opacity:.35;cursor:default}
+.resonance-method-note{
+ margin-top:10px!important;padding-top:9px;
+ border-top:1px solid #375766
+}
+.kaleido-mode-switch{
+ max-width:1320px;margin:0 auto 16px;
+ display:flex;align-items:stretch;gap:8px;flex-wrap:wrap
+}
+.kaleido-mode-switch button{
+ padding:10px 15px;border-radius:10px;
+ border:1px solid #466b77;background:#173847;
+ color:#b5d8d5;font-size:13px;font-weight:760;cursor:pointer
+}
+.kaleido-mode-switch button.active{
+ background:#2c6e5d;border-color:#98cfb2;color:#effff6
+}
+.kaleido-mode-switch small{
+ color:#b5c9cc;font-size:11px;align-self:center;flex:1
+}
+@media(max-width:530px){
+ .resonance-stage-head,.resonance-stage-foot{padding:9px 12px}
+ .resonance-stage-head b{font-size:15px}
+ .resonance-head-score strong{font-size:24px}
+ .resonance-legend,.resonance-display-toggles{padding:9px 10px;gap:8px 12px}
+ .resonance-legend span,.resonance-display-toggles label{font-size:10px}
+ .kaleido-mode-switch{gap:6px}
+ .kaleido-mode-switch button{flex:1;padding:10px;font-size:12px}
+ .kaleido-mode-switch small{flex-basis:100%}
+}
+
+/* Permanent Seal identity is #N; the periodic number NEVER uses '#'. */
+.resonance-identity-layer{
+ position:absolute;inset:0;z-index:9;pointer-events:none
+}
+.resonance-seal-label{
+ position:absolute;transform:translate(-50%,-50%);
+ font-size:clamp(9px,1.15vw,12px);
+ background:#081d26df;border:1px solid #eccf8d;
+ color:#ffebbc;font-weight:850;padding:2px 5px;
+ min-width:24px;line-height:1.25;text-align:center;
+ border-radius:6px;pointer-events:none;
+ font-variant-numeric:tabular-nums;text-shadow:0 1px 2px #061620;
+}
+.resonance-progress{
+ display:flex;justify-content:space-between;gap:8px;
+ flex-wrap:wrap;margin:2px 0 12px;padding:8px 9px;
+ background:#193e48;border-radius:8px;
+ border:1px solid #4d746f;font-size:11px;color:#a4d7c7
+}
+.resonance-progress b{color:#f1e2b6;font-size:13px}
+.resonance-owned-list{
+ display:grid;gap:5px;margin:13px 0;
+ border-top:1px solid #315763;padding-top:10px
+}
+.resonance-owned-list button{
+ min-width:0;border-radius:8px;border:1px solid #3f6a74;
+ text-align:left;background:#1a424a;color:#e5f7e8;
+ display:flex;justify-content:space-between;flex-wrap:wrap;
+ align-items:center;gap:5px;cursor:pointer;padding:7px 9px
+}
+.resonance-owned-list button.active{
+ border-color:#efc989;background:#3e5148
+}
+.resonance-owned-list button b{font-size:11px}
+.resonance-owned-list button span{font-size:10px;color:#b5d5ce}

@@ -43,7 +43,9 @@ jobs:
           node scripts/check-shapedna-v2.mjs
           node scripts/check-shape-dna.mjs
       - name: Kaleidoscope radius, symmetry, evolution and mobile UI
-        run: node scripts/check-kaleidoscope-lab.mjs
+        run: |
+          node scripts/check-kaleidoscope-lab.mjs
+          node scripts/check-resonance-playground.mjs
       - name: Scene, physics and UI regressions
         run: |
           node scripts/check-orbital-mut.mjs

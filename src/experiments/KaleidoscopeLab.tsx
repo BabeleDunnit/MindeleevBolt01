@@ -1,5 +1,6 @@
 import {useEffect,useMemo,useState} from "react";
 import {SharedPeriodic3D} from "@/experiments/PolytronPeriodicLab";
+import ResonancePlayground from "@/experiments/ResonancePlayground";
 import {gradientPair,LATIN_SOURCES,GREEK_DESTINATIONS} from "@/polytron/gradientPalettes";
 import {rcAxial,rcPolygon} from "@/polytron/rc01Board";
 import {
@@ -44,6 +45,11 @@ function position(q:number,r:number,radius:number){
 }
 export default function KaleidoscopeLab(){
  const [layout,setLayout]=useState(()=>generateKaleidoscope(paramsFromUrl()));
+ const [mode,setMode]=useState<"generator"|"resonance">(()=>{
+  if(typeof window==="undefined")return "generator";
+  return new URLSearchParams(window.location.search).get("mode")==="resonance"?
+   "resonance":"generator";
+ });
  const [selectedKey,setSelectedKey]=useState<string|null>(null);
  const [showNetwork,setShowNetwork]=useState(true);
  const {radius,family,symmetry,seed,generation}=layout.params;
@@ -54,13 +60,14 @@ export default function KaleidoscopeLab(){
  useEffect(()=>{
   const url=new URL(window.location.href);
   url.searchParams.set("experiment","kaleidoscope-lab");
+  url.searchParams.set("mode",mode);
   url.searchParams.set("radius",String(radius));
   url.searchParams.set("family",family);
   url.searchParams.set("symmetry",symmetry);
   url.searchParams.set("seed",String(seed));
   url.searchParams.delete("generation");
   window.history.replaceState(null,"",url.toString());
- },[radius,family,symmetry,seed]);
+ },[radius,family,symmetry,seed,mode]);
  const configure=(next:Partial<KaleidoParams>)=>{
   setLayout(old=>generateKaleidoscope({...old.params,...next,generation:0}));
   setSelectedKey(null);
@@ -87,6 +94,16 @@ export default function KaleidoscopeLab(){
     Tavola Polytronica ↗
    </a>
   </header>
+  <div className="kaleido-mode-switch">
+   <button className={mode==="generator"?"active":""}
+    aria-pressed={mode==="generator"} onClick={()=>setMode("generator")}>
+    Generatore artistico</button>
+   <button className={mode==="resonance"?"active":""}
+    aria-pressed={mode==="resonance"} onClick={()=>setMode("resonance")}>
+    Resonance Playground</button>
+   <small>Due viste dello stesso caleidoscopio · il generatore originale resta intatto</small>
+  </div>
+  <div style={{display:mode==="generator"?"block":"none"}}>
   <div className="kaleido-layout">
    <section className="kaleido-stage" aria-label="Mutatron caleidoscopico">
     <div className="kaleido-stage-head">
@@ -269,6 +286,10 @@ export default function KaleidoscopeLab(){
     </section>}
    </aside>
   </div>
+  </div>
+  <div style={{display:mode==="resonance"?"block":"none"}}>
+   <ResonancePlayground layout={layout} onEvolve={evolve} onGenesis={genesis}/>
+  </div>
   <footer className="kaleido-footer">
    <strong>Esperimento autonomo, non RC02.</strong> Il generatore usa il
    reticolo esagonale reale, orbite C2/C3/C6/D6, connessioni ispirate al
@@ -276,6 +297,9 @@ export default function KaleidoscopeLab(){
    Evolve conserva una linea evolutiva deterministica; Nuova origine cambia il seme.
    La simmetria esatta riguarda collocazione e proprietà delle manifestazioni:
    la silhouette interna di ogni tile può avere simmetrie proprie.
+   Nel Resonance Playground i tiles sono indizi e i Polytroni acquistati
+   costituiscono una composizione distinta; budget, ricompense e analisi della
+   difficoltà sono ancora regole sperimentali, non una release candidate.
   </footer>
  </main>;
 }
