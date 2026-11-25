@@ -51,7 +51,7 @@ export function polytronDance<T extends ResonancePawn>(
   .filter(o=>o.ring>0);
  const n=pawns.length;
  let best=empty;
- let bestUtility=-Infinity;
+ let bestUtility=before.symmetry*100+2;
  const evaluate=(keys:string[])=>{
   if(keys.length!==n||new Set(keys).size!==n)return;
   const shuffled=shuffle(original,random);
@@ -63,7 +63,7 @@ export function polytronDance<T extends ResonancePawn>(
   const score=scoreResonance(layout,trial,settings);
   const reward=resonanceReward(layout,score.quality);
   const delta=reward-beforeReward;
-  if(delta>0||delta< -1)return;
+  if(delta>0||delta< -1||score.symmetry+1e-8<before.symmetry)return;
   // Symmetry dominates; neutral reward is preferable to a one-E penalty.
   // Small deterministic movement preference breaks equal-score ties.
   const utility=score.symmetry*100+(delta===0?2:0)+moved/n;
