@@ -13,12 +13,13 @@ async function load(path,name){
  return import(pathToFileURL(outfile).href);
 }
 try{
- const [k,r,d,names,numbers]=await Promise.all([
+ const [k,r,d,names,numbers,dance]=await Promise.all([
   load("src/polytron/kaleidoscopeGenerator.ts","generator"),
   load("src/polytron/resonanceField.ts","resonance"),
   load("src/polytron/resonanceDifficulty.ts","difficulty"),
   load("src/polytron/spectralFutures.ts","names"),
-  load("src/polytron/politronicNumber.ts","numbers")
+  load("src/polytron/politronicNumber.ts","numbers"),
+  load("src/polytron/polytronDance.ts","dance")
  ]);
  const layout=k.generateKaleidoscope({
   radius:2,family:"metatron",symmetry:"C2",seed:137,generation:0
@@ -41,8 +42,9 @@ try{
  assert(two.symmetry>one.symmetry);
  assert(two.quality>one.quality);
  assert.equal(r.resonancePaletteAffinity(10,10,10,10),1);
- assert.equal(r.resonanceGroupAffinity(2,3),.82);
- assert.equal(r.resonanceGroupAffinity(4,5),.82);
+ assert.equal(r.resonanceGroupAffinity(2,3),.07);
+ assert.equal(r.resonanceGroupAffinity(4,5),.07);
+ assert.equal(r.resonanceGroupAffinity(2,7),1);
  assert.equal(r.resonanceFalloff(2,{reach:1}),0);
  assert(r.resonanceFalloff(2,{reach:2})>0);
  const recolored=[same,pair].map(p=>({...p,number:1,
@@ -78,6 +80,26 @@ try{
  assert.equal(r.resonanceEconomics(layout,[]).energy,0);
  assert.equal(r.resonanceEconomics(layout,[]).efficiency,null);
 
+ const dancers=[
+  {...same,seal:1,name:"A"},
+  {...pair,seal:2,name:"B"}
+ ];
+ const evolved=k.generateKaleidoscope({...layout.params,generation:1},layout);
+ const danced=dance.polytronDance(evolved,dancers,{reach:2});
+ const dancedAgain=dance.polytronDance(evolved,dancers,{reach:2});
+ assert.deepEqual(danced,dancedAgain,"Dance must be deterministic");
+ assert.equal(danced.pawns.length,dancers.length);
+ assert.equal(new Set(danced.pawns.map(p=>p.key)).size,dancers.length);
+ assert.deepEqual(danced.pawns.map(p=>[p.seal,p.name,p.number,p.paletteRow,p.paletteCol]).sort(),
+  dancers.map(p=>[p.seal,p.name,p.number,p.paletteRow,p.paletteCol]).sort(),
+  "Dance must not mutate identity, group, period or palette");
+ assert.equal(r.scoreResonance(evolved,danced.pawns).totalEnergy,
+  r.scoreResonance(evolved,dancers).totalEnergy);
+ assert(danced.afterReward-danced.beforeReward<=0);
+ assert(danced.afterReward-danced.beforeReward>=-1);
+ assert(danced.afterSymmetry>=danced.beforeSymmetry,
+  "Dance should preserve or increase symmetry");
+ assert.equal(dance.polytronDance(evolved,[],{reach:2}).moved,0);
  const report=d.analyzeResonanceDifficulty(layout,22,{reach:2});
  assert.equal(report.method,"bounded-greedy-estimate");
  assert.equal(report.bands.length,4);
@@ -142,6 +164,10 @@ try{
  assert(ui.includes("sealName(nextSeal)")&&ui.includes("name:selectedPawn!.name")&&
   ui.includes("seal:fromHome.seal,name:fromHome.name")&&
   ui.includes("Identità a Home")&&!ui.includes("72 Polytroni"));
+ assert(ui.includes("polytronDance(layout,pawns,settings)")&&
+  ui.includes("Conferma modifica")&&ui.includes("editFits")&&
+  ui.includes("Gruppo")&&ui.includes("Periodo"),
+  "Dance and in-place Polytron editor must be present");
  assert(ui.includes("Conferma piazzamento")&&ui.includes("Cancella piazzamento")&&
   ui.includes("Annulla spostamento")&&ui.includes("Annulla richiamo"));
  const cancel=ui.slice(ui.indexOf("const cancelPending=()=>"),
