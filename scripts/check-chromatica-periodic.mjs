@@ -135,7 +135,11 @@ try{
   "Canonical Life energy formula must be explained above the table");
  const source=await readFile("src/experiments/PolytronPeriodicLab.tsx","utf8");
  assert(source.includes('setPaletteMode("legacy")'));
- assert(source.includes('polytronGeometry(dna,()=>palette,gradient)'));
+ assert(source.includes('polytronGeometry(dna,()=>palette,localGradient)')&&
+  source.includes('const tileGradient=hasTilePalette')&&
+  source.includes('as const}:gradient;'),
+  "Periodic rendering must preserve the global Chromatica gradient while"+
+  " supporting tile-specific palettes in the standalone kaleidoscope");
  assert(source.includes('gradientFaceUsage(entry.faceClassIds,gradient)'));
  assert(source.includes("const initialRows=Math.max(100,Math.ceil((deepLinkNumber??0)/5));")&&
   source.includes("const [rows,setRows]=useState(initialRows);"),
