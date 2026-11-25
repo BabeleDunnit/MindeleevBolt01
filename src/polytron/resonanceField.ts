@@ -3,7 +3,7 @@
  * composition against ANY Kaleidoscope Lab target.
  *
  * A target tile is a *hint*, never an obligatory pawn position.
- * The evaluator supports many-to-many spatial influence: each bought Polytron
+ * The evaluator supports many-to-many spatial influence: each Polytron
  * can resonate with several hints, and several Polytrons saturate one hint.
  * Chromatica uses perceptual OKLab distances; group affinity honors the
  * genuine duals C/O and D/I, and T's self-duality.
@@ -54,9 +54,9 @@ export type ResonanceScore={
  graphResults:ResonanceGraphEdge[];
  contributions:ResonanceContribution[];
  perPawnGain:Record<string,number>;
- totalCost:number;
+ totalEnergy:number;
 };
-export function resonanceCost(number:number):number{
+export function resonanceEnergy(number:number):number{
  return intrinsicEnergy(number,0);
 }
 export function resonanceHexDistance(a:Pick<KaleidoPoint,"q"|"r">,
@@ -117,11 +117,11 @@ function scoreCore(
   if(!Number.isInteger(pawn.paletteRow)||pawn.paletteRow<0||pawn.paletteRow>11||
      !Number.isInteger(pawn.paletteCol)||pawn.paletteCol<0||pawn.paletteCol>11)
    throw Error("Invalid Chromatica endpoints");
-  resonanceCost(pawn.number);
+  resonanceEnergy(pawn.number);
   return {pawn,cell};
  });
  if(new Set(pawns.map(p=>p.key)).size!==pawns.length)
-  throw Error("At most one purchased Polytron per cell");
+  throw Error("At most one Polytron per cell");
  const contributions:ResonanceContribution[]=[];
  const hintResults:ResonanceHint[]=layout.tiles.map(hint=>{
   let colorRemaining=1,groupRemaining=1,periodRemaining=1,coveredBy=0;
@@ -234,7 +234,7 @@ function scoreCore(
   hints:local,graph:100*graph,symmetry:100*symmetry,
   local,structural,
   hintResults,graphResults,contributions,
-  totalCost:pawns.reduce((sum,p)=>sum+resonanceCost(p.number),0)};
+  totalEnergy:pawns.reduce((sum,p)=>sum+resonanceEnergy(p.number),0)};
 }
 function RESonance(color:number,group:number,period:number):number{
  return RESONANCE_WEIGHTS.color*color+
@@ -251,14 +251,13 @@ export function scoreResonance(
  return scoreCore(layout,pawns,settings,false);
 }
 /**
- * Acquisition is paid once, upkeep is paid EVERY Mutatron evolution.
- * A cycle on an already-owned board pays reward-upkeep; a first cycle
- * from scratch additionally deducts purchase expense.
- * Values may be negative. Resale and future cycles are excluded.
+ * A Polytron's intrinsic energy is conserved when it enters, moves on,
+ * or leaves the Mutatron. It is capacity in use, NOT an expense.
+ * Commission rewards are the only treasury credits in this lab; there is
+ * no acquisition fee, per-Pawn upkeep or Mutatron evolution fee.
  */
 export type ResonanceEconomics={
- quality:number;spent:number;upkeep:number;reward:number;
- cycleNet:number;net:number;
+ quality:number;energy:number;reward:number;
  efficiency:number|null;pieces:number
 };
 export function resonanceEconomics(
@@ -267,12 +266,10 @@ export function resonanceEconomics(
 ):ResonanceEconomics{
  const score=scoreResonance(layout,pawns,settings);
  const reward=resonanceReward(layout,score.quality);
- const upkeep=score.totalCost;
+ const energy=score.totalEnergy;
  return {
-  quality:score.quality,spent:score.totalCost,upkeep,reward,
-  cycleNet:reward-upkeep,
-  net:reward-upkeep-score.totalCost,
-  efficiency:upkeep?reward/upkeep:null,
+  quality:score.quality,energy,reward,
+  efficiency:energy?reward/energy:null,
   pieces:pawns.length
  };
 }
@@ -282,7 +279,7 @@ export function evaluateResonance(
 ):ResonanceScore{
  const full=scoreCore(layout,pawns,settings,true);
  const perPawnGain:Record<string,number>={};
- // Marginal influence of each bought Polytron, including the graph
+ // Marginal influence of each Polytron, including the graph
  // and symmetry bonus, so individual links have a meaningful tooltip.
  for(const pawn of pawns){
   const without=scoreCore(layout,pawns.filter(p=>p.key!==pawn.key),

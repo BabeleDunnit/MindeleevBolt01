@@ -6,7 +6,7 @@ import {rcAxial,rcPolygon} from "@/polytron/rc01Board";
 import type {KaleidoLayout,KaleidoTile} from "@/polytron/kaleidoscopeGenerator";
 import {
  DEFAULT_RESONANCE_SETTINGS,evaluateResonance,
- resonanceCost,resonanceReward,resonanceComplexity,
+ resonanceEnergy,resonanceReward,resonanceComplexity,
  type ResonancePawn,type ResonanceSettings,type ResonanceScore
 } from "@/polytron/resonanceField";
 import type {DifficultyReport} from "@/polytron/resonanceDifficulty";
@@ -66,8 +66,10 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
  const candidateNumber=existing?.number??number;
  const candidateRow=existing?.paletteRow??paletteRow;
  const candidateCol=existing?.paletteCol??paletteCol;
- const candidateCost=moveFrom?0:resonanceCost(candidateNumber);
- const canPurchase=moveFrom!==null||treasury>=candidateCost;
+ // Individual energy limits simultaneous occupancy; it is never consumed.
+ const candidateEnergy=moveFrom?0:resonanceEnergy(candidateNumber);
+ const committedEnergy=pawns.reduce((sum,p)=>sum+resonanceEnergy(p.number),0);
+ const canPlace=moveFrom!==null||committedEnergy+candidateEnergy<=treasury;
  const canPreview=activeCell!==null&&valid.has(activeCell)&&
   activeCell!=="0,0"&&!pawnByKey.has(activeCell)&&
   candidateNumber!==undefined&&candidateRow!==undefined&&candidateCol!==undefined;
@@ -101,19 +103,14 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
    .sort((a,b)=>b.strength-a.strength).slice(0,20);
  },[showRays,planned,preview,candidate?.key,moveFrom]);
  const currentReward=resonanceReward(layout,planned.quality);
- const upkeep=planned.totalCost;
- const cycleNet=currentReward-upkeep;
- const firstCycleNet=cycleNet-upkeep;
  const previewReward=preview?resonanceReward(layout,preview.quality):null;
  const marginalReward=previewReward===null?null:previewReward-currentReward;
- const addedUpkeep=moveFrom?0:candidateCost;
- const marginalCycleNet=marginalReward===null?null:marginalReward-addedUpkeep;
- const marginalNet=marginalCycleNet===null?null:marginalCycleNet-candidateCost;
  const selectedScenario=difficulty?.scenarios.find(x=>x.id===selectedScenarioId)
   ??difficulty?.scenarios[0];
  const hintsByKey=new Map(visual.hintResults.map(h=>[h.key,h]));
- const occupiedCost=planned.totalCost;
- const plannerBudget=clamp(treasury+occupiedCost,2,10000);
+ const occupiedEnergy=planned.totalEnergy;
+ const freeEnergy=treasury-occupiedEnergy;
+ const plannerBudget=clamp(treasury,2,10000);
  const targetPalettes=useMemo(()=>{
   const map=new Map<string,{row:number;col:number;count:number}>();
   for(const t of layout.tiles){
@@ -171,8 +168,7 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
   }else setPreviewKey(key);
  };
  const cancelPending=()=>{
-  // Nothing was purchased yet: discard ONLY the selection and ghost
-  // placement, leaving treasury, board and existing Seal identities intact.
+  // Discard selection and ghost preview; never change energy or identity.
   setPreviewKey(null);
   setHoverKey(null);
   setMoveFrom(null);
@@ -180,10 +176,10 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
   setNumber(2);
   setPaletteRow(10);
   setPaletteCol(10);
-  setLastEvent("Scelta annullata: nessun acquisto o spostamento effettuato.");
+  setLastEvent("Scelta annullata: nessuna collocazione o energia modificata.");
  };
  const commit=()=>{
-  if(!candidate||!canPurchase)return;
+  if(!candidate||!canPlace)return;
   if(!moveFrom&&!fromHome&&sealName(nextSeal)==="—"){
    setLastEvent("Nessuna nuova identità disponibile in questa fase.");
    return;
@@ -197,7 +193,6 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
    ...candidate,seal:nextSeal,name:sealName(nextSeal)
   };
   setPawns(old=>[...old.filter(p=>p.key!==moveFrom),newPawn]);
-  if(!wasMove)setTreasury(old=>old-resonanceCost(newPawn.number));
   if(fromHome){
    setHome(old=>old.filter(p=>p.seal!==fromHome.seal));
    setReturnSeal(null);
@@ -210,22 +205,19 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
  };
  const sell=()=>{
   if(!moveFrom||!selectedPawn)return;
-  const refund=Math.floor(resonanceCost(selectedPawn.number)/2);
+  const energy=resonanceEnergy(selectedPawn.number);
   setPawns(old=>old.filter(p=>p.key!==moveFrom));
   setHome(old=>[...old,selectedPawn]);
-  setTreasury(old=>old+refund);
   setLastEvent("#"+selectedPawn.seal+" · "+selectedPawn.name+
-   " riposa a Home; recuperati "+refund+" E");
+   " torna a Home con "+energy+" E intatti: la capacità si libera.");
   setPreviewKey(null);setHoverKey(null);setMoveFrom(null);
   setReturnSeal(selectedPawn.seal);
  };
  const reset=()=>{
-  // Do not refund purchase cost: resetting treasury would allow farming E.
   setHome(old=>[...old,...pawns]);
   setPawns([]);setMoveFrom(null);
-  setReturnSeal(null);
-  setPreviewKey(null);setHoverKey(null);
-  setLastEvent("Polytroni trasferiti a Home; nessun rimborso energetico.");
+  setReturnSeal(null);setPreviewKey(null);setHoverKey(null);
+  setLastEvent("Tutti a Home: l'energia degli individui rimane intatta.");
  };
  const setBudget=(n:number)=>{
   const next=clamp(Math.round(n)||10,10,500);
@@ -240,17 +232,14 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
  };
  const advance=(submit:boolean)=>{
   if(claimed)return;
-  // Charge every active pawn on EVERY evolve, including without submission.
-  // Individuals at Home are never included in this operational cost.
+  // No fees: Mutatron Evolve and Polytron movements conserve energy.
   const reward=submit?currentReward:0;
-  const net=reward-upkeep;
-  setTreasury(old=>old+net);
+  if(reward)setTreasury(old=>old+reward);
   setClaimed(true);
   if(submit)setCompletedRequests(old=>old+1);
-  setLastEvent((submit?"Risposta presentata":"Evolve senza presentazione")+
-   ": ricavo +"+reward+" E, costo di evoluzione −"+upkeep+
-   " E, saldo "+(net>0?"+":"")+net+
-   " E. I Polytroni restano in plancia.");
+  setLastEvent((submit?"Risposta presentata":"Evolve libero")+
+   ": "+(submit?"ricompensa +"+reward+" E. ":"nessun costo. ")+
+   "I Polytroni conservano energia e posizione.");
   setHoverKey(null);setPreviewKey(null);setMoveFrom(null);
   onEvolve();
  };
@@ -258,7 +247,7 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
  const suggest=()=>{
   if(!difficulty?.nextMove)return;
   const next=difficulty.nextMove;
-  if(pawnByKey.has(next.key)||treasury<resonanceCost(next.number))return;
+  if(pawnByKey.has(next.key)||occupiedEnergy+resonanceEnergy(next.number)>treasury)return;
   setNumber(next.number);setPaletteRow(next.paletteRow);
   setPaletteCol(next.paletteCol);setMoveFrom(null);
   setReturnSeal(null);setPreviewKey(next.key);
@@ -284,7 +273,7 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
    <div className="kaleido-artboard resonance-artboard">
     <svg className="kaleido-svg" viewBox="0 0 800 800" role="img"
      aria-label={"Campo di "+layout.tiles.length+" indizi, "+
-      pawns.length+" Polytroni acquistati"}>
+      pawns.length+" Polytroni in plancia"}>
      <defs>
       <radialGradient id="resonance-background">
        <stop offset="0%" stopColor="#193a43"/>
@@ -356,8 +345,8 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
      {candidate&&activePosition&&(()=>{
       const p=coord(activePosition.q,activePosition.r,radius);
       return <polygon points={rcPolygon(p.x,p.y,p.size*.9)}
-       fill={canPurchase?"#8bf4b0":"#ff8b83"}
-       fillOpacity=".10" stroke={canPurchase?"#baf9b4":"#ff8072"}
+       fill={canPlace?"#8bf4b0":"#ff8b83"}
+       fillOpacity=".10" stroke={canPlace?"#baf9b4":"#ff8072"}
        strokeWidth="3.5" strokeDasharray="7 5"/>;
      })()}
     </svg>
@@ -385,7 +374,7 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
        style={{left:p.x/8+"%",top:p.y/8+"%",width:tileWidth,
         height:tileWidth}}/>;
      })}
-     {candidate&&canPurchase&&activePosition&&(()=>{
+     {candidate&&canPlace&&activePosition&&(()=>{
       const p=coord(activePosition.q,activePosition.r,radius);
       return <div className="kaleido-polytron" data-polytron-viewport=""
        data-view-kind="solid" data-kaleido-opacity=".7"
@@ -417,7 +406,7 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
        onFocus={()=>setHoverKey(cell.key)}
        onBlur={()=>setHoverKey(null)}
        onClick={()=>chooseCell(cell.key)}
-       aria-label={(owned?"Seleziona Polytrone acquistato":"Valuta collocazione")+
+       aria-label={(owned?"Seleziona Polytrone presente":"Valuta collocazione")+
         " in "+fromLabel(cell)+
         (tileByKey.has(cell.key)?", indizio presente":"")}/>
      })}
@@ -429,7 +418,7 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
    </div>
    <div className="resonance-legend">
     <span><i className="resonance-legend-dot is-hint"/>Indizio</span>
-    <span><i className="resonance-legend-dot is-player"/>Acquistato</span>
+    <span><i className="resonance-legend-dot is-player"/>In plancia</span>
     <span><i className="resonance-legend-dot is-forecast"/>Anteprima</span>
     <span><i className="resonance-legend-dot is-ray"/>Influenza</span>
    </div>
@@ -463,20 +452,20 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
      <h2>Componi una risposta</h2>
      <strong>{treasury} E</strong>
     </div>
-    <p>Il caleidoscopio è un campo di indizi, non un elenco di acquisti.
-     Ogni Polytrone può soddisfarne diversi, anche senza occupare le loro celle.
-     Ogni nuovo individuo riceve un nome e un'identità <strong>#n</strong>
-     permanente, distinta dal numero della manifestazione.</p>
+    <p>Il caleidoscopio è un campo di indizi. I Polytroni entrano ed escono
+     dalla plancia <b>conservando la propria energia</b>: nessun acquisto
+     e nessun costo di evoluzione. Ogni individuo ha un nome e una
+     identità <strong>#n</strong> permanente.</p>
     <div className="resonance-progress">
      <span>Commissioni soddisfatte <b>{completedRequests}</b></span>
-     <span>Nuove identità si rivelano acquistando Polytroni</span>
+     <span>Nuove identità si rivelano manifestandosi</span>
     </div>
     <div className="resonance-budget-row">
-     <label>Budget iniziale
+     <label>Energia iniziale
       <input type="number" min="10" max="500" step="5"
        value={initialBudget} onChange={e=>setBudget(Number(e.target.value))}
-       aria-label="Budget iniziale, resetta la composizione"/></label>
-     <div><small>Valore collocato</small><b>{occupiedCost} E</b></div>
+       aria-label="Energia iniziale, resetta la composizione"/></label>
+     <div><small>Energia in plancia</small><b>{occupiedEnergy} E</b><small>Libera: {freeEnergy} E</small></div>
     </div>
     <div className="resonance-field-row">
      <label htmlFor="resonance-number">Manifestazione · Nº polytronico</label>
@@ -522,11 +511,11 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
       onClick={()=>{setReturnSeal(p.seal);setMoveFrom(null);
        setPreviewKey(null);}}>
       <b>#{p.seal} · {p.name}</b>
-      <span>manifestazione {p.number} · richiamo {resonanceCost(p.number)} E</span>
+      <span>manifestazione {p.number} · energia intatta {resonanceEnergy(p.number)} E</span>
      </button>)}
     </div>}
     <p className="resonance-cost-line">
-     Costo <strong>{resonanceCost(number)} E</strong> ·
+     Energia intrinseca <strong>{resonanceEnergy(number)} E</strong> ·
      Gruppo {GROUP_CODES[groupOf(number)-1]} · Periodo {periodOf(number)}
      {" · "}<a href={BASE+"?experiment=polytron-periodic&polytron="+number}>
       Apri nella Tavola ↗</a>
@@ -550,7 +539,7 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
      fromHome?"Richiamo di un'identità da Home":"Anteprima del piazzamento"}</h2>
     {candidate&&activePosition?
      <>
-      <p>{moveFrom?"Sposta":fromHome?"Richiama":"Acquista"} manifestazione
+      <p>{moveFrom?"Sposta":fromHome?"Richiama":"Manifesta"} manifestazione
        <b> {candidate.number}</b>
        {" "}in {fromLabel(activePosition)}.
        {activeHint?" Cella con indizio del Mutatron.":" Cella senza indizio."}
@@ -593,52 +582,43 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
         {scoreDelta>=0?"+":""}{fmt(scoreDelta)} punti</b>
       </div>
       <div className="resonance-forecast-row">
-       <span>Costo adesso</span>
-       <b>{moveFrom?"0 (spostamento)":candidateCost+" E"}</b>
+       <span>Energia del Polytrone</span>
+       <b>{resonanceEnergy(candidate.number)} E · conservata</b>
       </div>
       <div className="resonance-forecast-row">
-       <span>Costo aggiuntivo ad ogni Evolve</span>
-       <b>−{addedUpkeep} E</b>
-      </div>
-      <div className="resonance-forecast-row">
-       <span>Incremento della ricompensa</span>
-       <b className={(marginalReward??0)>0?"resonance-positive":
-        (marginalReward??0)<0?"resonance-negative":""}>
-        {marginalReward!==null&&marginalReward>0?"+":""}{marginalReward} E</b>
-      </div>
-      <div className="resonance-forecast-row">
-       <span>Saldo marginale dei cicli successivi</span>
-       <b className={(marginalCycleNet??0)>=0?"resonance-positive":"resonance-negative"}>
-        {marginalCycleNet!==null&&marginalCycleNet>0?"+":""}
-        {marginalCycleNet} E</b>
+       <span>Capacità libera dopo il piazzamento</span>
+       <b className={canPlace?"resonance-positive":"resonance-negative"}>
+        {freeEnergy-candidateEnergy} E</b>
       </div>
       <div className="resonance-forecast-row resonance-net-line">
-       <span>Saldo marginale primo ciclo (incluso acquisto)</span>
-       <b className={(marginalNet??0)>=0?"resonance-positive":"resonance-negative"}>
-        {marginalNet!==null&&marginalNet>0?"+":""}{marginalNet} E</b>
+       <span>Variazione della ricompensa prevista</span>
+       <b className={(marginalReward??0)>=0?"resonance-positive":"resonance-negative"}>
+        {marginalReward!==null&&marginalReward>0?"+":""}{marginalReward} E
+       </b>
       </div>
-      {marginalNet!==null&&marginalNet<0&&
-       <p className="resonance-warning">
-        Questo piazzamento non recupera la spesa con la ricompensa
-        di questa commissione.</p>}
-      {!canPurchase&&<p className="resonance-warning">
-       Energia insufficiente per acquistare questa manifestazione.</p>}
+      <p>Il piazzamento non consuma energia. L'energia intrinseca
+       occupa temporaneamente capacità sulla plancia e torna libera
+       quando il Polytrone rientra a Home.</p>
+      {!canPlace&&<p className="resonance-warning">
+       Capacità insufficiente per questa manifestazione:
+       manda un individuo a Home o modifica l'energia iniziale
+       dello scenario sperimentale.</p>}
       <div className="resonance-purchase-actions">
-       <button type="button" className="resonance-confirm" disabled={!canPurchase}
+       <button type="button" className="resonance-confirm" disabled={!canPlace}
         onClick={commit}>{moveFrom?"Conferma spostamento":
-         fromHome?"Conferma richiamo di #"+fromHome.seal:"Conferma acquisto"}</button>
+         fromHome?"Conferma richiamo di #"+fromHome.seal:"Conferma piazzamento"}</button>
        <button type="button" className="resonance-cancel-purchase"
         onClick={cancelPending}>
         {moveFrom?"Annulla spostamento":
-         fromHome?"Annulla richiamo":"Cancella acquisto"}
+         fromHome?"Annulla richiamo":"Cancella piazzamento"}
        </button>
       </div>
      </>:
      <p>Tocca o sorvola una cella libera per vedere dove arrivano le influenze,
-      quanto cresce la corrispondenza e quanto costa il Polytrone scelto.</p>}
+      quanto cresce la corrispondenza e quanta energia resta libera.</p>}
     {selectedPawn&&<div className="resonance-sell-row">
      <span>#{selectedPawn.seal} · {selectedPawn.name} · manifestazione {selectedPawn.number} ·
-      recupero {Math.floor(resonanceCost(selectedPawn.number)/2)} E</span>
+      energia conservata {resonanceEnergy(selectedPawn.number)} E</span>
      <button type="button" onClick={sell}>Ritira</button>
      <button type="button" onClick={cancelPending}>Annulla</button>
     </div>}
@@ -679,39 +659,29 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
       </div>
      </div>)}
     <div className="resonance-forecast-row">
-     <span>Ricompensa per presentare ora</span>
+     <span>Ricompensa per presentare la commissione</span>
      <b className="resonance-positive">+{currentReward} E</b>
     </div>
     <div className="resonance-forecast-row">
-     <span>Costo obbligatorio ad ogni evoluzione</span>
-     <b>−{upkeep} E</b>
+     <span>Energia conservata sulla plancia</span>
+     <b>{occupiedEnergy} / {treasury} E</b>
     </div>
     <div className="resonance-forecast-row resonance-net-line">
-     <span>Saldo ad ogni commissione (ricavo − evoluzione)</span>
-     <b className={cycleNet>=0?"resonance-positive":"resonance-negative"}>
-      {cycleNet>0?"+":""}{cycleNet} E</b>
+     <span>Energia libera per altre manifestazioni</span>
+     <b>{freeEnergy} E</b>
     </div>
-    <div className="resonance-forecast-row">
-     <span>Investimento iniziale nei Polytroni in plancia</span>
-     <b>−{occupiedCost} E</b>
-    </div>
-    <div className="resonance-forecast-row">
-     <span>Saldo del primo ciclo da zero</span>
-     <b className={firstCycleNet>=0?"resonance-positive":"resonance-negative"}>
-      {firstCycleNet>0?"+":""}{firstCycleNet} E</b>
-    </div>
-    <p>Il costo dei Polytroni presenti viene addebitato a <b>ogni Evolve</b>.
-     I Polytroni a Home non costano. L'acquisto si paga una sola volta.</p>
+    <p>Non ci sono costi per gli individui né per Evolve.
+     L'energia resta legata a ciascun Polytrone e si libera quando
+     rientra a Home. Solo la presentazione accredita la ricompensa.</p>
     <button type="button" className="resonance-submit"
      disabled={claimed} onClick={claim}>
-     Presenta · saldo {cycleNet>0?"+":""}{cycleNet} E ed Evolve</button>
-    <p>Ogni evoluzione addebita il costo dei Polytroni in plancia,
-     anche senza presentazione. La risposta si può presentare
-     una sola volta per commissione.</p>
+     Presenta al Mutatron · +{currentReward} E ed Evolve</button>
+    <p>Ogni commissione può essere presentata una sola volta.
+     I Polytroni rimangono sul Mutatron dopo l'evoluzione.</p>
     <div className="resonance-two-actions">
      <button type="button" disabled={claimed} onClick={()=>advance(false)}>
-      Evolve senza presentare · −{upkeep} E</button>
-     <button type="button" onClick={reset}>Tutti a Home (senza rimborso)</button>
+      Evolve senza presentare · gratuito</button>
+     <button type="button" onClick={reset}>Tutti a Home</button>
     </div>
    </section>
    <section className="kaleido-control-block resonance-analysis">
@@ -729,9 +699,9 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
        <strong>{difficulty.rating}</strong></div>
       <div><small>Qualità stimata</small>
        <strong>{fmt(difficulty.expectedScore)}%</strong></div>
-      <div><small>70% trovato spendendo</small>
-       <strong>{difficulty.estimatedCost70===null?"Non trovato":
-        difficulty.estimatedCost70+" E"}</strong></div>
+      <div><small>70% raggiunto con energia</small>
+       <strong>{difficulty.estimatedEnergy70===null?"Non trovato":
+        difficulty.estimatedEnergy70+" E"}</strong></div>
      </div>
      <ResonanceEconomicsPanel
       report={difficulty} selectedId={selectedScenarioId}
@@ -753,22 +723,18 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
        {" "}Ricavo aggiuntivo
        {" "}{difficulty.nextMoveRewardGain!==null&&difficulty.nextMoveRewardGain>0?"+":""}
        {difficulty.nextMoveRewardGain} E;
-       {" "}saldo marginale dei cicli successivi
-       {" "}<b className={(difficulty.nextMoveCycleNetGain??0)>=0?
-        "resonance-positive":"resonance-negative"}>
-        {difficulty.nextMoveCycleNetGain!==null&&difficulty.nextMoveCycleNetGain>0?"+":""}
-        {difficulty.nextMoveCycleNetGain} E</b>;
-       {" "}primo ciclo {difficulty.nextMoveNetGain} E.</p>
+       {" "}Energia impegnata {difficulty.nextMoveEnergy} E;
+       {" "}resa {difficulty.nextMoveYield?.toFixed(2)} E per E.</p>
       <button type="button" onClick={suggest}
-       disabled={treasury<resonanceCost(difficulty.nextMove.number)}>
+       disabled={occupiedEnergy+resonanceEnergy(difficulty.nextMove.number)>treasury}>
        Prepara la mossa suggerita</button>
      </div>}
     </>}
     <p className="resonance-method-note">
      Metodo: ricerca greedy limitata, non ottimo matematico garantito.
      Le configurazioni sono esempi fattibili, non tutte le possibilità.
-     Il costo minimo e la difficoltà sono stime; gli importi
-     sono invece calcolati con le regole economiche correnti.
+     L’energia minima e la difficoltà sono stime euristiche.
+     Non esistono costi di acquisto, mantenimento o evoluzione.
     </p>
    </section>
   </aside>

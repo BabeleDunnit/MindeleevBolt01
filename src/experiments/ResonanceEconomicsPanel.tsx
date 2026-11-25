@@ -1,11 +1,9 @@
-import type {
- DifficultyReport,DifficultyScenario
-} from "@/polytron/resonanceDifficulty";
+import type {DifficultyReport,DifficultyScenario} from "@/polytron/resonanceDifficulty";
 import type {KaleidoPoint} from "@/polytron/kaleidoscopeGenerator";
 import "./ResonanceEconomicsPanel.css";
 
-const fmt=(value:number)=>value.toFixed(1);
-const signed=(value:number)=>value>0?"+"+value:String(value);
+const fmt=(n:number)=>n.toFixed(1);
+const signed=(n:number)=>n>0?"+"+n:String(n);
 type Props={
  report:DifficultyReport;selectedId:string;showPlan:boolean;
  onSelect:(id:DifficultyScenario["id"])=>void;
@@ -22,14 +20,13 @@ export default function ResonanceEconomicsPanel({
   return cell?"("+cell.ring+","+cell.idx+")":key;
  };
  return <>
-  <h3 className="resonance-econ-title">Cinque strategie · budget {report.budget} E</h3>
+  <h3 className="resonance-econ-title">
+   Cinque strategie · capacità {report.budget} E</h3>
   <p className="resonance-econ-copy">
-   Queste sono <strong>configurazioni complete simulate da zero</strong>:
-   puoi confrontare strategie ottimizzate, copiate, improvvisate e
-   volutamente sfavorevoli. Per ciascuna il saldo è il
-   <strong> ricavo della commissione − costo di ogni Evolve</strong>.
-   Sono riportati anche gli acquisti iniziali: ogni Polytrone in plancia
-   costa nuovamente a ogni evoluzione, mentre a Home non costa.
+   Confronto fra cinque configurazioni simulate a parità di energia
+   totale disponibile. L'energia intrinseca dei Polytroni è
+   <b> impegnata, non spesa</b>: torna libera a Home e non si consuma
+   con Evolve. La ricompensa dipende soltanto dalla qualità della risposta.
   </p>
   <div className="resonance-econ-scenarios">
    {report.scenarios.map(s=>
@@ -43,15 +40,11 @@ export default function ResonanceEconomicsPanel({
       <span>{s.pieces} Polytroni · {fmt(s.quality)}%</span>
      </span>
      <span className="resonance-econ-values">
-      <span><small>Acquisti iniziali</small><b>−{s.spent} E</b></span>
-      <span><small>Costo ogni Evolve</small><b>−{s.upkeep} E</b></span>
-      <span><small>Ricavo</small><b>+{s.reward} E</b></span>
-      <span><small>Saldo per ciclo</small>
-       <b className={s.cycleNet>=0?"resonance-positive":"resonance-negative"}>
-        {signed(s.cycleNet)} E</b></span>
-      <span><small>Primo ciclo, inclusi acquisti</small>
-       <b className={s.net>=0?"resonance-positive":"resonance-negative"}>
-        {signed(s.net)} E</b></span>
+      <span><small>Energia impegnata</small><b>{s.energy} E</b></span>
+      <span><small>Ricompensa</small><b className="resonance-positive">
+       +{s.reward} E</b></span>
+      <span><small>Resa</small><b>
+       {s.efficiency===null?"—":s.efficiency.toFixed(2)+" E/E"}</b></span>
      </span>
      <span className="resonance-econ-description">{s.description}</span>
     </button>)}
@@ -61,72 +54,64 @@ export default function ResonanceEconomicsPanel({
     onChange={e=>onToggle(e.target.checked)}/>
    Mostra sulla plancia lo scenario selezionato
   </label>
-  {showPlan&&selected&&
-   <p className="resonance-econ-overlay">
-    <b>{selected.name}</b>: gli esagoni tratteggiati mostrano
-    una soluzione simulata, non Polytroni già acquistati.
-   </p>}
-  <h3 className="resonance-econ-title">Frontiera: qualità vs energia</h3>
+  {showPlan&&selected&&<p className="resonance-econ-overlay">
+   <b>{selected.name}</b>: gli esagoni tratteggiati indicano
+   posizioni simulate, senza consumare energia o aggiungere Polytroni.
+  </p>}
+  <h3 className="resonance-econ-title">Frontiera: qualità vs energia impegnata</h3>
   <div className="resonance-econ-frontier">
    {report.bands.map(b=>
     <div key={b.budget} className="resonance-econ-frontier-item">
-     <strong>Budget {b.budget} E · {fmt(b.score)}%</strong>
-     <span>{b.pieces} Polytroni · Acquisto iniziale −{b.spent} E</span>
-     <span>Ricavo +{b.reward} E · Evoluzione −{b.upkeep} E</span>
-     <span><b className={b.cycleNet>=0?"resonance-positive":"resonance-negative"}>
-       Ciclo {signed(b.cycleNet)} E</b> ·
-      {" "}<b className={b.net>=0?"resonance-positive":"resonance-negative"}>
-       Primo ciclo {signed(b.net)} E</b>
-     </span>
+     <strong>Capacità {b.budget} E · Qualità {fmt(b.score)}%</strong>
+     <span>{b.pieces} Polytroni · Energia impegnata {b.energy} E</span>
+     <span>Ricompensa +{b.reward} E · Resa
+      {" "}{b.efficiency===null?"—":b.efficiency.toFixed(2)+" E/E"}</span>
     </div>)}
   </div>
-  <h3 className="resonance-econ-title">Si può sbagliare?</h3>
+  <h3 className="resonance-econ-title">È possibile piazzare male?</h3>
   <div className="resonance-econ-risks">
    <div>
-    <strong>{risk.uneconomicPurchases}/{risk.purchasesSampled}</strong>
-    <span>acquisti in perdita nel campione: incremento della
-     ricompensa inferiore a acquisto + costo della prossima evoluzione</span>
+    <strong>{risk.lowYieldPlacements}/{risk.placementsSampled}</strong>
+    <span>piazzamenti con ricompensa aggiuntiva molto bassa
+     per unità di energia impegnata</span>
    </div>
    <div>
-    <strong>{risk.negligiblePurchases}/{risk.purchasesSampled}</strong>
-    <span>acquisti quasi inutili (incremento inferiore a 0,01 punti)</span>
+    <strong>{risk.negligiblePlacements}/{risk.placementsSampled}</strong>
+    <span>piazzamenti quasi inutili: variazione di qualità inferiore
+     a 0,01 punti</span>
    </div>
    <div>
-    <strong>{risk.worseningPurchases}</strong>
-    <span>acquisti che riducono la qualità globale: l'armonia
-     geometrica può peggiorare, anche se la risonanza locale cresce</span>
+    <strong>{risk.worseningPlacements}</strong>
+    <span>nuovi piazzamenti che peggiorano la qualità globale,
+     pur potendo migliorare la risonanza locale</span>
    </div>
    <div>
     <strong>{risk.worseningRelocations}/{risk.relocationsSampled}</strong>
-    <span>spostamenti che peggiorano il punteggio</span>
+    <span>spostamenti di Polytroni esistenti che peggiorano il punteggio</span>
    </div>
   </div>
-  {risk.worstPurchase&&
-   <p className="resonance-econ-example">
-    <strong>Esempio di acquisto dannoso al budget:</strong>
-    {" "}manifestazione {risk.worstPurchase.pawn.number}
-    {" "}in {place(risk.worstPurchase.pawn.key)}.
-    Acquisto {risk.worstPurchase.cost} E,
-    evoluzione aggiuntiva {risk.worstPurchase.cost} E,
-    ricavo aggiuntivo {signed(risk.worstPurchase.rewardGain)} E,
-    saldo dei prossimi cicli {signed(risk.worstPurchase.cycleNetGain)} E,
-    <b className={risk.worstPurchase.netGain>=0?
-     "resonance-positive":"resonance-negative"}>
-     {" "}saldo {signed(risk.worstPurchase.netGain)} E</b>.
-   </p>}
-  {risk.worstRelocation&&
-   <p className="resonance-econ-example">
-    Spostamento più svantaggioso del campione:
-    {" "}{place(risk.worstRelocation.from)} → {place(risk.worstRelocation.to)},
-    {" "}{fmt(risk.worstRelocation.scoreChange)} punti,
-    {" "}{signed(risk.worstRelocation.rewardChange)} E.
-   </p>}
+  {risk.worstPlacement&&<p className="resonance-econ-example">
+   <strong>Esempio poco efficiente:</strong>
+   {" "}manifestazione {risk.worstPlacement.pawn.number}
+   {" "}in {place(risk.worstPlacement.pawn.key)}.
+   Impegna {risk.worstPlacement.energy} E senza spenderli;
+   variazione di qualità {fmt(risk.worstPlacement.scoreGain)} punti,
+   ricompensa {signed(risk.worstPlacement.rewardGain)} E,
+   resa {risk.worstPlacement.yield.toFixed(2)} E/E.
+  </p>}
+  {risk.worstRelocation&&<p className="resonance-econ-example">
+   Spostamento più sfavorevole nel campione:
+   {" "}{place(risk.worstRelocation.from)} →
+   {" "}{place(risk.worstRelocation.to)},
+   {" "}{fmt(risk.worstRelocation.scoreChange)} punti,
+   ricompensa {signed(risk.worstRelocation.rewardChange)} E.
+  </p>}
   <p className="resonance-econ-disclaimer">
-   Confronti euristici, non ottimi globali garantiti. I singoli punteggi
-   e saldi sono esatti secondo l'evaluator e la ricompensa sperimentale.
-   Il campione di acquisti e spostamenti è deterministico ed esplorativo,
-   non una probabilità statistica di errore. Il costo di ogni Evolve
-   è incluso; non sono inclusi rivendite o profitti di commissioni future.
+   Il solver è euristico, non garantisce configurazioni ottime.
+   Il campione è esplorativo, non una probabilità statistica.
+   Questa versione non introduce alcun costo per i Polytroni né
+   per le evoluzioni del Mutatron: la progressione economica
+   completa verrà bilanciata successivamente.
   </p>
  </>;
 }
