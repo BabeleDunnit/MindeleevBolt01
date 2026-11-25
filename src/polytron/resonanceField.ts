@@ -6,7 +6,7 @@
  * The evaluator supports many-to-many spatial influence: each Polytron
  * can resonate with several hints, and several Polytrons saturate one hint.
  * Chromatica uses perceptual OKLab distances; group affinity honors the
- * genuine duals C/O and D/I, and T's self-duality.
+ * requested tile's actual group only (duals are not considered).
  *
  * NO time/entropy and NO automatic reward farming in this first laboratory.
  */
@@ -23,13 +23,12 @@ export const DEFAULT_RESONANCE_SETTINGS:ResonanceSettings={reach:2};
 export const RESONANCE_WEIGHTS={color:.65,group:.25,period:.10} as const;
 /**
  * Separate evaluator axes:
- * 78% LOCAL spatial resonance (Chromatica/dual groups/period)
+ * 78% LOCAL spatial resonance (Chromatica/actual groups/period)
  * 22% GLOBAL geometric harmony measured on the player's actual board.
  * Graph and symmetry DO NOT reuse hint saturation as their source.
  */
 export const TOTAL_WEIGHTS={hints:.78,graph:.12,symmetry:.10} as const;
 const HEX_FALLOFF=[1,.74,.36,.14] as const;
-const ROOT_GROUPS=new Map<number,number>([[1,1],[2,3],[3,2],[4,5],[5,4]]);
 const LATIN_LABS=LATIN_SOURCES.map(c=>oklab(c.hex));
 const GREEK_LABS=GREEK_DESTINATIONS.map(c=>oklab(c.hex));
 
@@ -85,7 +84,6 @@ export function resonancePaletteAffinity(
 export function resonanceGroupAffinity(a:number,b:number):number{
  const ga=groupOf(a),gb=groupOf(b);
  if(ga===gb)return 1;
- if(ROOT_GROUPS.get(ga)===gb)return .82;
  return .07;
 }
 export function resonancePeriodAffinity(a:number,b:number):number{
