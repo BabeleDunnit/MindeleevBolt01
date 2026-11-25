@@ -167,7 +167,7 @@ try{
   !advance.includes("setTreasury(old=>old-")&&
   advance.includes("onEvolve()"),
   "Mutatron evolution is free; only an awarded commission earns energy");
- assert(ui.includes("occupiedEnergy+candidateEnergy<=treasury")&&
+ assert(ui.includes("committedEnergy+candidateEnergy<=treasury")&&
   ui.includes("freeEnergy=treasury-occupiedEnergy")&&
   ui.includes("Evolve senza presentare · gratuito"),
   "Energy must be reserved while deployed, never spent");
