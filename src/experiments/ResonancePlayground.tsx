@@ -36,6 +36,8 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
  const [initialBudget,setInitialBudget]=useState(48);
  const [treasury,setTreasury]=useState(48);
  const [pawns,setPawns]=useState<OwnedPolytron[]>([]);
+ const [home,setHome]=useState<OwnedPolytron[]>([]);
+ const [returnSeal,setReturnSeal]=useState<number|null>(null);
  const [nextSeal,setNextSeal]=useState(1);
  const [completedRequests,setCompletedRequests]=useState(0);
  const [number,setNumber]=useState(2);
@@ -57,10 +59,12 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
  const pawnByKey=new Map(pawns.map(p=>[p.key,p]));
  const tileByKey=new Map(layout.tiles.map(t=>[t.key,t]));
  const activeCell=hoverKey??previewKey;
- const candidateNumber=moveFrom?pawnByKey.get(moveFrom)?.number:number;
- const candidateRow=moveFrom?pawnByKey.get(moveFrom)?.paletteRow:paletteRow;
- const candidateCol=moveFrom?pawnByKey.get(moveFrom)?.paletteCol:paletteCol;
- const candidateCost=moveFrom?0:resonanceCost(number);
+ const fromHome=home.find(p=>p.seal===returnSeal)??null;
+ const existing=moveFrom?pawnByKey.get(moveFrom):fromHome;
+ const candidateNumber=existing?.number??number;
+ const candidateRow=existing?.paletteRow??paletteRow;
+ const candidateCol=existing?.paletteCol??paletteCol;
+ const candidateCost=moveFrom?0:resonanceCost(candidateNumber);
  const canPurchase=moveFrom!==null||treasury>=candidateCost;
  const canPreview=activeCell!==null&&valid.has(activeCell)&&
   activeCell!=="0,0"&&!pawnByKey.has(activeCell)&&
@@ -109,7 +113,8 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
  // Keep the economical experiment alive when Evolve changes the request;
  // reset only if the scenario's structure/seed is explicitly replaced.
  useEffect(()=>{
-  setPawns([]);setTreasury(initialBudget);
+  setPawns([]);setHome([]);setTreasury(initialBudget);
+  setReturnSeal(null);setNextSeal(1);
   setPreviewKey(null);setHoverKey(null);setMoveFrom(null);
   setClaimed(false);setLastEvent("");
  // Intentional: a new recipe is a new research scenario; evolution is not.
@@ -140,33 +145,37 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
  },[layout,plannerBudget,settings,pawns]);
 
  const chooseTargetPalette=(row:number,col:number)=>{
-  setPaletteRow(row);setPaletteCol(col);setMoveFrom(null);
+  setPaletteRow(row);setPaletteCol(col);setMoveFrom(null);setReturnSeal(null);
  };
  const chooseCell=(key:string)=>{
   if(key==="0,0")return;
   if(pawnByKey.has(key)){
    setMoveFrom(prev=>prev===key?null:key);
+   setReturnSeal(null);
    setPreviewKey(null);
   }else setPreviewKey(key);
  };
  const commit=()=>{
   if(!candidate||!canPurchase)return;
-  if(!moveFrom&&sealName(nextSeal)==="—"){
+  if(!moveFrom&&!fromHome&&sealName(nextSeal)==="—"){
    setLastEvent("Nessuna nuova identità disponibile in questa fase.");
    return;
   }
   const wasMove=moveFrom!==null;
   const newPawn:OwnedPolytron=wasMove?{
    ...candidate,seal:selectedPawn!.seal,name:selectedPawn!.name
+  }:fromHome?{
+   ...candidate,seal:fromHome.seal,name:fromHome.name
   }:{
    ...candidate,seal:nextSeal,name:sealName(nextSeal)
   };
   setPawns(old=>[...old.filter(p=>p.key!==moveFrom),newPawn]);
-  if(!wasMove){
-   setTreasury(old=>old-resonanceCost(newPawn.number));
-   setNextSeal(old=>old+1);
-  }
-  setLastEvent((wasMove?"Spostato ":"Si presenta ")+
+  if(!wasMove)setTreasury(old=>old-resonanceCost(newPawn.number));
+  if(fromHome){
+   setHome(old=>old.filter(p=>p.seal!==fromHome.seal));
+   setReturnSeal(null);
+  }else if(!wasMove)setNextSeal(old=>old+1);
+  setLastEvent((wasMove?"Spostato ":fromHome?"Richiamato da Home ":"Si presenta ")+
    "Polytrone #"+newPawn.seal+" · "+newPawn.name+
    " — manifestazione "+newPawn.number+
    " in "+fromLabel(valid.get(newPawn.key)!));
@@ -176,22 +185,29 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
   if(!moveFrom||!selectedPawn)return;
   const refund=Math.floor(resonanceCost(selectedPawn.number)/2);
   setPawns(old=>old.filter(p=>p.key!==moveFrom));
+  setHome(old=>[...old,selectedPawn]);
   setTreasury(old=>old+refund);
-  setLastEvent("Polytrone ritirato, recuperati "+refund+" E");
+  setLastEvent("#"+selectedPawn.seal+" · "+selectedPawn.name+
+   " riposa a Home; recuperati "+refund+" E");
   setPreviewKey(null);setHoverKey(null);setMoveFrom(null);
+  setReturnSeal(selectedPawn.seal);
  };
  const reset=()=>{
+  setHome(old=>[...old,...pawns]);
   setPawns([]);setTreasury(initialBudget);setMoveFrom(null);
+  setReturnSeal(null);
   setPreviewKey(null);setHoverKey(null);setLastEvent("Composizione azzerata");
  };
  const setBudget=(n:number)=>{
   const next=clamp(Math.round(n)||10,10,500);
   setInitialBudget(next);setTreasury(next);setPawns([]);
+  setHome([]);setReturnSeal(null);setNextSeal(1);
+  setCompletedRequests(0);
   setPreviewKey(null);setMoveFrom(null);setLastEvent("");
  };
  const selectHint=(tile:KaleidoTile)=>{
   setNumber(tile.number);setPaletteRow(tile.paletteRow);setPaletteCol(tile.paletteCol);
-  setMoveFrom(null);setPreviewKey(tile.key);
+  setMoveFrom(null);setReturnSeal(null);setPreviewKey(tile.key);
  };
  const claim=()=>{
   if(claimed)return;
@@ -208,7 +224,8 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
   const next=difficulty.nextMove;
   if(pawnByKey.has(next.key)||treasury<resonanceCost(next.number))return;
   setNumber(next.number);setPaletteRow(next.paletteRow);
-  setPaletteCol(next.paletteCol);setMoveFrom(null);setPreviewKey(next.key);
+  setPaletteCol(next.paletteCol);setMoveFrom(null);
+  setReturnSeal(null);setPreviewKey(next.key);
   setShowPlan(false);
  };
  const cellSize=370/(Math.sqrt(3)*radius+1.12);
@@ -407,24 +424,24 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
     <div className="resonance-field-row">
      <label htmlFor="resonance-number">Manifestazione · Nº polytronico</label>
      <input id="resonance-number" type="number" min="1" max="500"
-      value={number} disabled={moveFrom!==null}
+      value={number} disabled={moveFrom!==null||fromHome!==null}
       onChange={e=>setNumber(clamp(Math.floor(Number(e.target.value)||1),1,500))}/>
     </div>
     <div className="resonance-shortcuts">
      {[1,2,3,4,5].map(n=><button key={n} type="button"
-      disabled={moveFrom!==null}
+      disabled={moveFrom!==null||fromHome!==null}
       className={number===n?"active":""} onClick={()=>setNumber(n)}>
       {GROUP_CODES[n-1]} · {n}</button>)}
     </div>
     <div className="resonance-palette-selects">
      <label>Colore iniziale
-      <select value={paletteRow} disabled={moveFrom!==null}
+      <select value={paletteRow} disabled={moveFrom!==null||fromHome!==null}
        onChange={e=>setPaletteRow(Number(e.target.value))}>
        {LATIN_SOURCES.map((c,i)=><option key={c.id} value={i}>
         {c.name}</option>)}
       </select></label>
      <label>Colore finale
-      <select value={paletteCol} disabled={moveFrom!==null}
+      <select value={paletteCol} disabled={moveFrom!==null||fromHome!==null}
        onChange={e=>setPaletteCol(Number(e.target.value))}>
        {GREEK_DESTINATIONS.map((c,i)=><option key={c.id} value={i}>
         {c.name}</option>)}
@@ -433,11 +450,22 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
     {pawns.length>0&&<div className="resonance-owned-list">
      <span className="resonance-small-title">Polytroni conosciuti</span>
      {pawns.map(p=><button type="button" key={p.seal}
-      onClick={()=>{setMoveFrom(p.key);setPreviewKey(null);}}
+      onClick={()=>{setMoveFrom(p.key);setReturnSeal(null);setPreviewKey(null);}}
       className={moveFrom===p.key?"active":""}>
       <b>#{p.seal} · {p.name}</b>
       <span>manifestazione {p.number} · {GROUP_CODES[groupOf(p.number)-1]}
        {" · "}{valid.get(p.key)?fromLabel(valid.get(p.key)!):p.key}</span>
+     </button>)}
+    </div>}
+    {home.length>0&&<div className="resonance-owned-list">
+     <span className="resonance-small-title">
+      Identità a Home · ancora disponibili</span>
+     {home.map(p=><button type="button" key={p.seal}
+      className={returnSeal===p.seal?"active":""}
+      onClick={()=>{setReturnSeal(p.seal);setMoveFrom(null);
+       setPreviewKey(null);}}>
+      <b>#{p.seal} · {p.name}</b>
+      <span>manifestazione {p.number} · richiamo {resonanceCost(p.number)} E</span>
      </button>)}
     </div>}
     <p className="resonance-cost-line">
@@ -461,10 +489,12 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
     </div>
    </section>
    <section className="kaleido-control-block resonance-forecast">
-    <h2>{moveFrom?"Spostamento di un Polytrone":"Anteprima del piazzamento"}</h2>
+    <h2>{moveFrom?"Spostamento di un Polytrone":
+     fromHome?"Richiamo di un'identità da Home":"Anteprima del piazzamento"}</h2>
     {candidate&&activePosition?
      <>
-      <p>{moveFrom?"Sposta":"Acquista"} manifestazione <b>{candidate.number}</b>
+      <p>{moveFrom?"Sposta":fromHome?"Richiama":"Acquista"} manifestazione
+       <b> {candidate.number}</b>
        {" "}in {fromLabel(activePosition)}.
        {tileByKey.has(candidate.key)?" Cella con indizio del Mutatron.":" Cella senza indizio."}
       </p>
@@ -486,7 +516,8 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
       {!canPurchase&&<p className="resonance-warning">
        Energia insufficiente per acquistare questa manifestazione.</p>}
       <button className="resonance-confirm" disabled={!canPurchase}
-       onClick={commit}>{moveFrom?"Conferma spostamento":"Conferma acquisto"}</button>
+       onClick={commit}>{moveFrom?"Conferma spostamento":
+        fromHome?"Conferma richiamo di #"+fromHome.seal:"Conferma acquisto"}</button>
      </>:
      <p>Tocca o sorvola una cella libera per vedere dove arrivano le influenze,
       quanto cresce la corrispondenza e quanto costa il Polytrone scelto.</p>}

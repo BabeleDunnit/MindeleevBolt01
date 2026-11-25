@@ -118,6 +118,14 @@ try{
  assert(ui.includes("sealName(nextSeal)")&&
   ui.includes("Polytrone #")&&ui.includes("name:selectedPawn!.name")&&
   ui.includes("Manifestazione · Nº polytronico"));
+ assert(ui.includes("Identità a Home")&&
+  ui.includes("setHome(old=>[...old,selectedPawn])")&&
+  ui.includes("seal:fromHome.seal,name:fromHome.name")&&
+  ui.includes("setReturnSeal(selectedPawn.seal)"),
+  "Bought individuals must keep permanent names and Seal # IDs on Home return");
+ assert(ui.includes("completedRequests")&&
+  ui.includes("Commissioni soddisfatte"),
+  "Progressive commissions should be tracked without revealing a population cap");
  assert(!ui.includes("72 Polytroni")&&
   !ui.includes("Polytroni disponibili: 72")&&
   !ui.includes("manifestazione #{"),
