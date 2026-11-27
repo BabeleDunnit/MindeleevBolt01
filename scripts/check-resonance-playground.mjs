@@ -241,9 +241,40 @@ try{
   analyzer.includes("worseningPlacements")&&
   !analyzer.includes("Acquisti iniziali")&&
   !analyzer.includes("Costo ogni Evolve"));
+ const sidebarOpen=ui.indexOf('<aside className="kaleido-controls resonance-sidebar">');
+ const sidebarClose=ui.indexOf('  </aside>',sidebarOpen);
+ const analyzerOpen=ui.indexOf('<section className="kaleido-control-block resonance-analysis">');
+ const forecastOpen=ui.indexOf('<section className="kaleido-control-block resonance-forecast">');
+ const metricsOpen=ui.indexOf('<section className="kaleido-control-block resonance-metrics">');
+ const boardAction=ui.indexOf('className="resonance-board-action-panel"');
+ assert(boardAction>0&&boardAction<sidebarOpen,
+  "Placement and movement actions must be mounted under the board");
+ assert(sidebarClose>sidebarOpen&&analyzerOpen>sidebarClose,
+  "The Difficulty Analyzer must span the full workspace, not a narrow card");
+ assert(!ui.slice(forecastOpen,metricsOpen).includes('resonance-purchase-actions'),
+  "Narrow forecast card should not duplicate the confirmation controls");
+ assert(ui.includes("const activeCell=previewKey??hoverKey;")&&
+  ui.includes("pinnedCandidate")&&ui.includes("onClick={commit}")&&
+  ui.includes("onClick={cancelPending}"),
+  "Click must pin the drop target for reachable on-board confirm/cancel");
+ assert(ui.includes("Saldo ENERGY attuale")&&
+  ui.includes("Energia impegnata in plancia")&&
+  ui.includes("Ricompensa se presenti")&&
+  ui.includes("forecastReward")&&
+  ui.includes("treasury+(forecastReward??currentReward)")&&
+  ui.includes("forecastCommitted"),
+  "Board header must distinguish treasury, committed capacity and predicted reward");
  assert(css.includes(".resonance-purchase-actions")&&
   css.includes(".resonance-cancel-purchase")&&
+  css.includes(".resonance-head-energy")&&
+  css.includes(".resonance-lab>.resonance-analysis")&&
   css.includes("@media(max-width:530px)"));
+ const economicsCss=await readFile("src/experiments/ResonanceEconomicsPanel.css","utf8");
+ assert(economicsCss.includes(".resonance-lab>.resonance-analysis .resonance-econ-scenarios")&&
+  economicsCss.includes("repeat(auto-fit")&&
+  economicsCss.includes("resonance-econ-frontier")&&
+  economicsCss.includes("resonance-econ-risks"),
+  "Difficulty comparison, energy frontier and risks must flow horizontally");
  assert(renderer.includes("cell.dataset.kaleidoOpacity")&&
   renderer.includes("renderer.clearDepth()"));
  console.log("PASS Resonance conservation: no buy/move/evolve debits, "+
