@@ -8,7 +8,7 @@
  *
  * Human grades must NEVER be used to change the current scoring algorithm here.
  */
-import type {KaleidoLayout,KaleidoPoint} from "@/polytron/kaleidoscopeGenerator";
+import type {KaleidoLayout} from "@/polytron/kaleidoscopeGenerator";
 import type {ResonancePawn} from "@/polytron/resonanceField";
 import {rcRingCells,rcKey} from "@/polytron/rc01Board";
 
