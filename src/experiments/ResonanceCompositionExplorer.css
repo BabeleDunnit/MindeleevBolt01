@@ -73,6 +73,23 @@
  display:flex;flex-wrap:wrap;gap:6px;align-items:center;
 }
 .explorer-generative-controls label{flex:1 1 140px}
+.explorer-generative-controls .explorer-rotation-toggle{
+ flex:1 1 225px;min-width:195px;align-self:stretch;
+ display:flex;align-items:center;gap:9px;
+ padding:7px 10px;border:1px solid #547f7a;border-radius:9px;
+ background:#173f45;color:#e3f3e7;
+ cursor:pointer;
+}
+.explorer-rotation-toggle input{
+ flex:0 0 auto;width:17px;height:17px;accent-color:#83d6ae;
+}
+.explorer-rotation-toggle span{
+ display:grid;gap:2px;font-weight:750;font-size:12px;
+}
+.explorer-rotation-toggle small{
+ font-weight:400;font-size:10px;color:#afd0c8;line-height:1.35;
+}
+
 .explorer-boards{
  display:grid;grid-template-columns:minmax(0,.82fr) minmax(0,1fr) minmax(0,1fr);
  gap:10px;align-items:start;
