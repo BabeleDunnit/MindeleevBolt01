@@ -315,8 +315,18 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
   <section className="kaleido-stage">
    <div className="resonance-stage-head">
     <div className="resonance-head-main">
-     <div><b>Campo di risonanza</b>
+     <div className="resonance-head-identity"><b>Campo di risonanza</b>
       <small>{layout.params.family} · {layout.params.symmetry} · raggio {radius}</small>
+     </div>
+     <div className="resonance-head-reach">
+      <label htmlFor="resonance-reach">Portata di risonanza</label>
+      <select id="resonance-reach" value={settings.reach}
+       onChange={e=>setSettings({reach:Number(e.target.value) as 1|2|3})}
+       title="Portata degli effetti sui tiles e del Difficulty Analyzer">
+       <option value={1}>1 anello · concentrata</option>
+       <option value={2}>2 anelli · equilibrata</option>
+       <option value={3}>3 anelli · diffusa</option>
+      </select>
      </div>
      <div className="resonance-head-score">
       <strong>{fmt(planned.quality)}%</strong>
@@ -336,8 +346,13 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
       <small>Energia impegnata in plancia</small>
       <strong>{occupiedEnergy} E
        {forecastScore&&<em> → {forecastCommitted} E</em>}</strong>
-      <span>Libera {freeEnergy} E
-       {forecastScore&&" → "+forecastFree+" E"}</span>
+      <span>Capacità occupata dai Polytroni</span>
+     </div>
+     <div className="resonance-head-energy-cell">
+      <small>Energia libera</small>
+      <strong>{freeEnergy} E
+       {forecastScore&&<em> → {forecastFree} E</em>}</strong>
+      <span>Capacità per altre manifestazioni</span>
      </div>
      <div className="resonance-head-energy-cell">
       <small>Ricompensa se presenti</small>
@@ -577,21 +592,6 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
    </div>
   </section>
   <aside className="kaleido-controls resonance-sidebar">
-   <section className="kaleido-control-block resonance-rules">
-    <h2>Regole di risonanza</h2>
-    <p>Questa portata controlla il campo d'influenza di ogni
-     Polytrone sia nella valutazione della risposta
-     sia nel Difficulty Analyzer. Non è un parametro del solo solutore.</p>
-    <div className="resonance-field-row">
-     <label htmlFor="resonance-reach">Portata di risonanza</label>
-     <select id="resonance-reach" value={settings.reach}
-      onChange={e=>setSettings({reach:Number(e.target.value) as 1|2|3})}>
-      <option value={1}>1 anello · concentrata</option>
-      <option value={2}>2 anelli · equilibrata</option>
-      <option value={3}>3 anelli · diffusa</option>
-     </select>
-    </div>
-   </section>
    <section className="kaleido-control-block">
     <div className="kaleido-section-top">
      <h2>Componi una risposta</h2>
