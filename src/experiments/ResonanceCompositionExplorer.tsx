@@ -158,7 +158,13 @@ function Votes({
   </div>
  </fieldset>;
 }
-export default function ResonanceCompositionExplorer(){
+type Props={
+ rotatePolytrons:boolean;
+ onRotatePolytronsChange:(rotate:boolean)=>void
+};
+export default function ResonanceCompositionExplorer({
+ rotatePolytrons,onRotatePolytronsChange
+}:Props){
  const [question,setQuestion]=useState<KaleidoParams>(DEFAULT_PARAMS);
  const [pending,setPending]=useState<KaleidoParams>(DEFAULT_PARAMS);
  const [count,setCount]=useState(10);
@@ -445,6 +451,13 @@ export default function ResonanceCompositionExplorer(){
    </label>
    <button type="button" onClick={varyB}>Varia B partendo da A</button>
    <button type="button" onClick={cloneA}>Copia A in B per modificarla</button>
+   <label className="explorer-rotation-toggle">
+    <input type="checkbox" checked={rotatePolytrons}
+     onChange={e=>onRotatePolytronsChange(e.target.checked)}/>
+    <span>Ruota i Polytroni
+     <small>Solo i solidi delle risposte · tile-indizio fermi e invariati</small>
+    </span>
+   </label>
   </div>
   <div className="explorer-boards">
    <Board layout={layout} composition={null}
