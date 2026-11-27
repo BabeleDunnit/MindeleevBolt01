@@ -19,6 +19,7 @@ import "./ResonancePlayground.css";
 const BASE=import.meta.env.BASE_URL;
 const fromLabel=(p:{ring:number;idx:number})=>"("+p.ring+","+p.idx+")";
 const fmt=(x:number)=>x.toFixed(1);
+const signed=(x:number)=>(x>0?"+":"")+x;
 const clamp=(x:number,min:number,max:number)=>Math.max(min,Math.min(max,x));
 const coord=(q:number,r:number,radius:number)=>{
  const size=370/(Math.sqrt(3)*radius+1.12);
@@ -64,7 +65,8 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
  const valid=new Map(layout.cells.map(c=>[c.key,c]));
  const pawnByKey=new Map(pawns.map(p=>[p.key,p]));
  const tileByKey=new Map(layout.tiles.map(t=>[t.key,t]));
- const activeCell=hoverKey??previewKey;
+ // A click pins the trial destination until the user chooses another.
+ const activeCell=previewKey??hoverKey;
  const fromHome=home.find(p=>p.seal===returnSeal)??null;
  const existing=moveFrom?pawnByKey.get(moveFrom):fromHome;
  const candidateNumber=existing?.number??number;
@@ -123,6 +125,17 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
  const hintsByKey=new Map(visual.hintResults.map(h=>[h.key,h]));
  const occupiedEnergy=planned.totalEnergy;
  const freeEnergy=treasury-occupiedEnergy;
+ const isEditPreview=Boolean(selectedPawn&&editNumber!==selectedPawn.number);
+ const forecastScore=preview??(isEditPreview?editedScore:null);
+ const forecastReward=forecastScore?
+  resonanceReward(layout,forecastScore.quality):null;
+ const rewardDelta=forecastReward===null?null:forecastReward-currentReward;
+ const forecastCommitted=preview&&trialPawns?
+  trialPawns.reduce((sum,p)=>sum+resonanceEnergy(p.number),0):
+  isEditPreview?committedEnergy-previousEnergy+editedEnergy:occupiedEnergy;
+ const forecastFree=treasury-forecastCommitted;
+ const forecastValid=preview?canPlace:isEditPreview?editFits:true;
+ const pinnedCandidate=Boolean(candidate&&previewKey===candidate.key);
  const plannerBudget=clamp(treasury,2,10000);
  const targetPalettes=useMemo(()=>{
   const map=new Map<string,{row:number;col:number;count:number}>();
@@ -301,13 +314,44 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
  return <div className="kaleido-layout resonance-lab">
   <section className="kaleido-stage">
    <div className="resonance-stage-head">
-    <div><b>Campo di risonanza</b><small>{layout.params.family} · {layout.params.symmetry} · raggio {radius}</small>{selectedPawn&&<small>Selezionato #{selectedPawn.seal} · editor sotto la plancia</small>}</div>
-    <div className="resonance-head-score">
-     <strong>{fmt(planned.quality)}%</strong>
-     {preview&&<span className={scoreDelta>=0?"resonance-positive":"resonance-negative"}>
-      {scoreDelta>=0?"+":""}{fmt(scoreDelta)} anteprima
-     </span>}
+    <div className="resonance-head-main">
+     <div><b>Campo di risonanza</b>
+      <small>{layout.params.family} · {layout.params.symmetry} · raggio {radius}</small>
+     </div>
+     <div className="resonance-head-score">
+      <strong>{fmt(planned.quality)}%</strong>
+      {forecastScore&&<span className={forecastScore.quality>=planned.quality?"resonance-positive":"resonance-negative"}>
+       → {fmt(forecastScore.quality)}% ({fmt(forecastScore.quality-planned.quality)} pt)
+      </span>}
+     </div>
     </div>
+    <div className="resonance-head-energy" aria-label="Energia attuale e previsione della mossa">
+     <div className="resonance-head-energy-cell">
+      <small>Saldo ENERGY attuale</small>
+      <strong>{treasury} E</strong>
+      <span>Dopo presentazione {treasury+(forecastReward??currentReward)} E
+       {forecastReward!==null?" · con anteprima":""}</span>
+     </div>
+     <div className="resonance-head-energy-cell">
+      <small>Energia impegnata in plancia</small>
+      <strong>{occupiedEnergy} E
+       {forecastScore&&<em> → {forecastCommitted} E</em>}</strong>
+      <span>Libera {freeEnergy} E
+       {forecastScore&&" → "+forecastFree+" E"}</span>
+     </div>
+     <div className="resonance-head-energy-cell">
+      <small>Ricompensa se presenti</small>
+      <strong>+{currentReward} E
+       {forecastReward!==null&&<em> → +{forecastReward} E</em>}</strong>
+      <span className={rewardDelta!==null&&rewardDelta<0?"resonance-negative":rewardDelta!==null&&rewardDelta>0?"resonance-positive":""}>
+       {rewardDelta===null?"Stima attuale, non incassata":
+        "Δ premio "+signed(rewardDelta)+" E · ipotetico"}
+      </span>
+     </div>
+    </div>
+    {forecastScore&&!forecastValid&&<p className="resonance-head-alert">
+     Anteprima non confermabile: capacità ENERGY insufficiente.
+    </p>}
    </div>
    <div className="kaleido-artboard resonance-artboard">
     <svg className="kaleido-svg" viewBox="0 0 800 800" role="img"
@@ -492,12 +536,37 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
       disabled={!editFits||editNumber===selectedPawn.number}
       onClick={applyEdit}>Conferma modifica di #{selectedPawn.seal}</button>
     </div>}
+   {candidate&&activePosition&&<div className="resonance-board-action-panel" aria-label="Anteprima e conferma della mossa">
+    <div className="resonance-board-action-info">
+     <b>{moveFrom?"Sposta":"Piazza"} Polytrone {candidate.number} in {fromLabel(activePosition)}</b>
+     <span>Qualità {fmt(planned.quality)} → {fmt(preview?.quality??planned.quality)}% ·
+      premio +{currentReward} → +{previewReward??currentReward} E
+      {marginalReward!==null&&" (Δ "+signed(marginalReward)+" E)"}</span>
+    </div>
+    {pinnedCandidate?
+     <div className="resonance-purchase-actions">
+      <button type="button" className="resonance-confirm" disabled={!canPlace}
+       onClick={commit}>{moveFrom?"Conferma spostamento":
+        fromHome?"Conferma richiamo di #"+fromHome.seal:"Conferma piazzamento"}</button>
+      <button type="button" className="resonance-cancel-purchase"
+       onClick={cancelPending}>{moveFrom?"Annulla spostamento":
+        fromHome?"Annulla richiamo":"Cancella piazzamento"}</button>
+     </div>:
+     <span className="resonance-board-click-hint">Tocca la cella di destinazione per fissare l'anteprima e abilitare la conferma.</span>}
+   </div>}
+   {selectedPawn&&<div className="resonance-sell-row resonance-board-sell-row">
+    <span>#{selectedPawn.seal} · {selectedPawn.name} · numero {selectedPawn.number} · {resonanceEnergy(selectedPawn.number)} E intrinseci</span>
+    <button type="button" onClick={sell}>Ritira a Home</button>
+    <button type="button" onClick={cancelPending}>Annulla selezione</button>
+   </div>}
    <div className="resonance-legend">
     <span><i className="resonance-legend-dot is-hint"/>Indizio</span>
     <span><i className="resonance-legend-dot is-player"/>In plancia</span>
     <span><i className="resonance-legend-dot is-forecast"/>Anteprima</span>
     <span><i className="resonance-legend-dot is-ray"/>Influenza</span>
    </div>
+   {lastEvent&&<p className="resonance-action-message resonance-board-status" role="status">
+    {lastEvent}</p>}
    <div className="resonance-display-toggles">
     <label><input type="checkbox" checked={showHeat}
      onChange={e=>setShowHeat(e.target.checked)}/>Soddisfazione degli indizi</label>
@@ -674,34 +743,15 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
         {marginalReward!==null&&marginalReward>0?"+":""}{marginalReward} E
        </b>
       </div>
-      <p>Il piazzamento non consuma energia. L'energia intrinseca
-       occupa temporaneamente capacità sulla plancia e torna libera
-       quando il Polytrone rientra a Home.</p>
+      <p>La manifestazione impegna capacità senza spenderla.
+       Conferma o cancella la mossa direttamente sotto il Mutatron.</p>
       {!canPlace&&<p className="resonance-warning">
        Capacità insufficiente per questa manifestazione:
        manda un individuo a Home o modifica l'energia iniziale
        dello scenario sperimentale.</p>}
-      <div className="resonance-purchase-actions">
-       <button type="button" className="resonance-confirm" disabled={!canPlace}
-        onClick={commit}>{moveFrom?"Conferma spostamento":
-         fromHome?"Conferma richiamo di #"+fromHome.seal:"Conferma piazzamento"}</button>
-       <button type="button" className="resonance-cancel-purchase"
-        onClick={cancelPending}>
-        {moveFrom?"Annulla spostamento":
-         fromHome?"Annulla richiamo":"Cancella piazzamento"}
-       </button>
-      </div>
      </>:
      <p>Tocca o sorvola una cella libera per vedere dove arrivano le influenze,
       quanto cresce la corrispondenza e quanta energia resta libera.</p>}
-    {selectedPawn&&<div className="resonance-sell-row">
-     <span>#{selectedPawn.seal} · {selectedPawn.name} · manifestazione {selectedPawn.number} ·
-      energia conservata {resonanceEnergy(selectedPawn.number)} E</span>
-     <button type="button" onClick={sell}>Ritira</button>
-     <button type="button" onClick={cancelPending}>Annulla</button>
-    </div>}
-    {lastEvent&&<p className="resonance-action-message" aria-live="polite">
-     {lastEvent}</p>}
    </section>
    <section className="kaleido-control-block resonance-metrics">
     <div className="kaleido-section-top">
@@ -774,7 +824,8 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
      <button type="button" onClick={reset}>Tutti a Home</button>
     </div>
    </section>
-   <section className="kaleido-control-block resonance-analysis">
+  </aside>
+  <section className="kaleido-control-block resonance-analysis">
     <h2>Difficulty Analyzer</h2>
     <p>Stima la qualità ottenibile con budget differenti, cercando
      collocazioni convenienti per questo specifico caleidoscopio.</p>
@@ -827,6 +878,5 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
      Non esistono costi di acquisto, mantenimento o evoluzione.
     </p>
    </section>
-  </aside>
  </div>;
 }
