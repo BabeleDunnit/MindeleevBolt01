@@ -8,7 +8,7 @@
 import type {KaleidoLayout,KaleidoParams} from "@/polytron/kaleidoscopeGenerator";
 
 export type ResonanceCalibrationPreset={
- id:"A"|"B"|"C"|"D"|"E"|"F";
+ id:"A"|"B"|"C"|"D"|"E"|"F"|"G"|"H"|"I";
  title:string;
  intention:string;
  params:Pick<KaleidoParams,"radius"|"family"|"symmetry"|"seed">;
@@ -46,6 +46,22 @@ export const RESONANCE_CALIBRATION_PRESETS:readonly ResonanceCalibrationPreset[]
   id:"F",title:"Ampio pieno",
   intention:"Rosette a raggio 5 completamente coperto: prova di leggibilità.",
   params:{family:"rosette",symmetry:"D6",radius:5,seed:17},expectedHints:90
+ },
+ // Controlled symmetry comparison: same family, radius and seed as C.
+ {
+  id:"G",title:"Cristalli · rotazione C6",
+  intention:"Come C, ma con simmetria ciclica C6: rotazioni senza specchi.",
+  params:{family:"crystal",symmetry:"C6",radius:3,seed:5},expectedHints:24
+ },
+ {
+  id:"H",title:"Cristalli · rotazione C3",
+  intention:"Come C, ma con simmetria ciclica C3: terne a 120°.",
+  params:{family:"crystal",symmetry:"C3",radius:3,seed:5},expectedHints:24
+ },
+ {
+  id:"I",title:"Cristalli · rotazione C2",
+  intention:"Come C, ma con simmetria ciclica C2: coppie opposte.",
+  params:{family:"crystal",symmetry:"C2",radius:3,seed:5},expectedHints:26
  }
 ] as const;
 
