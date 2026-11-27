@@ -585,3 +585,82 @@
   grid-template-columns:repeat(2,minmax(0,1fr));
  }
 }
+
+/* Read-only benchmark selector and density diagnostic.
+ * Cards still participate in the ordinary vertical reflow. */
+.resonance-calibration{
+ display:grid!important;gap:8px;
+ align-content:start;
+}
+.resonance-calibration>.kaleido-section-top{gap:7px}
+.resonance-calibration>p{margin:0}
+.resonance-calibration>label{font-size:11px;font-weight:700}
+.resonance-sidebar .resonance-calibration>select{
+ min-height:38px;margin:0;
+}
+.resonance-calibration-intention{
+ font-size:11px!important;color:#c3dfda!important;
+}
+.resonance-calibration-load{
+ width:100%;padding:10px 12px;
+ border:1px solid #89c9a9;border-radius:9px;
+ background:#326d5f;color:#f0fff2;
+ font-size:12px;font-weight:800;cursor:pointer;
+}
+.resonance-calibration-load:hover{background:#438371}
+.resonance-calibration-load:focus-visible{
+ outline:2px solid #a9ecd3;outline-offset:2px;
+}
+.resonance-calibration-warning{
+ font-size:10px!important;color:#b5c7c9!important;
+}
+.resonance-calibration-heading{
+ display:grid;gap:3px;
+ padding-top:9px;border-top:1px solid #446674;
+}
+.resonance-calibration-heading h3{
+ margin:0;color:#e5f3df;font-size:12px;
+}
+.resonance-calibration-heading span{
+ color:#a0c9c6;font-size:10px;
+}
+.resonance-calibration-metrics{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+ gap:6px;min-width:0;
+}
+.resonance-calibration-metrics>div{
+ display:grid;align-content:start;gap:3px;
+ min-width:0;padding:7px;
+ background:#173946;border:1px solid #426672;border-radius:7px;
+}
+.resonance-calibration-metrics small{font-size:10px;color:#afd1d1}
+.resonance-calibration-metrics strong{
+ font-size:14px;color:#f1e2b9;font-variant-numeric:tabular-nums;
+}
+.resonance-calibration-metrics span{
+ font-size:10px;color:#aecac9;line-height:1.35;
+}
+.resonance-calibration-rings{
+ padding:5px 0;border-top:1px solid #345b69;
+}
+.resonance-calibration-rings summary{
+ cursor:pointer;color:#c9e6d9;font-size:11px;
+}
+.resonance-calibration-ring{
+ display:grid;grid-template-columns:25px minmax(0,1fr) 35px;
+ gap:6px;align-items:center;margin:8px 0;
+ font-size:11px;
+}
+.resonance-calibration-ring strong{
+ font-size:10px;font-variant-numeric:tabular-nums;text-align:right;
+}
+.resonance-calibration-track{
+ height:7px;border-radius:7px;
+ background:#2b4856;overflow:hidden;
+}
+.resonance-calibration-track>div{
+ background:#a1cda8;height:100%;border-radius:7px;
+}
+.resonance-calibration-note{
+ font-size:10px!important;color:#b3d4d0!important;
+}
