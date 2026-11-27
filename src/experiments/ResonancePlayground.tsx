@@ -11,6 +11,10 @@ import {
 } from "@/polytron/resonanceField";
 import type {DifficultyReport} from "@/polytron/resonanceDifficulty";
 import {polytronDance,type DanceResult} from "@/polytron/polytronDance";
+import {
+ RESONANCE_CALIBRATION_PRESETS,calibrationPresetFor,inspectResonanceDensity,
+ type ResonanceCalibrationPreset
+} from "@/polytron/resonanceCalibration";
 import {groupOf,periodOf,GROUP_CODES,GROUP_LABELS} from "@/polytron/mindeleevLife";
 import {dnaFromPolitronNumber} from "@/polytron/politronicNumber";
 import {sealName} from "@/polytron/spectralFutures";
@@ -30,12 +34,18 @@ type OwnedPolytron=ResonancePawn&{seal:number;name:string};
 type Props={
  layout:KaleidoLayout;
  onEvolve:()=>void;
- onGenesis:()=>void
+ onGenesis:()=>void;
+ onLoadPreset:(preset:ResonanceCalibrationPreset)=>void
 };
-export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
+export default function ResonancePlayground({
+ layout,onEvolve,onGenesis,onLoadPreset
+}:Props){
  const radius=layout.params.radius;
  const recipeKey=[radius,layout.params.family,layout.params.symmetry,
   layout.params.seed].join("|");
+ const [selectedCalibrationId,setSelectedCalibrationId]=
+  useState<ResonanceCalibrationPreset["id"]>(
+   ()=>calibrationPresetFor(layout.params)?.id??"A");
  const [initialBudget,setInitialBudget]=useState(48);
  const [treasury,setTreasury]=useState(48);
  const [pawns,setPawns]=useState<OwnedPolytron[]>([]);
@@ -64,6 +74,11 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
  const [lastEvent,setLastEvent]=useState("");
  const valid=new Map(layout.cells.map(c=>[c.key,c]));
  const pawnByKey=new Map(pawns.map(p=>[p.key,p]));
+ const density=useMemo(()=>inspectResonanceDensity(
+  layout,pawns.map(p=>p.key)),[layout,pawns]);
+ const activePreset=calibrationPresetFor(layout.params);
+ const selectedCalibration=RESONANCE_CALIBRATION_PRESETS.find(p=>
+  p.id===selectedCalibrationId)!;
  const tileByKey=new Map(layout.tiles.map(t=>[t.key,t]));
  // A click pins the trial destination until the user chooses another.
  const activeCell=previewKey??hoverKey;
@@ -590,6 +605,65 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
    </div>
   </section>
   <aside className="kaleido-controls resonance-sidebar">
+   <section className="kaleido-control-block resonance-calibration">
+    <div className="kaleido-section-top">
+     <h2>Laboratorio preset</h2>
+     <strong>6 casi</strong>
+    </div>
+    <p>Richieste di riferimento prodotte dal generatore artistico, senza modificarlo.</p>
+    <label htmlFor="resonance-calibration-select">Configurazione da confrontare</label>
+    <select id="resonance-calibration-select" value={selectedCalibrationId}
+     onChange={e=>setSelectedCalibrationId(
+      e.target.value as ResonanceCalibrationPreset["id"])}>
+     {RESONANCE_CALIBRATION_PRESETS.map(p=><option key={p.id} value={p.id}>
+      {p.id} · {p.title} · {p.expectedHints}/{3*p.params.radius*(p.params.radius+1)} indizi
+     </option>)}
+    </select>
+    <p className="resonance-calibration-intention">{selectedCalibration.intention}</p>
+    <button className="resonance-calibration-load" type="button"
+     onClick={()=>onLoadPreset(selectedCalibration)}>
+     Carica {selectedCalibration.id} · riparti da zero
+    </button>
+    <p className="resonance-calibration-warning">Caricare un preset azzera
+     Polytroni, Home, saldo e commissioni del laboratorio.
+     Evolve resta disponibile e conserva il suo comportamento.</p>
+    <div className="resonance-calibration-heading">
+     <h3>Densità della richiesta attuale</h3>
+     <span>{activePreset?"Preset "+activePreset.id:"Esplorazione libera"} ·
+      generazione {layout.params.generation}</span>
+    </div>
+    <div className="resonance-calibration-metrics">
+     <div><small>Indizi</small>
+      <strong>{density.hintCells} / {density.playableCells}</strong>
+      <span>{fmt(density.hintPercent)}% del campo</span>
+     </div>
+     <div><small>Senza indizi</small>
+      <strong>{density.withoutHintCells}</strong>
+      <span>Celle senza richiesta</span>
+     </div>
+     <div><small>Celle libere</small>
+      <strong>{density.freePlacementCells}</strong>
+      <span>Disponibili al giocatore</span>
+     </div>
+     <div><small>Orbite con indizi</small>
+      <strong>{density.occupiedOrbits} / {density.availableOrbits}</strong>
+      <span>{density.distinctPalettes} palette · {density.distinctGroups} gruppi</span>
+     </div>
+    </div>
+    <details className="resonance-calibration-rings">
+     <summary>Distribuzione per anello</summary>
+     {density.rings.map(r=><div key={r.ring} className="resonance-calibration-ring">
+      <span>R{r.ring}</span>
+      <div className="resonance-calibration-track" aria-hidden="true">
+       <div style={{width:100*r.hints/r.slots+"%"}}/>
+      </div>
+      <strong>{r.hints}/{r.slots}</strong>
+     </div>)}
+    </details>
+    <p className="resonance-calibration-note">Gli indizi non bloccano
+     il piazzamento: solo i {density.playerOccupiedCells} Polytroni
+     presenti occupano celle. {density.playersOnHints} sono sopra indizi.</p>
+   </section>
    <section className="kaleido-control-block">
     <div className="kaleido-section-top">
      <h2>Componi una risposta</h2>
