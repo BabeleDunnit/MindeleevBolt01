@@ -411,12 +411,6 @@
  margin:0;min-width:0;break-inside:auto;
 }
 .resonance-lab .resonance-sidebar>.resonance-rules{grid-column:1/-1}
-.resonance-lab>.resonance-analysis{
- grid-column:1/-1;min-width:0;
-}
-.resonance-lab>.resonance-analysis .resonance-analysis-grid{
- grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
-}
 .resonance-lab .resonance-forecast .resonance-forecast-row{
  margin:0;padding:5px 0;
 }
@@ -513,5 +507,74 @@
  }
  .resonance-lab .resonance-sidebar>.resonance-metrics{
   grid-column:2;grid-row:3;
+ }
+}
+
+/* Analyzer is a set of independent cards inside the sidebar, never a sibling
+ * of the sticky Mutatron: this prevents content scrolling underneath it. */
+.resonance-lab .resonance-sidebar>.resonance-analysis{
+ grid-column:auto;grid-row:auto;
+ min-width:0;max-width:100%;
+ width:100%;
+ overflow-wrap:anywhere;
+}
+.resonance-lab .resonance-sidebar>.resonance-analysis h2{
+ font-size:14px;line-height:1.3;
+}
+.resonance-lab .resonance-sidebar .resonance-analysis-grid{
+ grid-template-columns:repeat(2,minmax(0,1fr));
+ gap:6px;margin:8px 0;
+}
+.resonance-lab .resonance-sidebar .resonance-analysis-grid>div{
+ padding:8px;
+}
+.resonance-lab .resonance-sidebar .resonance-analysis .resonance-econ-title{
+ font-size:11px;margin:7px 0 6px;
+}
+.resonance-lab .resonance-sidebar .resonance-analysis .resonance-econ-copy{
+ margin:5px 0 8px!important;
+}
+.resonance-lab .resonance-sidebar .resonance-analysis .resonance-econ-scenarios{
+ grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;
+}
+.resonance-lab .resonance-sidebar .resonance-analysis .resonance-econ-scenario{
+ padding:7px;gap:4px;
+}
+.resonance-lab .resonance-sidebar .resonance-analysis .resonance-econ-scenario.is-selected{
+ padding:6px;
+}
+.resonance-lab .resonance-sidebar .resonance-analysis .resonance-econ-values{
+ gap:3px;
+}
+.resonance-lab .resonance-sidebar .resonance-analysis .resonance-econ-values>span{
+ padding:5px 2px;
+}
+.resonance-lab .resonance-sidebar .resonance-analysis .resonance-econ-values small{
+ font-size:9px;
+}
+.resonance-lab .resonance-sidebar .resonance-analysis .resonance-econ-values b{
+ font-size:11px;
+}
+.resonance-lab .resonance-sidebar .resonance-analysis .resonance-econ-frontier{
+ grid-template-columns:repeat(2,minmax(0,1fr));
+}
+.resonance-lab .resonance-sidebar .resonance-analysis .resonance-econ-risks{
+ grid-template-columns:repeat(2,minmax(0,1fr));
+}
+.resonance-lab .resonance-sidebar .resonance-analysis .resonance-econ-frontier-item,
+.resonance-lab .resonance-sidebar .resonance-analysis .resonance-econ-risks>div{
+ padding:7px;
+}
+.resonance-lab .resonance-sidebar .resonance-analysis .resonance-suggest{
+ padding:8px 9px;
+}
+@media(min-width:871px) and (max-width:1200px){
+ .resonance-lab .resonance-sidebar .resonance-analysis .resonance-econ-scenarios{
+  grid-template-columns:1fr;
+ }
+}
+@media(max-width:530px){
+ .resonance-lab .resonance-sidebar .resonance-analysis .resonance-econ-scenarios{
+  grid-template-columns:repeat(2,minmax(0,1fr));
  }
 }
