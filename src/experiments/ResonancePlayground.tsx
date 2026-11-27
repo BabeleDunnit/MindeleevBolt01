@@ -6,11 +6,16 @@ import {rcAxial,rcPolygon} from "@/polytron/rc01Board";
 import type {KaleidoLayout,KaleidoTile} from "@/polytron/kaleidoscopeGenerator";
 import {
  DEFAULT_RESONANCE_SETTINGS,evaluateResonance,
- resonanceEnergy,resonanceReward,resonanceComplexity,
+ resonanceEnergy,resonanceReward,resonanceComplexity,scoreResonance,
  type ResonancePawn,type ResonanceSettings,type ResonanceScore
 } from "@/polytron/resonanceField";
 import type {DifficultyReport} from "@/polytron/resonanceDifficulty";
 import {polytronDance,type DanceResult} from "@/polytron/polytronDance";
+import {
+ commissionEnergyChange,planResonanceSettlement,signedEnergy,
+ RESONANCE_ECONOMY_MODE_IDS,RESONANCE_ECONOMY_LABELS,
+ ECONOMY_THRESHOLD_QUALITY,type ResonanceEconomyMode
+} from "@/polytron/resonanceEconomyModels";
 import {
  RESONANCE_CALIBRATION_PRESETS,calibrationPresetFor,inspectResonanceDensity,
  type ResonanceCalibrationPreset
@@ -48,6 +53,7 @@ export default function ResonancePlayground({
    ()=>calibrationPresetFor(layout.params)?.id??"A");
  const [initialBudget,setInitialBudget]=useState(48);
  const [treasury,setTreasury]=useState(48);
+ const [economyMode,setEconomyMode]=useState<ResonanceEconomyMode>("current");
  const [pawns,setPawns]=useState<OwnedPolytron[]>([]);
  const [home,setHome]=useState<OwnedPolytron[]>([]);
  const [returnSeal,setReturnSeal]=useState<number|null>(null);
@@ -57,6 +63,21 @@ export default function ResonancePlayground({
  const [editNumber,setEditNumber]=useState(2);
  const [danceInfo,setDanceInfo]=useState<DanceResult<OwnedPolytron>|null>(null);
  const lastEvolution=useRef({recipe:"",generation:-1});
+ const requestKey=recipeKey+"|"+layout.params.generation;
+ // The starting response is frozen AFTER the previous Evolve's Dance.
+ // Store pieces rather than a fixed % so reach changes cannot farm a delta.
+ const [baseline,setBaseline]=useState<{
+  key:string;pawns:OwnedPolytron[]
+ }>(()=>({key:requestKey,pawns:[]}));
+ const baselineReady=baseline.key===requestKey;
+ const baselineQuality=useMemo(()=>baselineReady?
+  scoreResonance(layout,baseline.pawns,settings).quality:0,
+  [layout,baseline,baselineReady,settings]);
+ const [ledger,setLedger]=useState<Array<{
+  model:ResonanceEconomyMode;generation:number;
+  before:number;after:number;change:number;
+  startingQuality:number;finalQuality:number
+ }>>([]);
  const [paletteRow,setPaletteRow]=useState(10);
  const [paletteCol,setPaletteCol]=useState(10);
  const [settings,setSettings]=useState<ResonanceSettings>(DEFAULT_RESONANCE_SETTINGS);
@@ -132,23 +153,33 @@ export default function ResonancePlayground({
   return planned.contributions.filter(c=>c.strength>=.40)
    .sort((a,b)=>b.strength-a.strength).slice(0,20);
  },[showRays,planned,preview,candidate?.key,moveFrom]);
- const currentReward=resonanceReward(layout,planned.quality);
- const previewReward=preview?resonanceReward(layout,preview.quality):null;
+ const currentReward=commissionEnergyChange(
+  layout,economyMode,planned.quality,baselineQuality);
+ const previewReward=preview?commissionEnergyChange(
+  layout,economyMode,preview.quality,baselineQuality):null;
  const marginalReward=previewReward===null?null:previewReward-currentReward;
  const selectedScenario=difficulty?.scenarios.find(x=>x.id===selectedScenarioId)
   ??difficulty?.scenarios[0];
  const hintsByKey=new Map(visual.hintResults.map(h=>[h.key,h]));
  const occupiedEnergy=planned.totalEnergy;
  const freeEnergy=treasury-occupiedEnergy;
+ const settlement=planResonanceSettlement(
+  treasury,occupiedEnergy,currentReward);
+ const comparison=RESONANCE_ECONOMY_MODE_IDS.map(model=>({
+  model,change:commissionEnergyChange(layout,model,planned.quality,baselineQuality)
+ }));
  const isEditPreview=Boolean(selectedPawn&&editNumber!==selectedPawn.number);
  const forecastScore=preview??(isEditPreview?editedScore:null);
  const forecastReward=forecastScore?
-  resonanceReward(layout,forecastScore.quality):null;
+  commissionEnergyChange(layout,economyMode,
+   forecastScore.quality,baselineQuality):null;
  const rewardDelta=forecastReward===null?null:forecastReward-currentReward;
  const forecastCommitted=preview&&trialPawns?
   trialPawns.reduce((sum,p)=>sum+resonanceEnergy(p.number),0):
   isEditPreview?committedEnergy-previousEnergy+editedEnergy:occupiedEnergy;
  const forecastFree=treasury-forecastCommitted;
+ const forecastSettlement=forecastReward!==null&&forecastCommitted<=treasury?
+  planResonanceSettlement(treasury,forecastCommitted,forecastReward):null;
  const forecastValid=preview?canPlace:isEditPreview?editFits:true;
  const pinnedCandidate=Boolean(candidate&&previewKey===candidate.key);
  const plannerBudget=clamp(treasury,2,10000);
@@ -170,6 +201,8 @@ export default function ResonancePlayground({
   setReturnSeal(null);setNextSeal(1);
   setPreviewKey(null);setHoverKey(null);setMoveFrom(null);
   setClaimed(false);setLastEvent("");setDanceInfo(null);
+  setBaseline({key:requestKey,pawns:[]});
+  setLedger([]);
  // Intentional: a new recipe is a new research scenario; evolution is not.
  // eslint-disable-next-line react-hooks/exhaustive-deps
  },[recipeKey]);
@@ -183,6 +216,8 @@ export default function ResonancePlayground({
    previous.generation===layout.params.generation)return;
   const result=polytronDance(layout,pawns,settings);
   setPawns(result.pawns);
+  // A new commission starts only after the actual Dance has settled.
+  setBaseline({key:requestKey,pawns:result.pawns.map(p=>({...p}))});
   setDanceInfo(result);
   setLastEvent("Polytron Dance: "+result.moved+" spostamenti · simmetria "+
    fmt(result.beforeSymmetry)+"% → "+fmt(result.afterSymmetry)+
@@ -290,23 +325,47 @@ export default function ResonancePlayground({
   const next=clamp(Math.round(n)||10,10,500);
   setInitialBudget(next);setTreasury(next);setPawns([]);
   setHome([]);setReturnSeal(null);setNextSeal(1);
-  setCompletedRequests(0);
-  setPreviewKey(null);setMoveFrom(null);setLastEvent("");
+  setCompletedRequests(0);setLedger([]);
+  setBaseline({key:requestKey,pawns:[]});
+  setPreviewKey(null);setMoveFrom(null);setClaimed(false);
+  setLastEvent("Nuova prova: saldo e baseline ripristinati.");
+ };
+ const changeEconomyMode=(mode:ResonanceEconomyMode)=>{
+  if(mode===economyMode)return;
+  // Switching during a run would allow choosing the most favorable payout
+  // on every commission; reset the scenario for comparable experiments.
+  setEconomyMode(mode);setTreasury(initialBudget);
+  setPawns([]);setHome([]);setNextSeal(1);setReturnSeal(null);
+  setCompletedRequests(0);setLedger([]);setDanceInfo(null);
+  setBaseline({key:requestKey,pawns:[]});
+  setClaimed(false);setPreviewKey(null);setHoverKey(null);
+  setMoveFrom(null);
+  setLastEvent("Economia "+RESONANCE_ECONOMY_LABELS[mode]+
+   ": prova riavviata sul Mutatron corrente.");
  };
  const selectHint=(tile:KaleidoTile)=>{
   setNumber(tile.number);setPaletteRow(tile.paletteRow);setPaletteCol(tile.paletteCol);
   setMoveFrom(null);setReturnSeal(null);setPreviewKey(tile.key);
  };
  const advance=(submit:boolean)=>{
-  if(claimed)return;
-  // No fees: Mutatron Evolve and Polytron movements conserve energy.
-  const reward=submit?currentReward:0;
-  if(reward)setTreasury(old=>old+reward);
+  if(claimed||!baselineReady||(submit&&!settlement.canPresent))return;
+  // Only commission settlement changes the treasury. All Polytrons keep
+  // their intrinsic ENERGY through both presentations and the Dance.
+  const change=submit?currentReward:0;
+  if(submit){
+   if(change!==0)setTreasury(old=>old+change);
+   setCompletedRequests(old=>old+1);
+   setLedger(old=>[...old,{
+    model:economyMode,generation:layout.params.generation,
+    before:treasury,after:treasury+change,change,
+    startingQuality:baselineQuality,finalQuality:planned.quality
+   }]);
+  }
   setClaimed(true);
-  if(submit)setCompletedRequests(old=>old+1);
   setLastEvent((submit?"Risposta presentata":"Evolve libero")+
-   ": "+(submit?"ricompensa +"+reward+" E. ":"nessun costo. ")+
-   "I Polytroni conservano energia e partirà la Dance.");
+   ": "+(submit?"variazione "+signedEnergy(change)+". ":
+    "nessun accredito o addebito. ")+
+   "I Polytroni conservano energia; ora parte la Dance.");
   setHoverKey(null);setPreviewKey(null);setMoveFrom(null);
   onEvolve();
  };
