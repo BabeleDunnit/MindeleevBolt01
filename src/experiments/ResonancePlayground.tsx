@@ -824,11 +824,10 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
      <button type="button" onClick={reset}>Tutti a Home</button>
     </div>
    </section>
-  </aside>
-  <section className="kaleido-control-block resonance-analysis">
-    <h2>Difficulty Analyzer</h2>
-    <p>Stima la qualità ottenibile con budget differenti, cercando
-     collocazioni convenienti per questo specifico caleidoscopio.</p>
+   <section className="kaleido-control-block resonance-analysis resonance-analysis-summary">
+    <h2>Difficulty Analyzer · Sintesi</h2>
+    <p>Qualità raggiungibile, capacità e difficoltà stimata.
+     Le analisi sono euristiche, non ottimi garantiti.</p>
     <p className="resonance-analysis-status" aria-live="polite">
      {analyzerState||"Stima euristica pronta"}
     </p>
@@ -844,12 +843,6 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
        <strong>{difficulty.estimatedEnergy70===null?"Non trovato":
         difficulty.estimatedEnergy70+" E"}</strong></div>
      </div>
-     <ResonanceEconomicsPanel
-      report={difficulty} selectedId={selectedScenarioId}
-      showPlan={showPlan} onSelect={id=>{
-       setSelectedScenarioId(id);setShowPlan(true);
-      }}
-      onToggle={setShowPlan} cells={valid}/>
      <div className="resonance-analysis-detail">
       {difficulty.structural.orbits} orbite occupate ·
       {" "}{difficulty.structural.palettes} palette ·
@@ -858,25 +851,49 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
       {" "}{difficulty.structural.edges} archi.
      </div>
      {difficulty.nextMove&&<div className="resonance-suggest">
-      <p>Possibile prossima mossa: manifestazione {difficulty.nextMove.number}
+      <p>Prossima mossa suggerita: manifestazione {difficulty.nextMove.number}
        {" "}in {fromLabel(valid.get(difficulty.nextMove.key)!)}.
-       {" "}Corrispondenza prevista {fmt(difficulty.nextMoveQuality??0)}%.
-       {" "}Ricavo aggiuntivo
-       {" "}{difficulty.nextMoveRewardGain!==null&&difficulty.nextMoveRewardGain>0?"+":""}
+       {" "}Qualità prevista {fmt(difficulty.nextMoveQuality??0)}%;
+       {" "}Δ premio {difficulty.nextMoveRewardGain!==null&&
+         difficulty.nextMoveRewardGain>0?"+":""}
        {difficulty.nextMoveRewardGain} E;
-       {" "}Energia impegnata {difficulty.nextMoveEnergy} E;
-       {" "}resa {difficulty.nextMoveYield?.toFixed(2)} E per E.</p>
+       {" "}impegno {difficulty.nextMoveEnergy} E;
+       {" "}resa {difficulty.nextMoveYield?.toFixed(2)} E/E.</p>
       <button type="button" onClick={suggest}
        disabled={occupiedEnergy+resonanceEnergy(difficulty.nextMove.number)>treasury}>
        Prepara la mossa suggerita</button>
      </div>}
     </>}
-    <p className="resonance-method-note">
-     Metodo: ricerca greedy limitata, non ottimo matematico garantito.
-     Le configurazioni sono esempi fattibili, non tutte le possibilità.
-     L’energia minima e la difficoltà sono stime euristiche.
-     Non esistono costi di acquisto, mantenimento o evoluzione.
-    </p>
    </section>
+   {difficulty&&<>
+    <section className="kaleido-control-block resonance-analysis resonance-analysis-strategies">
+     <h2>Difficulty Analyzer · Strategie</h2>
+     <ResonanceEconomicsPanel section="strategies"
+      report={difficulty} selectedId={selectedScenarioId}
+      showPlan={showPlan} onSelect={id=>{
+       setSelectedScenarioId(id);setShowPlan(true);
+      }}
+      onToggle={setShowPlan} cells={valid}/>
+    </section>
+    <section className="kaleido-control-block resonance-analysis resonance-analysis-frontier">
+     <h2>Difficulty Analyzer · Frontiera energetica</h2>
+     <ResonanceEconomicsPanel section="frontier"
+      report={difficulty} selectedId={selectedScenarioId}
+      showPlan={showPlan} onSelect={id=>{
+       setSelectedScenarioId(id);setShowPlan(true);
+      }}
+      onToggle={setShowPlan} cells={valid}/>
+    </section>
+    <section className="kaleido-control-block resonance-analysis resonance-analysis-risks">
+     <h2>Difficulty Analyzer · Rischi e mosse sfavorevoli</h2>
+     <ResonanceEconomicsPanel section="risks"
+      report={difficulty} selectedId={selectedScenarioId}
+      showPlan={showPlan} onSelect={id=>{
+       setSelectedScenarioId(id);setShowPlan(true);
+      }}
+      onToggle={setShowPlan} cells={valid}/>
+    </section>
+   </>}
+  </aside>
  </div>;
 }
