@@ -13,7 +13,7 @@ async function load(path,name){
  return import(pathToFileURL(outfile).href);
 }
 try{
- const [k,r,d,names,numbers,dance,calibration,review,reviewStorage,explorer,explorerArchive]=await Promise.all([
+ const [k,r,d,names,numbers,dance,calibration,review,reviewStorage,explorer,explorerArchive,economy]=await Promise.all([
   load("src/polytron/kaleidoscopeGenerator.ts","generator"),
   load("src/polytron/resonanceField.ts","resonance"),
   load("src/polytron/resonanceDifficulty.ts","difficulty"),
@@ -24,7 +24,8 @@ try{
   load("src/polytron/resonanceReviewCases.ts","review"),
   load("src/polytron/resonanceReviewStorage.ts","review-storage"),
   load("src/polytron/resonanceCompositionExplorer.ts","explorer"),
-  load("src/polytron/resonanceExplorerArchive.ts","explorer-archive")
+  load("src/polytron/resonanceExplorerArchive.ts","explorer-archive"),
+  load("src/polytron/resonanceEconomyModels.ts","commission-economy")
  ]);
  // Calibration presets are ordinary generator recipes; baseline counts
  // and placement availability must not drift when the game evolves.
@@ -208,6 +209,84 @@ try{
  assert(!samplerSource.includes("scoreResonance(")&&
   !samplerSource.includes("evaluateResonance("),
   "Sample selection must remain independent of current scoring");
+
+
+ // Three model economics: old reward is preserved, new ones are signed.
+ // Energy committed to existing Polytrons is never spent or confiscated.
+ assert.deepEqual(economy.RESONANCE_ECONOMY_MODE_IDS,
+  ["current","threshold","improvement"]);
+ assert.equal(economy.ECONOMY_THRESHOLD_QUALITY,50);
+ for(const preset of calibration.RESONANCE_CALIBRATION_PRESETS){
+  const q=k.generateKaleidoscope({...preset.params,generation:0});
+  const max=r.resonanceReward(q,100);
+  for(const quality of [0,5,21.5,50,69.7,100]){
+   assert.equal(
+    economy.commissionEnergyChange(q,"current",quality,15),
+    r.resonanceReward(q,quality),
+    "Original commission reward must remain completely unchanged");
+   assert.equal(
+    economy.commissionEnergyChange(q,"improvement",quality,quality),
+    0,"No action must never yield a passive improvement payout");
+  }
+  assert.equal(economy.commissionEnergyChange(q,"threshold",50,90),0);
+  assert(economy.commissionEnergyChange(q,"threshold",0,30)<0,
+   "A bad commission must be able to lose ENERGY");
+  assert(economy.commissionEnergyChange(q,"threshold",100,30)>0);
+  assert.equal(economy.commissionEnergyChange(q,"improvement",50,50),0);
+  assert(economy.commissionEnergyChange(q,"improvement",35,50)<0);
+  assert(economy.commissionEnergyChange(q,"improvement",65,50)>0);
+  // Opposite quality deltas have equal and opposite integer settlements.
+  const plus=economy.commissionEnergyChange(q,"improvement",63,43);
+  const minus=economy.commissionEnergyChange(q,"improvement",43,63);
+  assert.equal(plus,-minus);
+  assert(Math.abs(plus)<=max);
+ }
+ let settled=economy.planResonanceSettlement(48,46,-5);
+ assert.equal(settled.free,2);
+ assert.equal(settled.canPresent,false);
+ assert.equal(settled.shortage,3);
+ assert.equal(settled.afterTreasury,null);
+ settled=economy.planResonanceSettlement(48,39,-5);
+ assert.equal(settled.canPresent,true);
+ assert.equal(settled.afterTreasury,43);
+ assert.equal(settled.afterFree,4);
+ assert.equal(settled.afterTreasury-settled.committed,settled.afterFree);
+ settled=economy.planResonanceSettlement(48,48,0);
+ assert.equal(settled.canPresent,true);
+ assert.equal(settled.afterFree,0);
+ settled=economy.planResonanceSettlement(48,48,10);
+ assert.equal(settled.afterTreasury,58);
+ assert.equal(settled.afterFree,10);
+ assert.throws(()=>economy.planResonanceSettlement(20,21,0),
+  /Invalid Resonance/);
+ assert.throws(()=>economy.planResonanceSettlement(20,10,-1.5),
+  /Invalid Resonance/);
+ assert.throws(()=>economy.commissionEnergyChange(
+  k.generateKaleidoscope({
+   radius:2,family:"metatron",symmetry:"D6",seed:7,generation:0
+  }),"bogus",60,20
+ ),/Unknown Resonance economy mode/);
+ // After the new request and Dance, use that actual arrangement as baseline.
+ const q0=k.generateKaleidoscope({
+  radius:3,family:"crystal",symmetry:"C3",seed:8,generation:0
+ });
+ const occupiedForDance=q0.tiles.slice(0,3).map(tile=>({
+  key:tile.key,number:tile.number,
+  paletteRow:tile.paletteRow,paletteCol:tile.paletteCol
+ }));
+ const q1=k.generateKaleidoscope({...q0.params,generation:1},q0);
+ const moved=dance.polytronDance(q1,occupiedForDance,{reach:2});
+ const received=r.scoreResonance(q1,moved.pawns,{reach:2}).quality;
+ assert.equal(economy.commissionEnergyChange(
+  q1,"improvement",received,received),0,
+  "Post-Dance starting board must earn nothing without player changes");
+ // A reach change cannot by itself create a reward if the baseline is
+ // recalculated from frozen actual starting pawns at the same reach.
+ for(const reach of [1,2,3]){
+  const starting=r.scoreResonance(q1,moved.pawns,{reach}).quality;
+  assert.equal(economy.commissionEnergyChange(
+   q1,"improvement",starting,starting),0);
+ }
 
  const layout=k.generateKaleidoscope({
   radius:2,family:"metatron",symmetry:"C2",seed:137,generation:0
@@ -452,6 +531,26 @@ try{
   css.includes("resonance-calibration-rings"),
   "Density diagnostics should use compact responsive sidebar styles");
  assert(ui.includes("new Worker(")&&ui.includes("resonanceDifficulty.worker.ts"));
+ assert(ui.includes('id="resonance-economy-mode"')&&
+  ui.includes("RESONANCE_ECONOMY_MODE_IDS.map")&&
+  ui.includes("changeEconomyMode(")&&
+  ui.includes("setTreasury(initialBudget)")&&
+  ui.includes("setCompletedRequests(0);setLedger([])")&&
+  ui.includes('setBaseline({key:requestKey,pawns:result.pawns.map(p=>({...p}))})')&&
+  ui.includes("scoreResonance(layout,baseline.pawns,settings)")&&
+  ui.includes("planResonanceSettlement(")&&
+  ui.includes("!settlement.canPresent")&&
+  ui.includes("setTreasury(old=>old+change)")&&
+  ui.includes("signedEnergy(currentReward)")&&
+  ui.includes("Storico delle commissioni"),
+  "Models must have signed actual settlements, post-Dance baseline and history");
+ assert(!ui.includes("if(reward)setTreasury(old=>old+reward)"),
+  "Do not retain legacy-only positive payout logic");
+ assert(analyzer.includes("commissionEnergyChange(")&&
+  analyzer.includes("mode:ResonanceEconomyMode")&&
+  analyzer.includes("solver propone ancora le stesse strategie")&&
+  css.includes(".resonance-economy-comparison"),
+  "Difficulty Analyzer must show the active signed model without claiming optimization");
  assert(ui.includes("Risonanza locale")&&ui.includes("Armonia strutturale")&&
   ui.includes("Portata di risonanza")&&ui.includes("visual.graphResults.map"));
  assert(ui.includes("activeHint=candidate?tileByKey.get(candidate.key):undefined")&&
