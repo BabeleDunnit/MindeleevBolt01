@@ -90,3 +90,29 @@
  .resonance-econ-scenario{padding:10px}
  .resonance-econ-scenario.is-selected{padding:9px}
 }
+
+/* On the full-width Analyzer, present strategies and statistics as horizontal
+ * comparisons rather than five vertically stacked cards in a narrow column. */
+.resonance-lab>.resonance-analysis .resonance-econ-scenarios{
+ grid-template-columns:repeat(auto-fit,minmax(min(100%,205px),1fr));
+ gap:10px;
+}
+.resonance-lab>.resonance-analysis .resonance-econ-scenario{
+ height:100%;align-content:start;
+}
+.resonance-lab>.resonance-analysis .resonance-econ-frontier{
+ grid-template-columns:repeat(auto-fit,minmax(min(100%,235px),1fr));
+ gap:9px;
+}
+.resonance-lab>.resonance-analysis .resonance-econ-risks{
+ grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));
+ gap:9px;
+}
+.resonance-lab>.resonance-analysis .resonance-econ-copy{
+ max-width:1100px;
+}
+@media(min-width:1200px){
+ .resonance-lab>.resonance-analysis .resonance-econ-scenario{
+  padding:12px;
+ }
+}
