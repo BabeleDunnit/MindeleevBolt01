@@ -85,6 +85,12 @@ Orientamenti progettuali acquisiti nelle sessioni di ricerca:
 
 **Rischio progettuale:** massimizzare la simmetria o ridurre la ricompensa teorica **non** garantisce che l'economia del gioco rimanga in equilibrio. Evitare di confondere qualità estetica, punteggio di risonanza, ricompensa e profitto cumulativo.
 
+### Aggiornamento interfaccia — 27 novembre 2026
+
+**Implementato** nel ramo [`experiment/kaleidoscope-radius`](https://github.com/BabeleDunnit/MindeleevBolt01/tree/experiment/kaleidoscope-radius), commit [`33bf47b7759f954d910d3551b7f3da7f29fb0d73`](https://github.com/BabeleDunnit/MindeleevBolt01/commit/33bf47b7759f954d910d3551b7f3da7f29fb0d73): il Difficulty Analyzer è stato spostato dalla stretta colonna laterale a una sezione a larghezza piena; scenari, frontiera e rischi sono disposti orizzontalmente sui display larghi. I comandi per confermare/annullare piazzamenti, spostamenti e richiami sono sotto il Mutatron, accanto all'editor di Polytroni; l'anteprima viene fissata con un clic sul target prima della conferma. Lo header espone saldo attuale, energia impegnata, premio teorico e proiezioni dopo la mossa; **il premio previsto non è energia già incassata**. [GitHub Actions 45982915422](https://github.com/BabeleDunnit/MindeleevBolt01/actions/runs/45982915422) passata, incluso il deploy. Nessuna regola economica cambiata; verifica visiva manuale ancora utile.
+
+**Design review delle regole punitive — NON approvata, NON implementata.** La funzione `resonanceReward` tronca attualmente il premio a valori `>=0`; una presentazione non può perdere ENERGY. Il Difficulty Analyzer non può trovare payoff negativi con questo modello. Tre direzioni da confrontare: **(A)** ricompense con segno e soglia calibrata alla difficoltà; **(B)** penalità per interferenza/frustrazione delle relazioni locali; **(C)** memoria/potenziale energetico limitato che impedisca il farming degli stessi stati. Un semplice premio con segno (A) o una penalità locale (B) **non garantiscono** da soli che due movimenti dopo Dance non riportino al profitto. La prossima decisione richiede un confronto del Design Team e simulazioni di cicli, conservando l'attuale assenza di costi di acquisto ed evoluzione fino a nuova decisione esplicita.
+
 ## 5. Archivio storico esistente — link, non duplicazioni
 
 - [**Protocollo del Design Team**](https://github.com/BabeleDunnit/MindeleevBolt01/blob/experiment/kaleidoscope-radius/research/DESIGN_TEAM_PROTOCOLLO.md): metodologia, ruoli e obbligo di esplicitare dissensi. Il Team è composto da **prospettive critiche simulate da ChatGPT**, non da consulenti umani/agenti indipendenti. Nominare per esteso: Architetto del Puzzle, Progettista di Sistemi Emergenti, Genetista, Psicologo del Giocatore, Fisico-Matematico, Ludologo, Compositore di Sistemi Musicali.
@@ -102,6 +108,9 @@ La presenza di un'ipotesi in una sessione storica **non** implica che sia approv
 A fine sessione significativa aggiornare il documento (tramite PR, rispettando le protezioni di `main`) con: data, branch e commit effettivo, cambiamenti realizzati, test e simulazioni eseguiti, decisioni dell'autore, limiti aperti e prossimo esperimento. Non trasformarlo in una trascrizione completa: per la storia usare gli altri documenti.
 
 ### Changelog
+
+- **2026-11-27 (revisione UI e bilancio)** — Layout orizzontale, comandi sotto plancia, forecast energetico nello header; review di tre possibili modelli punitivi registrata come aperta, senza modifiche alla contabilità.
+
 
 - **2026-11-27 (correzione)** — Segnalazione dell'autore: Dance spesso senza spostamenti, editor difficile da individuare. Corretta ricerca della Dance (per 1–2 Polytroni ricerca esaustiva su raggio piccolo, simmetria visiva, fallback dichiarato) e spostato l'editor immediatamente sotto la plancia. Ampliate le regressioni per verificare spostamenti reali e visibilità dei controlli. Ramo `experiment/kaleidoscope-radius`; verificare lo stato della CI e il deployment prima di dichiarare la modifica pubblicata.
 
