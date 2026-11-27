@@ -278,7 +278,7 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
   if(submit)setCompletedRequests(old=>old+1);
   setLastEvent((submit?"Risposta presentata":"Evolve libero")+
    ": "+(submit?"ricompensa +"+reward+" E. ":"nessun costo. ")+
-   "I Polytroni conservano energia e posizione.");
+   "I Polytroni conservano energia e partirà la Dance.");
   setHoverKey(null);setPreviewKey(null);setMoveFrom(null);
   onEvolve();
  };
@@ -301,7 +301,7 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
  return <div className="kaleido-layout resonance-lab">
   <section className="kaleido-stage">
    <div className="resonance-stage-head">
-    <div><b>Campo di risonanza</b><small>{layout.params.family} · {layout.params.symmetry} · raggio {radius}</small></div>
+    <div><b>Campo di risonanza</b><small>{layout.params.family} · {layout.params.symmetry} · raggio {radius}</small>{selectedPawn&&<small>Selezionato #{selectedPawn.seal} · editor sotto la plancia</small>}</div>
     <div className="resonance-head-score">
      <strong>{fmt(planned.quality)}%</strong>
      {preview&&<span className={scoreDelta>=0?"resonance-positive":"resonance-negative"}>
@@ -453,8 +453,45 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
    </div>
    <div className="resonance-stage-foot">
     <span><b>{pawns.length}</b> Polytroni reali · <b>{layout.tiles.length}</b> indizi</span>
-    <span>Per posizionare: tocca una cella, controlla l'anteprima, conferma.</span>
+    <span>{selectedPawn?
+     "Selezionato #"+selectedPawn.seal+": modifica gruppo, periodo o numero qui sotto.":
+     "Per posizionare: tocca una cella, controlla l'anteprima, conferma."}</span>
    </div>
+    {selectedPawn&&<div className="resonance-edit-panel resonance-board-editor" id="resonance-board-editor" aria-label="Modifica Polytrone selezionato">
+     <div className="resonance-edit-heading">
+      <h3>Modifica Polytrone #{selectedPawn.seal} · {selectedPawn.name}</h3>
+      <button type="button" onClick={cancelPending} aria-label="Chiudi editor Polytrone">Chiudi</button>
+     </div>
+     <p>La nuova manifestazione aggiorna energia impegnata, risonanza e
+      valutazione. L’identità del Polytrone rimane invariata.</p>
+     <div className="resonance-edit-grid">
+      <label>Gruppo
+       <select value={groupOf(editNumber)} onChange={e=>
+        setEditNumber((periodOf(editNumber)-1)*5+Number(e.target.value))}>
+        {GROUP_LABELS.map((g,i)=><option value={i+1} key={g}>
+         {GROUP_CODES[i]} · {g}</option>)}
+       </select></label>
+      <label>Periodo
+       <select value={periodOf(editNumber)} onChange={e=>
+        setEditNumber((Number(e.target.value)-1)*5+groupOf(editNumber))}>
+        {Array.from({length:100},(_,i)=><option key={i} value={i+1}>
+         {i+1}</option>)}
+       </select></label>
+      <label>Numero polytronico
+       <input type="number" min="1" max="500" value={editNumber}
+        onChange={e=>setEditNumber(clamp(Math.floor(Number(e.target.value)||1),1,500))}/>
+      </label>
+     </div>
+     <p>Energia {previousEnergy} → <strong>{editedEnergy} E</strong>
+      {" · "}Plancia {committedEnergy} →
+      {" "}{committedEnergy-previousEnergy+editedEnergy} / {treasury} E
+      {" · "}Qualità {fmt(planned.quality)} → {fmt(editedScore?.quality??planned.quality)}%</p>
+     {!editFits&&<p className="resonance-warning">Energia disponibile insufficiente:
+      scegli una manifestazione meno energetica.</p>}
+     <button type="button" className="resonance-confirm"
+      disabled={!editFits||editNumber===selectedPawn.number}
+      onClick={applyEdit}>Conferma modifica di #{selectedPawn.seal}</button>
+    </div>}
    <div className="resonance-legend">
     <span><i className="resonance-legend-dot is-hint"/>Indizio</span>
     <span><i className="resonance-legend-dot is-player"/>In plancia</span>
@@ -506,19 +543,19 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
        aria-label="Energia iniziale, resetta la composizione"/></label>
      <div><small>Energia in plancia</small><b>{occupiedEnergy} E</b><small>Libera: {freeEnergy} E</small></div>
     </div>
-    <div className="resonance-field-row">
+    {!selectedPawn&&<div className="resonance-field-row">
      <label htmlFor="resonance-number">Manifestazione · Nº polytronico</label>
      <input id="resonance-number" type="number" min="1" max="500"
       value={number} disabled={moveFrom!==null||fromHome!==null}
       onChange={e=>setNumber(clamp(Math.floor(Number(e.target.value)||1),1,500))}/>
-    </div>
-    <div className="resonance-shortcuts">
+    </div>}
+    {!selectedPawn&&<div className="resonance-shortcuts">
      {[1,2,3,4,5].map(n=><button key={n} type="button"
       disabled={moveFrom!==null||fromHome!==null}
       className={number===n?"active":""} onClick={()=>setNumber(n)}>
       {GROUP_CODES[n-1]} · {n}</button>)}
-    </div>
-    <div className="resonance-palette-selects">
+    </div>}
+    {!selectedPawn&&<div className="resonance-palette-selects">
      <label>Colore iniziale
       <select value={paletteRow} disabled={moveFrom!==null||fromHome!==null}
        onChange={e=>setPaletteRow(Number(e.target.value))}>
@@ -531,7 +568,8 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
        {GREEK_DESTINATIONS.map((c,i)=><option key={c.id} value={i}>
         {c.name}</option>)}
       </select></label>
-    </div>
+    </div>}
+    {selectedPawn&&<p className="resonance-selected-guidance">Selezionato <strong>#{selectedPawn.seal} · {selectedPawn.name}</strong>. Puoi modificarne il numero, il gruppo e il periodo nel pannello subito sotto il Mutatron; oppure selezionare una casella libera per spostarlo.</p>}
     {pawns.length>0&&<div className="resonance-owned-list">
      <span className="resonance-small-title">Polytroni conosciuti</span>
      {pawns.map(p=><button type="button" key={p.seal}
@@ -554,12 +592,12 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
       <span>manifestazione {p.number} · energia intatta {resonanceEnergy(p.number)} E</span>
      </button>)}
     </div>}
-    <p className="resonance-cost-line">
+    {!selectedPawn&&<p className="resonance-cost-line">
      Energia intrinseca <strong>{resonanceEnergy(number)} E</strong> ·
      Gruppo {GROUP_CODES[groupOf(number)-1]} · Periodo {periodOf(number)}
      {" · "}<a href={BASE+"?experiment=polytron-periodic&polytron="+number}>
       Apri nella Tavola ↗</a>
-    </p>
+    </p>}
     <span className="resonance-small-title">Palette richieste più frequenti</span>
     <div className="resonance-palette-swatches">
      {targetPalettes.map(p=>{
@@ -656,38 +694,6 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
      </>:
      <p>Tocca o sorvola una cella libera per vedere dove arrivano le influenze,
       quanto cresce la corrispondenza e quanta energia resta libera.</p>}
-    {selectedPawn&&<div className="resonance-edit-panel">
-     <h3>Modifica #{selectedPawn.seal} · {selectedPawn.name}</h3>
-     <p>La nuova manifestazione aggiorna energia impegnata, risonanza e
-      valutazione. L’identità del Polytrone rimane invariata.</p>
-     <div className="resonance-edit-grid">
-      <label>Gruppo
-       <select value={groupOf(editNumber)} onChange={e=>
-        setEditNumber((periodOf(editNumber)-1)*5+Number(e.target.value))}>
-        {GROUP_LABELS.map((g,i)=><option value={i+1} key={g}>
-         {GROUP_CODES[i]} · {g}</option>)}
-       </select></label>
-      <label>Periodo
-       <select value={periodOf(editNumber)} onChange={e=>
-        setEditNumber((Number(e.target.value)-1)*5+groupOf(editNumber))}>
-        {Array.from({length:100},(_,i)=><option key={i} value={i+1}>
-         {i+1}</option>)}
-       </select></label>
-      <label>Numero polytronico
-       <input type="number" min="1" max="500" value={editNumber}
-        onChange={e=>setEditNumber(clamp(Math.floor(Number(e.target.value)||1),1,500))}/>
-      </label>
-     </div>
-     <p>Energia {previousEnergy} → <strong>{editedEnergy} E</strong>
-      {" · "}Plancia {committedEnergy} →
-      {" "}{committedEnergy-previousEnergy+editedEnergy} / {treasury} E
-      {" · "}Qualità {fmt(planned.quality)} → {fmt(editedScore?.quality??planned.quality)}%</p>
-     {!editFits&&<p className="resonance-warning">Energia disponibile insufficiente:
-      scegli una manifestazione meno energetica.</p>}
-     <button type="button" className="resonance-confirm"
-      disabled={!editFits||editNumber===selectedPawn.number}
-      onClick={applyEdit}>Conferma modifica</button>
-    </div>}
     {selectedPawn&&<div className="resonance-sell-row">
      <span>#{selectedPawn.seal} · {selectedPawn.name} · manifestazione {selectedPawn.number} ·
       energia conservata {resonanceEnergy(selectedPawn.number)} E</span>
@@ -749,12 +755,18 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
      disabled={claimed} onClick={claim}>
      Presenta al Mutatron · +{currentReward} E ed Evolve</button>
     <p>Ogni commissione può essere presentata una sola volta.
-     Dopo Evolve i Polytroni danzano verso una disposizione più simmetrica,
-     senza guadagni di ricompensa dovuti alla Dance.</p>
-    {danceInfo&&<p className="resonance-action-message">
-     Ultima Dance: {danceInfo.moved} spostamenti · simmetria
-     {" "}{fmt(danceInfo.beforeSymmetry)}% → {fmt(danceInfo.afterSymmetry)}% ·
-     {" "}Δ ricompensa {danceInfo.afterReward-danceInfo.beforeReward} E.
+     Evolve avvia la Polytron Dance, che conserva l’energia e cerca
+     configurazioni simmetriche con resa prevista non positiva.</p>
+    {danceInfo&&<p className="resonance-action-message" role="status">
+     Ultima Polytron Dance: <strong>{danceInfo.moved} spostamenti</strong> ·
+     simmetria visiva {fmt(danceInfo.beforeVisualSymmetry)}% →
+     {" "}{fmt(danceInfo.afterVisualSymmetry)}% ·
+     {" "}Δ ricompensa prevista {danceInfo.afterReward-danceInfo.beforeReward} E.
+     {danceInfo.status==="fallback"&&
+      " Nessun candidato ha rispettato completamente il vincolo di resa: il movimento resta gratuito, ma la ricompensa teorica è fuori obiettivo."}
+     {danceInfo.status==="relaxed"&&
+      " Nessuna disposizione entro −1 E trovata: movimento più sfavorevole."}
+     {danceInfo.moved===0&&" Nessun movimento ammissibile trovato."}
     </p>}
     <div className="resonance-two-actions">
      <button type="button" disabled={claimed} onClick={()=>advance(false)}>
