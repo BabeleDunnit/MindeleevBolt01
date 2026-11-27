@@ -142,6 +142,12 @@ Orientamenti progettuali acquisiti nelle sessioni di ricerca:
 
 **Metodo per le prossime sessioni:** raccogliere *preferenze su risposte reali e loro variazioni*, includendo esempi in cui entrambe le alternative sono interessanti o nessuna convince. Successivamente esaminare quali relazioni (Eco, Continuità, Interferenza, equilibrio, Pathos, ecc.) siano effettivamente riconoscibili; solo allora confrontare modello esplicito, eventuale piccolo valutatore appreso e modello ibrido su richieste/seme mai visti. Conservare generatore artistico, valutatore corrente, Difficulty Analyzer, bilancio ENERGY, Dance e RC01 **senza variazioni** in questa fase.
 
+### Leggibilità: rotazione dei Polytroni nell'Explorer — 27 novembre 2026
+
+**Segnalazione dell'autore:** quando un Polytrone solido si sovrappone a un tile-indizio con la stessa palette, la distinzione visiva è difficile.
+
+**Soluzione sperimentale** nel ramo [experiment/kaleidoscope-radius](https://github.com/BabeleDunnit/MindeleevBolt01/tree/experiment/kaleidoscope-radius), commit [0bfd5a3](https://github.com/BabeleDunnit/MindeleevBolt01/commit/0bfd5a3ae3e1afbd283a3073c71a122306dbfd0d): **abilitare soltanto nella modalità «Esplora e confronta» la rotazione 3D già prevista dal renderer condiviso** per i Polytroni delle risposte. I tile-indizio del Mutatron restano in proiezione flat-Z, fermi e con la **palette originale invariata**. Opzione «Ruota i Polytroni» per fermare/riattivare l'animazione; al primo avvio viene rispettata la preferenza di sistema per movimento ridotto. La rotazione viene disattivata automaticamente fuori dall'Explorer. Nessun aggiornamento al generatore artistico, ai punteggi, al Difficulty Analyzer, alla Dance o alla logica ENERGY. [Workflow di verifica](https://github.com/BabeleDunnit/MindeleevBolt01/actions/runs/46048261225); verifica visiva sul proprio device consigliata.
+
 **Design review delle regole punitive — NON approvata, NON implementata.** La funzione `resonanceReward` tronca attualmente il premio a valori `>=0`; una presentazione non può perdere ENERGY. Il Difficulty Analyzer non può trovare payoff negativi con questo modello. Tre direzioni da confrontare: **(A)** ricompense con segno e soglia calibrata alla difficoltà; **(B)** penalità per interferenza/frustrazione delle relazioni locali; **(C)** memoria/potenziale energetico limitato che impedisca il farming degli stessi stati. Un semplice premio con segno (A) o una penalità locale (B) **non garantiscono** da soli che due movimenti dopo Dance non riportino al profitto. La prossima decisione richiede un confronto del Design Team e simulazioni di cicli, conservando l'attuale assenza di costi di acquisto ed evoluzione fino a nuova decisione esplicita.
 
 ## 5. Archivio storico esistente — link, non duplicazioni
@@ -161,6 +167,10 @@ La presenza di un'ipotesi in una sessione storica **non** implica che sia approv
 A fine sessione significativa aggiornare il documento (tramite PR, rispettando le protezioni di `main`) con: data, branch e commit effettivo, cambiamenti realizzati, test e simulazioni eseguiti, decisioni dell'autore, limiti aperti e prossimo esperimento. Non trasformarlo in una trascrizione completa: per la storia usare gli altri documenti.
 
 ### Changelog
+
+- **2026-11-27 (leggibilità Explorer)** — Polytroni delle risposte in lenta rotazione solo nella modalità Explorer, con toggle e rispetto del movimento ridotto; indizi flat-Z fermi, palette invariata. Nessuna modifica alle regole.
+
+
 
 - **2026-11-27 (nuovo Explorer)** — Dopo 15 votazioni v1 insufficientemente informative, introdotta una modalità «Esplora e confronta» con composizioni complesse modificabili, sette morfologie non selezionate dallo scoring, preferenze A/B, raccolta delle favorite e archivio locale v2 separato. Generatore, scorer, Analyzer, Dance ed economia invariati.
 
