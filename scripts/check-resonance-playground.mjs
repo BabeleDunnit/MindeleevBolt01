@@ -13,14 +13,16 @@ async function load(path,name){
  return import(pathToFileURL(outfile).href);
 }
 try{
- const [k,r,d,names,numbers,dance,calibration]=await Promise.all([
+ const [k,r,d,names,numbers,dance,calibration,review,reviewStorage]=await Promise.all([
   load("src/polytron/kaleidoscopeGenerator.ts","generator"),
   load("src/polytron/resonanceField.ts","resonance"),
   load("src/polytron/resonanceDifficulty.ts","difficulty"),
   load("src/polytron/spectralFutures.ts","names"),
   load("src/polytron/politronicNumber.ts","numbers"),
   load("src/polytron/polytronDance.ts","dance"),
-  load("src/polytron/resonanceCalibration.ts","calibration")
+  load("src/polytron/resonanceCalibration.ts","calibration"),
+  load("src/polytron/resonanceReviewCases.ts","review"),
+  load("src/polytron/resonanceReviewStorage.ts","review-storage")
  ]);
  // Calibration presets are ordinary generator recipes; baseline counts
  // and placement availability must not drift when the game evolves.
@@ -30,10 +32,13 @@ try{
   ["C",3,"crystal","D6",5,18,36],
   ["D",3,"crystal","D6",1,36,36],
   ["E",5,"rosette","D6",55,36,90],
-  ["F",5,"rosette","D6",17,90,90]
+  ["F",5,"rosette","D6",17,90,90],
+  ["G",3,"crystal","C6",5,24,36],
+  ["H",3,"crystal","C3",5,24,36],
+  ["I",3,"crystal","C2",5,26,36]
  ];
  assert.deepEqual(calibration.RESONANCE_CALIBRATION_PRESETS.map(p=>p.id),
-  ["A","B","C","D","E","F"]);
+  ["A","B","C","D","E","F","G","H","I"]);
  for(const [id,radius,family,symmetry,seed,hints,slots] of presetExpectations){
   const preset=calibration.RESONANCE_CALIBRATION_PRESETS.find(p=>p.id===id);
   assert(preset);
@@ -72,7 +77,43 @@ try{
   assert.equal(calibration.calibrationPresetFor(evolved.params).id,id,
    "The benchmark's recipe identity must survive ordinary Evolve");
   assert.equal(evolved.params.generation,1);
+  const responses=review.buildResonanceReviewAnswers(target);
+  assert.deepEqual(responses.map(a=>a.id),["1","2","3","4"]);
+  assert.equal(new Set(responses.map(a=>a.pawns.map(p=>p.key).join("|"))).size,3,
+   "Responses 1 and 4 deliberately share placement geometry");
+  const baselineEnergy=responses[0].pawns.reduce(
+   (total,p)=>total+r.resonanceEnergy(p.number),0);
+  for(const sample of responses){
+   assert.equal(sample.pawns.length,3,"Human review uses three pieces");
+   assert.equal(new Set(sample.pawns.map(p=>p.key)).size,3);
+   assert.equal(sample.pawns.reduce(
+    (total,p)=>total+r.resonanceEnergy(p.number),0),baselineEnergy,
+    "Comparison must use the same energy for every response");
+   assert(sample.pawns.every(p=>target.cells.some(c=>c.key===p.key&&c.ring>0)));
+   assert(Number.isFinite(r.evaluateResonance(target,sample.pawns).quality));
+   assert.equal(review.reviewCaseId(id,sample.id),id+"-"+sample.id);
+  }
+  assert.deepEqual(responses[0].pawns.map(p=>p.key),
+   responses[3].pawns.map(p=>p.key));
+  assert(responses[3].pawns.some(p=>
+   p.paletteRow!==responses[0].pawns[0].paletteRow),
+   "Answer 4 isolates palette from placement");
  }
+ const reviewArchive=reviewStorage.makeResonanceReviewArchive({
+  "A-1":{beauty:0,fit:10,note:"prova",savedAt:"2026-11-27T18:00:00.000Z"},
+  "I-4":{beauty:7,fit:null,note:"non so",savedAt:"2026-11-27T18:00:00.000Z"}
+ });
+ assert.deepEqual(reviewStorage.parseResonanceReviewArchive(
+  JSON.parse(JSON.stringify(reviewArchive))),reviewArchive);
+ assert.throws(()=>reviewStorage.parseResonanceReviewArchive({
+  ...reviewArchive,version:2
+ }),/versione 1/);
+ assert.throws(()=>reviewStorage.parseResonanceReviewArchive({
+  ...reviewArchive,ratings:{"A-1":{...reviewArchive.ratings["A-1"],beauty:12}}
+ }),/Gradevolezza/);
+ assert.throws(()=>reviewStorage.parseResonanceReviewArchive({
+  ...reviewArchive,ratings:{"J-2":reviewArchive.ratings["A-1"]}
+ }),/sconosciuto/);
 
  const layout=k.generateKaleidoscope({
   radius:2,family:"metatron",symmetry:"C2",seed:137,generation:0
@@ -238,6 +279,27 @@ try{
  const css=await readFile("src/experiments/ResonancePlayground.css","utf8");
  const analyzer=await readFile("src/experiments/ResonanceEconomicsPanel.tsx","utf8");
  const renderer=await readFile("src/experiments/PolytronPeriodicLab.tsx","utf8");
+ const reviewUi=await readFile("src/experiments/ResonanceReviewLab.tsx","utf8");
+ const reviewCss=await readFile("src/experiments/ResonanceReviewLab.css","utf8");
+ assert(entry.includes('onClick={()=>setMode("review")}')&&
+  entry.includes('mode==="review"&&<ResonanceReviewLab/>')&&
+  entry.includes('requested==="resonance"||requested==="review"'),
+  "Review must be a third tab, without removing generator or Playground");
+ assert(reviewUi.includes("localStorage")&&
+  reviewUi.includes("writeLocalRatings")&&
+  reviewUi.includes("Esporta JSON")&&reviewUi.includes("Importa JSON")&&
+  reviewUi.includes("parseResonanceReviewArchive")&&
+  reviewUi.includes("Non riesco ancora a giudicare")&&
+  reviewUi.includes("Gradevolezza")&&reviewUi.includes("Appropriatezza")&&
+  reviewUi.includes("Il punteggio calcolato dall'algoritmo è nascosto")&&
+  reviewUi.includes("disabled={!saved||dirty}"),
+  "Private two-axis blind human review requires saving, export and import");
+ assert(reviewCss.includes(".review-boards")&&
+  reviewCss.includes(".review-rating-buttons")&&
+  reviewUi.includes('data-view-kind="flat-z"')&&
+  reviewUi.includes('data-view-kind="solid"'),
+  "Use authentic original 3D and flat tile views for request/response");
+
  assert(entry.includes("<ResonancePlayground key={calibrationSession} layout={layout}")&&
   entry.includes("setLayout(generateKaleidoscope({...preset.params,generation:0}))")&&
   entry.includes("setCalibrationSession(old=>old+1)"),
