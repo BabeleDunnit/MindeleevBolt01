@@ -1,6 +1,7 @@
 import {useEffect,useMemo,useState} from "react";
 import {SharedPeriodic3D} from "@/experiments/PolytronPeriodicLab";
 import ResonancePlayground from "@/experiments/ResonancePlayground";
+import type {ResonanceCalibrationPreset} from "@/polytron/resonanceCalibration";
 import {gradientPair,LATIN_SOURCES,GREEK_DESTINATIONS} from "@/polytron/gradientPalettes";
 import {rcAxial,rcPolygon} from "@/polytron/rc01Board";
 import {
@@ -45,6 +46,9 @@ function position(q:number,r:number,radius:number){
 }
 export default function KaleidoscopeLab(){
  const [layout,setLayout]=useState(()=>generateKaleidoscope(paramsFromUrl()));
+ // A preset load remounts ONLY the response lab, ensuring a clean baseline
+ // even when a user reloads the same seed at generation 0.
+ const [calibrationSession,setCalibrationSession]=useState(0);
  const [mode,setMode]=useState<"generator"|"resonance">(()=>{
   if(typeof window==="undefined")return "generator";
   return new URLSearchParams(window.location.search).get("mode")==="resonance"?
@@ -76,6 +80,13 @@ export default function KaleidoscopeLab(){
   {...old.params,generation:old.params.generation+1},old
  ));setSelectedKey(null);};
  const genesis=()=>{configure({seed:seed+1});};
+ const loadCalibrationPreset=(preset:ResonanceCalibrationPreset)=>{
+  // Same unmodified artistic generator; preset is only a recipe.
+  setLayout(generateKaleidoscope({...preset.params,generation:0}));
+  setSelectedKey(null);
+  setCalibrationSession(old=>old+1);
+  setMode("resonance");
+ };
  const tileWidth=(370/(Math.sqrt(3)*radius+1.12))*1.5/800*100;
  const focal=position(0,0,radius);
  const familyInfo=FAMILY_LABELS[family];
@@ -288,7 +299,9 @@ export default function KaleidoscopeLab(){
   </div>
   </div>
   <div style={{display:mode==="resonance"?"block":"none"}}>
-   <ResonancePlayground layout={layout} onEvolve={evolve} onGenesis={genesis}/>
+   <ResonancePlayground key={calibrationSession} layout={layout}
+    onEvolve={evolve} onGenesis={genesis}
+    onLoadPreset={loadCalibrationPreset}/>
   </div>
   <footer className="kaleido-footer">
    <strong>Esperimento autonomo, non RC02.</strong> Il generatore usa il
