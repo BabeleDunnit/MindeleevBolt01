@@ -188,7 +188,7 @@ try{
  assert(entry.includes("<ResonancePlayground layout={layout}"));
  assert(ui.includes("new Worker(")&&ui.includes("resonanceDifficulty.worker.ts"));
  assert(ui.includes("Risonanza locale")&&ui.includes("Armonia strutturale")&&
-  ui.includes("Regole di risonanza")&&ui.includes("visual.graphResults.map"));
+  ui.includes("Portata di risonanza")&&ui.includes("visual.graphResults.map"));
  assert(ui.includes("activeHint=candidate?tileByKey.get(candidate.key):undefined")&&
   ui.includes("Tile richiesto dal Mutatron")&&ui.includes("Numero polytronico")&&
   ui.includes("GROUP_LABELS[groupOf(activeHint.number)-1]"));
@@ -241,7 +241,23 @@ try{
   analyzer.includes("worseningPlacements")&&
   !analyzer.includes("Acquisti iniziali")&&
   !analyzer.includes("Costo ogni Evolve"));
+ const boardHeaderOpen=ui.indexOf('<div className="resonance-stage-head">');
+ const reachControl=ui.indexOf('id="resonance-reach"');
+ const reachLabel=ui.indexOf('htmlFor="resonance-reach"');
+ const freeMetric=ui.indexOf('<small>Energia libera</small>');
+ const committedMetric=ui.indexOf('<small>Energia impegnata in plancia</small>');
  const sidebarOpen=ui.indexOf('<aside className="kaleido-controls resonance-sidebar">');
+ assert(boardHeaderOpen>=0&&reachControl>boardHeaderOpen&&reachControl<sidebarOpen&&
+  reachLabel>boardHeaderOpen&&reachLabel<sidebarOpen,
+  "Resonance reach must be controlled from the Mutatron header");
+ assert((ui.match(/id="resonance-reach"/g)||[]).length===1&&
+  !ui.includes('resonance-rules'),
+  "Remove the old Resonance rules panel and duplicate reach dropdown");
+ assert(committedMetric>boardHeaderOpen&&committedMetric<sidebarOpen&&
+  freeMetric>committedMetric&&freeMetric<sidebarOpen&&
+  ui.includes('<strong>{freeEnergy} E')&&
+  ui.includes('forecastScore&&<em> → {forecastFree} E</em>'),
+  "Committed and free ENERGY must have equal headline status and forecasts");
  const sidebarClose=ui.indexOf('  </aside>',sidebarOpen);
  const analyzerOpen=ui.indexOf('<section className="kaleido-control-block resonance-analysis resonance-analysis-summary">');
  const strategiesOpen=ui.indexOf('resonance-analysis-strategies');
@@ -282,6 +298,14 @@ try{
   css.includes(".resonance-lab .resonance-sidebar>.resonance-analysis")&&
   !css.includes(".resonance-lab>.resonance-analysis{")&&
   css.includes("@media(max-width:530px)"));
+ assert(css.includes("column-width:270px;column-count:3")&&
+  css.includes("display:inline-block;vertical-align:top")&&
+  css.includes("break-inside:avoid-column")&&
+  css.includes("resonance-head-reach select")&&
+  !css.includes("grid-row:2 / span 2")&&
+  !css.includes("grid-row:3;")&&
+  !css.includes(".resonance-lab .resonance-sidebar{\n display:grid;"),
+  "Sidebar cards must reflow vertically rather than reserve rigid grid rows");
  const economicsCss=await readFile("src/experiments/ResonanceEconomicsPanel.css","utf8");
  assert(economicsCss.includes(".resonance-econ-scenarios")&&
   economicsCss.includes(".resonance-econ-frontier")&&
