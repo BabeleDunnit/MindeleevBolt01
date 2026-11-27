@@ -13,7 +13,7 @@ async function load(path,name){
  return import(pathToFileURL(outfile).href);
 }
 try{
- const [k,r,d,names,numbers,dance,calibration,review,reviewStorage]=await Promise.all([
+ const [k,r,d,names,numbers,dance,calibration,review,reviewStorage,explorer,explorerArchive]=await Promise.all([
   load("src/polytron/kaleidoscopeGenerator.ts","generator"),
   load("src/polytron/resonanceField.ts","resonance"),
   load("src/polytron/resonanceDifficulty.ts","difficulty"),
@@ -22,7 +22,9 @@ try{
   load("src/polytron/polytronDance.ts","dance"),
   load("src/polytron/resonanceCalibration.ts","calibration"),
   load("src/polytron/resonanceReviewCases.ts","review"),
-  load("src/polytron/resonanceReviewStorage.ts","review-storage")
+  load("src/polytron/resonanceReviewStorage.ts","review-storage"),
+  load("src/polytron/resonanceCompositionExplorer.ts","explorer"),
+  load("src/polytron/resonanceExplorerArchive.ts","explorer-archive")
  ]);
  // Calibration presets are ordinary generator recipes; baseline counts
  // and placement availability must not drift when the game evolves.
@@ -114,6 +116,98 @@ try{
  assert.throws(()=>reviewStorage.parseResonanceReviewArchive({
   ...reviewArchive,ratings:{"J-2":reviewArchive.ratings["A-1"]}
  }),/sconosciuto/);
+
+ // Independent composition sampler: varied, physically plausible, but never
+ // filtered by the current quality formula. Pairwise data is stored in v2.
+ for(const preset of calibration.RESONANCE_CALIBRATION_PRESETS){
+  const q=k.generateKaleidoscope({...preset.params,generation:0});
+  for(const size of [5,9,12,15]){
+   for(const seed of [1,17,54]){
+    const [a,b]=explorer.generateExplorerPair(q,size,seed);
+    assert(explorer.validateExplorerComposition(q,a.pawns));
+    assert(explorer.validateExplorerComposition(q,b.pawns));
+    assert.equal(a.pawns.length,size);
+    assert.equal(b.pawns.length,size);
+    const energy=pawns=>pawns.reduce(
+     (sum,p)=>sum+r.resonanceEnergy(p.number),0);
+    assert.equal(energy(a.pawns),energy(b.pawns),
+     "Controlled geometry pair must use an identical inventory");
+    assert.deepEqual(explorer.generateExplorerPair(q,size,seed),[a,b],
+     "Composition generation must be reproducible");
+    assert(a.pawns.some((p,i)=>p.key!==b.pawns[i].key),
+     "Initial pair should not repeat the same geometric pattern");
+    assert(Number.isFinite(r.scoreResonance(q,a.pawns).quality));
+    const geometry=explorer.varyExplorerComposition(
+     q,a,seed+200,"geometria");
+    const palette=explorer.varyExplorerComposition(
+     q,a,seed+300,"palette");
+    const free=explorer.varyExplorerComposition(
+     q,a,seed+400,"libera");
+    for(const v of [geometry,palette,free])
+     assert(explorer.validateExplorerComposition(q,v.pawns));
+    assert.deepEqual(
+     palette.pawns.map(p=>p.key),a.pawns.map(p=>p.key),
+     "Palette comparisons isolate color, not position");
+    assert.deepEqual(
+     geometry.pawns.map(p=>[p.number,p.paletteRow,p.paletteCol]),
+     a.pawns.map(p=>[p.number,p.paletteRow,p.paletteCol]),
+     "Geometry variations retain all manifestations and colors");
+    assert.equal(energy(palette.pawns),energy(a.pawns));
+    assert.equal(energy(geometry.pawns),energy(a.pawns));
+    assert(geometry.pawns.some((p,i)=>p.key!==a.pawns[i].key));
+    assert(palette.pawns.some((p,i)=>p.paletteRow!==a.pawns[i].paletteRow||
+     p.paletteCol!==a.pawns[i].paletteCol));
+   }
+  }
+ }
+ const largeQuestion=k.generateKaleidoscope({
+  radius:4,family:"crystal",symmetry:"C3",seed:17,generation:0
+ });
+ const [bigA,bigB]=explorer.generateExplorerPair(largeQuestion,12,41);
+ assert(explorer.inspectExplorerComposition(bigA.pawns).palettes>=3,
+  "Initial explorer compositions should offer several color palettes");
+ assert(explorer.inspectExplorerComposition(bigA.pawns).groups>=2,
+  "Initial explorer compositions should offer several Polytronic groups");
+ const archive=explorerArchive.archiveExplorerData([
+  {id:"cmp-1",createdAt:"2026-11-27T18:00:00Z",
+   question:largeQuestion.params,a:bigA,b:bigB,
+   verdict:{beauty:"A",fit:"nessuna",note:"esempio"}
+  }
+ ],[
+  {id:"fav-1",createdAt:"2026-11-27T18:00:00Z",
+   label:"Risposta interessante",question:largeQuestion.params,
+   composition:bigA}
+ ]);
+ assert.equal(archive.version,2);
+ assert.deepEqual(explorerArchive.parseExplorerArchive(
+  JSON.parse(JSON.stringify(archive))),archive);
+ assert.notEqual(explorerArchive.EXPLORER_STORAGE_KEY,
+  reviewStorage.RESONANCE_REVIEW_STORAGE_KEY,
+  "New pairwise research must not overwrite v1 human ratings");
+ assert.throws(()=>explorerArchive.parseExplorerArchive({
+  ...archive,version:1
+ }),/Explorer v2/);
+ assert.throws(()=>explorerArchive.parseExplorerArchive({
+  ...archive,comparisons:[{
+   ...archive.comparisons[0],verdict:{
+    ...archive.comparisons[0].verdict,beauty:"invalid"
+   }
+  }]
+ }),/Preferenza non valida/);
+ assert.throws(()=>explorerArchive.parseExplorerArchive({
+  ...archive,favorites:[{
+   ...archive.favorites[0],composition:{
+    ...archive.favorites[0].composition,pawns:[
+     {...archive.favorites[0].composition.pawns[0],key:"99,99"}
+    ]
+   }
+  }]
+ }),/Polytroni fuori/);
+ const samplerSource=await readFile(
+  "src/polytron/resonanceCompositionExplorer.ts","utf8");
+ assert(!samplerSource.includes("scoreResonance(")&&
+  !samplerSource.includes("evaluateResonance("),
+  "Sample selection must remain independent of current scoring");
 
  const layout=k.generateKaleidoscope({
   radius:2,family:"metatron",symmetry:"C2",seed:137,generation:0
@@ -279,6 +373,32 @@ try{
  const css=await readFile("src/experiments/ResonancePlayground.css","utf8");
  const analyzer=await readFile("src/experiments/ResonanceEconomicsPanel.tsx","utf8");
  const renderer=await readFile("src/experiments/PolytronPeriodicLab.tsx","utf8");
+ const explorationUi=await readFile("src/experiments/ResonanceCompositionExplorer.tsx","utf8");
+ const explorationCss=await readFile("src/experiments/ResonanceCompositionExplorer.css","utf8");
+ assert(entry.includes('onClick={()=>setMode("explorer")}')&&
+  entry.includes('mode==="explorer"&&<ResonanceCompositionExplorer/>')&&
+  entry.includes('mode==="review"&&<ResonanceReviewLab/>'),
+  "Keep the old votes accessible while introducing the explorer tab");
+ assert(explorationUi.includes("Nuova origine +1")&&
+  explorationUi.includes("Genera nuova coppia")&&
+  explorationUi.includes("Varia B partendo da A")&&
+  explorationUi.includes("editCell(")&&
+  explorationUi.includes("Salva risposta ")&&
+  explorationUi.includes("Salva confronto e mostra analisi")&&
+  explorationUi.includes('value={beauty}')&&
+  explorationUi.includes('value={fit}')&&
+  explorationUi.includes("Esporta JSON")&&
+  explorationUi.includes("Importa JSON")&&
+  explorationUi.includes("localStorage.setItem")&&
+  explorationUi.includes("scoreResonance(layout,pair[0].pawns)")&&
+  explorationUi.includes("revealed?["),
+  "Rich exploratory comparisons, blind ratings and local archives are required");
+ assert(explorationCss.includes(".explorer-boards")&&
+  explorationCss.includes(".explorer-editor-fields")&&
+  explorationUi.includes('data-view-kind="flat-z"')&&
+  explorationUi.includes('data-view-kind="solid"'),
+  "Explorer must show native Polytron views, not decorative substitutes");
+
  const reviewUi=await readFile("src/experiments/ResonanceReviewLab.tsx","utf8");
  const reviewCss=await readFile("src/experiments/ResonanceReviewLab.css","utf8");
  assert(entry.includes('onClick={()=>setMode("review")}')&&
