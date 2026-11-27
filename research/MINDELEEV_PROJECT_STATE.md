@@ -85,6 +85,22 @@ Orientamenti progettuali acquisiti nelle sessioni di ricerca:
 
 **Rischio progettuale:** massimizzare la simmetria o ridurre la ricompensa teorica **non** garantisce che l'economia del gioco rimanga in equilibrio. Evitare di confondere qualità estetica, punteggio di risonanza, ricompensa e profitto cumulativo.
 
+### Tre modelli economici selezionabili — esperimento del 27 novembre 2026
+
+**Motivazione dell'autore:** le risposte degli Explorer non risultavano convincenti; tornare al valutatore già fondato su colore, gruppo, periodo, grafo e simmetrie. Il problema immediato è che una commissione qualunque può generare ricompensa >= 0, favorendo il clic ripetuto. Non alterare per ora generatore artistico, scorer di qualità, Polytron Dance, né introdurre costi di acquisto, di movimento, di evoluzione del Mutatron o upkeep. L'energia dei Polytroni deve rimanere conservativa.
+
+**Implementazione** in [resonanceEconomyModels.ts](https://github.com/BabeleDunnit/MindeleevBolt01/blob/experiment/kaleidoscope-radius/src/polytron/resonanceEconomyModels.ts), nel ramo [experiment/kaleidoscope-radius](https://github.com/BabeleDunnit/MindeleevBolt01/tree/experiment/kaleidoscope-radius). Tre esiti alternativi della **sola presentazione** (qualità Q esistente, massimo storico M = ricompensa della qualità 100%, arrotondamento simmetrico al numero intero):
+
+1. **Attuale** — ricompensa storica positiva o nulla, senza modifiche: resonanceReward(layout,Q).
+2. **Soglia** — roundSigned(M*(Q-50)/100); sotto il **50%** il saldo perde energia, sopra ne guadagna. Il 50% è **soglia iniziale sperimentale**, non bilanciamento definitivo. Anche senza fare mosse, una configurazione ereditata con qualità sopra soglia può generare profitto.
+3. **Miglioramento** — roundSigned(M*(Q-Q0)/100), dove **Q0 è la qualità della configurazione iniziale effettiva DOPO la Dance della nuova domanda**. Le manifestazioni e posizioni di partenza vengono congelate come snapshot; cambiando portata di risonanza, Q0 viene ricalcolata sulle stesse manifestazioni/posizioni con quella portata, prevenendo guadagno passivo. Senza azioni, l'esito è **0 E**; la riduzione di qualità può creare perdite.
+
+**Vincolo conservativo sul saldo:** l'energia intrinseca di ogni Polytrone presente è **impegnata, non spesa**, anche dopo l'evoluzione e la Dance. Una presentazione con esito negativo può essere eseguita solo quando l'ENERGY **libera** (treasury meno energia impegnata) copre **interamente** la perdita. In caso contrario viene disabilitata e la UI comunica l'ammanco: il giocatore può migliorare la risposta o riportare Polytroni a Home; **nessun taglio silenzioso della penalità, nessun debito implicito, nessuna distruzione di energia intrinseca**. Evolve senza presentare resta gratuito. Le presentazioni sono singole per commissione.
+
+**Interfaccia:** pannello nella sidebar **«Economia energetica»** con selettore modelli, valore Q0, esito teorico contemporaneo dei tre modelli, storico saldo per ogni commissione presentata; lo header e le anteprime mostrano variazioni con segno e condizioni di liquidità. Cambiare modello **resetta** saldo, composizione, Home e progressione al valore iniziale per confronti riproducibili, evitando di passare a un modello più conveniente poco prima della presentazione. Il Difficulty Analyzer **non cambia solver**, ma le sue cinque strategie e frontiere mostrano l'esito dell'economia selezionata: sono **previsioni euristiche non ricalibrate** al modello.
+
+**Regressioni:** modelli in più configurazioni e simmetrie, eredità post-Dance e variazione portata, segni opposti guadagno/perdita, assenza di profitto da inattività nel modello Miglioramento, identità del modello Attuale, energia riservata e impossibilità di saldi sotto l'impegno, UI e calcoli Analyzer. [CI/build/Pages](https://github.com/BabeleDunnit/MindeleevBolt01/actions/runs/46052332773) (verificare esito definitivo del workflow). Le tre economie sono **ipotesi in prova**, non una regola RC01; occorre osservare anche possibili strategie di sfruttamento come l'Evolve gratuito ripetuto e la presentazione opportunistica di commissioni favorevoli. Prossimo passo: test di deriva del saldo lungo sequenze, confronto per raggio, portata, densità, qualità e Dance, senza modificare il valutatore estetico prematuramente.
+
 ### Aggiornamento interfaccia — 27 novembre 2026
 
 **Implementato** nel ramo [`experiment/kaleidoscope-radius`](https://github.com/BabeleDunnit/MindeleevBolt01/tree/experiment/kaleidoscope-radius), commit [`33bf47b7759f954d910d3551b7f3da7f29fb0d73`](https://github.com/BabeleDunnit/MindeleevBolt01/commit/33bf47b7759f954d910d3551b7f3da7f29fb0d73): il Difficulty Analyzer è stato spostato dalla stretta colonna laterale a una sezione a larghezza piena; scenari, frontiera e rischi sono disposti orizzontalmente sui display larghi. I comandi per confermare/annullare piazzamenti, spostamenti e richiami sono sotto il Mutatron, accanto all'editor di Polytroni; l'anteprima viene fissata con un clic sul target prima della conferma. Lo header espone saldo attuale, energia impegnata, premio teorico e proiezioni dopo la mossa; **il premio previsto non è energia già incassata**. [GitHub Actions 45982915422](https://github.com/BabeleDunnit/MindeleevBolt01/actions/runs/45982915422) passata, incluso il deploy. Nessuna regola economica cambiata; verifica visiva manuale ancora utile.
@@ -167,6 +183,10 @@ La presenza di un'ipotesi in una sessione storica **non** implica che sia approv
 A fine sessione significativa aggiornare il documento (tramite PR, rispettando le protezioni di `main`) con: data, branch e commit effettivo, cambiamenti realizzati, test e simulazioni eseguiti, decisioni dell'autore, limiti aperti e prossimo esperimento. Non trasformarlo in una trascrizione completa: per la storia usare gli altri documenti.
 
 ### Changelog
+
+- **2026-11-27 (tre economie)** — Nel Resonance Playground aggiunti modelli selezionabili Attuale, Soglia al 50% e Miglioramento post-Dance: esiti con segno, confronto simultaneo, ledger e protezione dell'energia impegnata. Scoring, generatore artistico, Dance, costi e RC01 invariati. In prova; non ancora bilanciato.
+
+
 
 - **2026-11-27 (leggibilità Explorer)** — Polytroni delle risposte in lenta rotazione solo nella modalità Explorer, con toggle e rispetto del movimento ridotto; indizi flat-Z fermi, palette invariata. Nessuna modifica alle regole.
 
