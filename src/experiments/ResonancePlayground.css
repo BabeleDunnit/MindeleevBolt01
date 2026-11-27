@@ -417,19 +417,24 @@
 
 /* Actual ENERGY is not the same thing as a potential commission reward. */
 .resonance-lab .resonance-stage-head{
- display:grid;align-items:stretch;gap:8px;
- padding:10px 12px;
+ display:grid;grid-template-columns:minmax(0,1fr);
+ justify-items:stretch;align-items:stretch;gap:8px;
+ width:100%;padding:10px 12px;
+}
+.resonance-lab .resonance-stage-head>.resonance-head-main,
+.resonance-lab .resonance-stage-head>.resonance-head-energy{
+ grid-column:1;width:100%;min-width:0;max-width:none;
 }
 .resonance-head-main{
- display:flex;align-items:start;justify-content:space-between;
- flex-wrap:wrap;gap:8px;min-width:0;
+ display:flex;align-items:center;justify-content:space-between;
+ flex-wrap:wrap;gap:10px;min-width:0;width:100%;
 }
 .resonance-head-identity{
- display:grid;gap:3px;flex:1 1 135px;min-width:0;
+ display:grid;gap:3px;flex:1 1 180px;min-width:0;
 }
 .resonance-head-reach{
- display:grid;gap:4px;flex:1 1 150px;
- min-width:130px;max-width:215px;
+ display:grid;gap:4px;flex:1 1 190px;
+ min-width:150px;max-width:320px;
 }
 .resonance-head-reach label{
  color:#baded8;font-size:10px;font-weight:750;
@@ -445,11 +450,18 @@
 }
 .resonance-head-main>div:first-child{display:grid;gap:3px}
 .resonance-head-main b{font-size:15px}
-.resonance-head-score{display:grid;gap:2px;text-align:right}
+.resonance-head-score{
+ display:grid;gap:2px;text-align:right;
+ flex:0 0 auto;margin-left:auto;
+}
 .resonance-head-score strong{font-size:24px}
 .resonance-head-score span{font-size:11px}
 .resonance-head-energy{
- display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;
+ display:grid;
+ /* auto-fit expands four data cards to use the whole header; at smaller
+  * board widths, cards reflow without horizontal overflow. */
+ grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));
+ gap:8px;width:100%;min-width:0;
 }
 .resonance-head-energy-cell{
  display:grid;align-content:start;gap:4px;
@@ -489,6 +501,9 @@
  font-size:11px;color:#b9e8d2;
 }
 .resonance-board-action-panel .resonance-purchase-actions{margin:4px 0 0}
+.resonance-forecast .resonance-move-actions{
+ margin:12px 0 0;width:100%;
+}
 .resonance-board-sell-row{
  margin:0;padding:9px 13px;background:#143b42;
  border-top:1px solid #4f7777;
@@ -498,6 +513,9 @@
  background:#102f3a;border-top:1px solid #345e69;
 }
 @media(max-width:530px){
+ .resonance-head-main{gap:7px}
+ .resonance-head-reach{max-width:none}
+ .resonance-head-energy{grid-template-columns:repeat(2,minmax(0,1fr))}
  .resonance-head-energy-cell{padding:7px}
  .resonance-head-energy-cell strong{font-size:14px}
  .resonance-lab .resonance-sidebar{column-count:1;column-width:auto}
