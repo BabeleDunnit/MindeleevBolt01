@@ -568,11 +568,6 @@
 .resonance-lab .resonance-sidebar .resonance-analysis .resonance-suggest{
  padding:8px 9px;
 }
-@media(min-width:871px) and (max-width:1200px){
- .resonance-lab .resonance-sidebar .resonance-analysis .resonance-econ-scenarios{
-  grid-template-columns:1fr;
- }
-}
 @media(max-width:530px){
  .resonance-lab .resonance-sidebar .resonance-analysis .resonance-econ-scenarios{
   grid-template-columns:repeat(2,minmax(0,1fr));
