@@ -1,20 +1,29 @@
 import type {DifficultyReport,DifficultyScenario} from "@/polytron/resonanceDifficulty";
-import type {KaleidoPoint} from "@/polytron/kaleidoscopeGenerator";
+import type {KaleidoLayout,KaleidoPoint} from "@/polytron/kaleidoscopeGenerator";
+import {
+ commissionEnergyChange,signedEnergy,type ResonanceEconomyMode
+} from "@/polytron/resonanceEconomyModels";
 import "./ResonanceEconomicsPanel.css";
 
 const fmt=(n:number)=>n.toFixed(1);
 const signed=(n:number)=>n>0?"+"+n:String(n);
 type Props={
  report:DifficultyReport;selectedId:string;showPlan:boolean;
+ layout:KaleidoLayout;mode:ResonanceEconomyMode;baselineQuality:number;
  onSelect:(id:DifficultyScenario["id"])=>void;
  onToggle:(show:boolean)=>void;
  cells:Map<string,KaleidoPoint>;
  section:"strategies"|"frontier"|"risks"
 };
 export default function ResonanceEconomicsPanel({
- report,selectedId,showPlan,onSelect,onToggle,cells,section
+ report,selectedId,showPlan,onSelect,onToggle,cells,section,
+ layout,mode,baselineQuality
 }:Props){
  const risk=report.placementRisk;
+ const amount=(quality:number)=>commissionEnergyChange(
+  layout,mode,quality,baselineQuality);
+ const modeLabel=mode==="current"?"Attuale":mode==="threshold"?
+  "Soglia 50%":"Miglioramento";
  const selected=report.scenarios.find(s=>s.id===selectedId)??report.scenarios[0];
  const place=(key:string)=>{
   const cell=cells.get(key);
@@ -28,7 +37,9 @@ export default function ResonanceEconomicsPanel({
    Confronto fra cinque configurazioni simulate a parità di energia
    totale disponibile. L'energia intrinseca dei Polytroni è
    <b> impegnata, non spesa</b>: torna libera a Home e non si consuma
-   con Evolve. La ricompensa dipende soltanto dalla qualità della risposta.
+   con Evolve. Gli esiti mostrati seguono il modello <b>{modeLabel}</b>
+   selezionato, ma il solver propone ancora le stesse strategie euristiche
+   basate sulla qualità, senza ottimizzarle nuovamente per ogni economia.
   </p>
   <div className="resonance-econ-scenarios">
    {report.scenarios.map(s=>
@@ -43,10 +54,13 @@ export default function ResonanceEconomicsPanel({
      </span>
      <span className="resonance-econ-values">
       <span><small>Energia impegnata</small><b>{s.energy} E</b></span>
-      <span><small>Ricompensa</small><b className="resonance-positive">
-       +{s.reward} E</b></span>
-      <span><small>Resa</small><b>
-       {s.efficiency===null?"—":s.efficiency.toFixed(2)+" E/E"}</b></span>
+      <span><small>Esito · {modeLabel}</small>
+       <b className={amount(s.quality)<0?
+        "resonance-negative":amount(s.quality)>0?"resonance-positive":""}>
+        {signedEnergy(amount(s.quality))}</b></span>
+      <span><small>Resa teorica</small><b>
+       {s.energy?(amount(s.quality)/s.energy).toFixed(2)+" E/E":"—"}
+       </b></span>
      </span>
      <span className="resonance-econ-description">{s.description}</span>
     </button>)}
@@ -68,8 +82,8 @@ export default function ResonanceEconomicsPanel({
     <div key={b.budget} className="resonance-econ-frontier-item">
      <strong>Capacità {b.budget} E · Qualità {fmt(b.score)}%</strong>
      <span>{b.pieces} Polytroni · Energia impegnata {b.energy} E</span>
-     <span>Ricompensa +{b.reward} E · Resa
-      {" "}{b.efficiency===null?"—":b.efficiency.toFixed(2)+" E/E"}</span>
+     <span>Esito {modeLabel}: {signedEnergy(amount(b.score))} · Resa
+      {" "}{b.energy?(amount(b.score)/b.energy).toFixed(2)+" E/E":"—"}</span>
     </div>)}
   </div>
   </>}
@@ -102,7 +116,7 @@ export default function ResonanceEconomicsPanel({
    {" "}in {place(risk.worstPlacement.pawn.key)}.
    Impegna {risk.worstPlacement.energy} E senza spenderli;
    variazione di qualità {fmt(risk.worstPlacement.scoreGain)} punti,
-   ricompensa {signed(risk.worstPlacement.rewardGain)} E,
+   Δ premio base {signed(risk.worstPlacement.rewardGain)} E,
    resa {risk.worstPlacement.yield.toFixed(2)} E/E.
   </p>}
   {risk.worstRelocation&&<p className="resonance-econ-example">
@@ -110,14 +124,14 @@ export default function ResonanceEconomicsPanel({
    {" "}{place(risk.worstRelocation.from)} →
    {" "}{place(risk.worstRelocation.to)},
    {" "}{fmt(risk.worstRelocation.scoreChange)} punti,
-   ricompensa {signed(risk.worstRelocation.rewardChange)} E.
+   Δ premio base {signed(risk.worstRelocation.rewardChange)} E.
   </p>}
   <p className="resonance-econ-disclaimer">
    Il solver è euristico, non garantisce configurazioni ottime.
    Il campione è esplorativo, non una probabilità statistica.
-   Questa versione non introduce alcun costo per i Polytroni né
-   per le evoluzioni del Mutatron: la progressione economica
-   completa verrà bilanciata successivamente.
+   Le variazioni marginali di premio sopra sono misurate nella scala
+   storica e non rappresentano necessariamente il saldo del modello attivo.
+   Nessun costo per i Polytroni o per l'evoluzione del Mutatron.
   </p>
   </>}
  </>;
