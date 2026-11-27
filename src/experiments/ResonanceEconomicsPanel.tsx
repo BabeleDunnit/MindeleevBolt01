@@ -8,10 +8,11 @@ type Props={
  report:DifficultyReport;selectedId:string;showPlan:boolean;
  onSelect:(id:DifficultyScenario["id"])=>void;
  onToggle:(show:boolean)=>void;
- cells:Map<string,KaleidoPoint>
+ cells:Map<string,KaleidoPoint>;
+ section:"strategies"|"frontier"|"risks"
 };
 export default function ResonanceEconomicsPanel({
- report,selectedId,showPlan,onSelect,onToggle,cells
+ report,selectedId,showPlan,onSelect,onToggle,cells,section
 }:Props){
  const risk=report.placementRisk;
  const selected=report.scenarios.find(s=>s.id===selectedId)??report.scenarios[0];
@@ -20,6 +21,7 @@ export default function ResonanceEconomicsPanel({
   return cell?"("+cell.ring+","+cell.idx+")":key;
  };
  return <>
+  {section==="strategies"&&<>
   <h3 className="resonance-econ-title">
    Cinque strategie · capacità {report.budget} E</h3>
   <p className="resonance-econ-copy">
@@ -58,6 +60,8 @@ export default function ResonanceEconomicsPanel({
    <b>{selected.name}</b>: gli esagoni tratteggiati indicano
    posizioni simulate, senza consumare energia o aggiungere Polytroni.
   </p>}
+  </>}
+  {section==="frontier"&&<>
   <h3 className="resonance-econ-title">Frontiera: qualità vs energia impegnata</h3>
   <div className="resonance-econ-frontier">
    {report.bands.map(b=>
@@ -68,6 +72,8 @@ export default function ResonanceEconomicsPanel({
       {" "}{b.efficiency===null?"—":b.efficiency.toFixed(2)+" E/E"}</span>
     </div>)}
   </div>
+  </>}
+  {section==="risks"&&<>
   <h3 className="resonance-econ-title">È possibile piazzare male?</h3>
   <div className="resonance-econ-risks">
    <div>
@@ -113,5 +119,6 @@ export default function ResonanceEconomicsPanel({
    per le evoluzioni del Mutatron: la progressione economica
    completa verrà bilanciata successivamente.
   </p>
+  </>}
  </>;
 }
