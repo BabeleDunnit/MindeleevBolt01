@@ -32,7 +32,7 @@ export function parseResonanceReviewArchive(input:unknown):
  const source=asObject(root.ratings);
  const ratings:ResonanceReviewRatings={};
  for(const [key,value] of Object.entries(source)){
-  if(!/^[A-F]-[1-4]$/.test(key))
+  if(!/^[A-I]-[1-4]$/.test(key))
    throw Error("Identificativo di valutazione sconosciuto: "+key);
   const rating=asObject(value);
   if(rating.beauty!==null&&!between0and10(rating.beauty))
