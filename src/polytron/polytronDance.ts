@@ -79,7 +79,7 @@ export function polytronDance<T extends ResonancePawn>(
   .filter(orbit=>orbit.ring>0);
  const n=original.length;
  type Choice={result:DanceResult<T>;rank:number};
- let target:Choice|null=null,relaxed:Choice|null=null,fallback:Choice|null=null;
+ const choices:{target?:Choice;relaxed?:Choice;fallback?:Choice}={};
  const originalOccupied=new Set(originalKeys);
  const evaluate=(keys:readonly string[])=>{
   if(keys.length!==n||new Set(keys).size!==n)return;
@@ -102,19 +102,19 @@ export function polytronDance<T extends ResonancePawn>(
   const moveBonus=moved/n*.1;
   if(delta<=0&&delta>=-1&&next.symmetry+1e-8>=score.symmetry){
    const rank=aesthetic+(delta===0?.8:0)+visualBonus+moveBonus;
-   if(!target||rank>target.rank)target={result,rank};
+   if(!choices.target||rank>choices.target.rank)choices.target={result,rank};
   }else if(delta<0&&next.symmetry+1e-8>=score.symmetry){
    // Larger losses are allowed only if no near-neutral movement exists.
    const rank=aesthetic-Math.abs(delta)*2+visualBonus+moveBonus;
-   if(!relaxed||rank>relaxed.rank)
-    relaxed={result:{...result,status:"relaxed"},rank};
+   if(!choices.relaxed||rank>choices.relaxed.rank)
+    choices.relaxed={result:{...result,status:"relaxed"},rank};
   }
   // Last resort: move visibly while retaining the actual energy of every Pawn.
   // The UI explicitly reports when the forecast reward constraint could not hold.
   const rank=aesthetic-Math.abs(delta)*6+
    (delta>0?-15:0)+visualBonus+moveBonus;
-  if(!fallback||rank>fallback.rank)
-   fallback={result:{...result,status:"fallback"},rank};
+  if(!choices.fallback||rank>choices.fallback.rank)
+   choices.fallback={result:{...result,status:"fallback"},rank};
  };
  // For sparse boards, exhaustively check the complete space of placements.
  // In particular two Polytrons can form a 180° pair even in a D6 request.
@@ -157,5 +157,5 @@ export function polytronDance<T extends ResonancePawn>(
    evaluate(keys);
   }
  }
- return (target??relaxed??fallback)?.result??unchanged;
+ return (choices.target??choices.relaxed??choices.fallback)?.result??unchanged;
 }
