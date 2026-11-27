@@ -95,6 +95,25 @@ Orientamenti progettuali acquisiti nelle sessioni di ricerca:
 
 **Affinamento header/azioni (27 novembre 2026):** nel ramo [`experiment/kaleidoscope-radius`](https://github.com/BabeleDunnit/MindeleevBolt01/tree/experiment/kaleidoscope-radius), commit [`bad3580b777ccaf5f51768a03282ad245cc92f47`](https://github.com/BabeleDunnit/MindeleevBolt01/commit/bad3580b777ccaf5f51768a03282ad245cc92f47): lo header del Mutatron usa una colonna a larghezza effettiva piena, con quattro card ENERGY adattive per evitare la grande area vuota sulla destra segnalata nello screenshot. **Solo la conferma/annullamento dello spostamento** è stata riportata nella scheda laterale «Spostamento di un Polytrone» (con conferma disabilitata fino a destinazione fissata); **piazzamento/richiamo** restano confermabili sotto la plancia e la modifica della manifestazione resta nell'editor sotto plancia. Nessuna variazione al calcolo di risonanza, Dance o ENERGY. [GitHub Actions](https://github.com/BabeleDunnit/MindeleevBolt01/actions/runs/45991142330) per i test e il deploy; verifica visuale su viewport reali ancora richiesta.
 
+### Biblioteca di calibrazione delle richieste — implementata il 27 novembre 2026
+
+**Decisione dell'autore:** aggiungere al *solo Resonance Playground* preset fissi per studiare la percezione della richiesta, la densità degli indizi e, in futuro, le regole domanda-risposta; **non modificare il generatore artistico attuale** né ribilanciare ora Difficulty Analyzer, punteggi, Polytron Dance o economia.
+
+**Codice:** [`src/polytron/resonanceCalibration.ts`](https://github.com/BabeleDunnit/MindeleevBolt01/blob/experiment/kaleidoscope-radius/src/polytron/resonanceCalibration.ts) contiene sei ricette e un lettore diagnostico puro. Il Playground offre **due pannelli compatti** nella sidebar: «Laboratorio preset» per scegliere/caricare, «Densità della richiesta attuale» per leggere i conteggi. [`KaleidoscopeLab.tsx`](https://github.com/BabeleDunnit/MindeleevBolt01/blob/experiment/kaleidoscope-radius/src/experiments/KaleidoscopeLab.tsx) applica una ricetta tramite **`generateKaleidoscope` invariato**, resettando la sessione del giocatore anche quando ricarica lo stesso preset; Evolve continua a usare la normale evoluzione ereditata. Versione testata [`515620b18c418a872f0f8e15ae5684827ff2b969`](https://github.com/BabeleDunnit/MindeleevBolt01/commit/515620b18c418a872f0f8e15ae5684827ff2b969).
+
+| Preset | Raggio/famiglia/simmetria/seed | Indizi/celle giocabili alla generazione 0 |
+| --- | --- | --- |
+| A · Compatto meno denso | 2 / Metatron / D6 / 7 | 12 / 18 |
+| B · Compatto pieno | 2 / Metatron / D6 / 0 | 18 / 18 |
+| C · Intermedio aperto | 3 / Cristalli / D6 / 5 | 18 / 36 |
+| D · Intermedio pieno | 3 / Cristalli / D6 / 1 | 36 / 36 |
+| E · Ampio aperto | 5 / Rosette / D6 / 55 | 36 / 90 |
+| F · Ampio pieno | 5 / Rosette / D6 / 17 | 90 / 90 |
+
+**Distinzioni diagnosticabili:** numero/percentuale di *tile-indizio*, celle prive di indizi, **celle effettivamente libere per il giocatore** (tolti solo i Polytroni presenti, non gli indizi), orbite con indizi su orbite possibili, palette, gruppi e distribuzione per anello. Un'indicazione su una cella **non la rende indisponibile**: due strati distinti, richiesta e risposta. Le configurazioni dense non introducono automaticamente interferenza negativa con il valutatore vigente. I preset non sono livelli «facili»/«difficili» già dimostrati, ma **strumenti di confronto**.
+
+**Verifica:** [GitHub Actions del commit di riferimento](https://github.com/BabeleDunnit/MindeleevBolt01/actions/runs/46032800449); [test dedicati](https://github.com/BabeleDunnit/MindeleevBolt01/blob/experiment/kaleidoscope-radius/scripts/check-resonance-playground.mjs) confrontano i sei conteggi contro il generatore reale, il determinismo, il normale Evolve e la possibilità di collocare un Polytrone sopra un indizio. Il generatore `src/polytron/kaleidoscopeGenerator.ts` e `src/polytron/resonanceField.ts` **non sono stati cambiati**. Da fare: playtest di leggibilità e risposte campione (concentrata, distribuita, simmetrica ma incompatibile) prima di variare i pesi.
+
 **Design review delle regole punitive — NON approvata, NON implementata.** La funzione `resonanceReward` tronca attualmente il premio a valori `>=0`; una presentazione non può perdere ENERGY. Il Difficulty Analyzer non può trovare payoff negativi con questo modello. Tre direzioni da confrontare: **(A)** ricompense con segno e soglia calibrata alla difficoltà; **(B)** penalità per interferenza/frustrazione delle relazioni locali; **(C)** memoria/potenziale energetico limitato che impedisca il farming degli stessi stati. Un semplice premio con segno (A) o una penalità locale (B) **non garantiscono** da soli che due movimenti dopo Dance non riportino al profitto. La prossima decisione richiede un confronto del Design Team e simulazioni di cicli, conservando l'attuale assenza di costi di acquisto ed evoluzione fino a nuova decisione esplicita.
 
 ## 5. Archivio storico esistente — link, non duplicazioni
@@ -114,6 +133,10 @@ La presenza di un'ipotesi in una sessione storica **non** implica che sia approv
 A fine sessione significativa aggiornare il documento (tramite PR, rispettando le protezioni di `main`) con: data, branch e commit effettivo, cambiamenti realizzati, test e simulazioni eseguiti, decisioni dell'autore, limiti aperti e prossimo esperimento. Non trasformarlo in una trascrizione completa: per la storia usare gli altri documenti.
 
 ### Changelog
+
+- **2026-11-27 (preset di calibrazione)** — Introdotti sei casi A–F e diagnostica della densità degli indizi/effettiva disponibilità delle celle, senza modificare generazione, Analyzer o ENERGY. Restano da testare risposte campione e leggibilità.
+
+
 
 - **2026-11-27 (header e comandi di spostamento)** — Header energetico esteso a tutta larghezza con card responsive; spostamento confermato/annullato nel pannello omonimo, placement/recall ancora sotto la plancia. Solo UI.
 
