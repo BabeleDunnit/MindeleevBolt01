@@ -551,9 +551,9 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
       disabled={!editFits||editNumber===selectedPawn.number}
       onClick={applyEdit}>Conferma modifica di #{selectedPawn.seal}</button>
     </div>}
-   {candidate&&activePosition&&<div className="resonance-board-action-panel" aria-label="Anteprima e conferma della mossa">
+   {!moveFrom&&candidate&&activePosition&&<div className="resonance-board-action-panel" aria-label="Anteprima e conferma del piazzamento o richiamo">
     <div className="resonance-board-action-info">
-     <b>{moveFrom?"Sposta":"Piazza"} Polytrone {candidate.number} in {fromLabel(activePosition)}</b>
+     <b>{fromHome?"Richiama":"Piazza"} Polytrone {candidate.number} in {fromLabel(activePosition)}</b>
      <span>Qualità {fmt(planned.quality)} → {fmt(preview?.quality??planned.quality)}% ·
       premio +{currentReward} → +{previewReward??currentReward} E
       {marginalReward!==null&&" (Δ "+signed(marginalReward)+" E)"}</span>
@@ -561,11 +561,9 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
     {pinnedCandidate?
      <div className="resonance-purchase-actions">
       <button type="button" className="resonance-confirm" disabled={!canPlace}
-       onClick={commit}>{moveFrom?"Conferma spostamento":
-        fromHome?"Conferma richiamo di #"+fromHome.seal:"Conferma piazzamento"}</button>
+       onClick={commit}>{fromHome?"Conferma richiamo di #"+fromHome.seal:"Conferma piazzamento"}</button>
       <button type="button" className="resonance-cancel-purchase"
-       onClick={cancelPending}>{moveFrom?"Annulla spostamento":
-        fromHome?"Annulla richiamo":"Cancella piazzamento"}</button>
+       onClick={cancelPending}>{fromHome?"Annulla richiamo":"Cancella piazzamento"}</button>
      </div>:
      <span className="resonance-board-click-hint">Tocca la cella di destinazione per fissare l'anteprima e abilitare la conferma.</span>}
    </div>}
@@ -744,7 +742,7 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
        </b>
       </div>
       <p>La manifestazione impegna capacità senza spenderla.
-       Conferma o cancella la mossa direttamente sotto il Mutatron.</p>
+       {moveFrom?"Conferma o annulla lo spostamento qui sotto.":"Conferma o cancella il piazzamento direttamente sotto il Mutatron."}</p>
       {!canPlace&&<p className="resonance-warning">
        Capacità insufficiente per questa manifestazione:
        manda un individuo a Home o modifica l'energia iniziale
@@ -752,6 +750,12 @@ export default function ResonancePlayground({layout,onEvolve,onGenesis}:Props){
      </>:
      <p>Tocca o sorvola una cella libera per vedere dove arrivano le influenze,
       quanto cresce la corrispondenza e quanta energia resta libera.</p>}
+    {moveFrom&&<div className="resonance-purchase-actions resonance-move-actions" aria-label="Conferma o annulla spostamento del Polytrone">
+     <button type="button" className="resonance-confirm"
+      disabled={!pinnedCandidate||!canPlace} onClick={commit}>Conferma spostamento</button>
+     <button type="button" className="resonance-cancel-purchase"
+      onClick={cancelPending}>Annulla spostamento</button>
+    </div>}
    </section>
    <section className="kaleido-control-block resonance-metrics">
     <div className="kaleido-section-top">
