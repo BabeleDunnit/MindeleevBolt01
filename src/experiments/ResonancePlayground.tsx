@@ -627,6 +627,8 @@ export default function ResonancePlayground({
     <p className="resonance-calibration-warning">Caricare un preset azzera
      Polytroni, Home, saldo e commissioni del laboratorio.
      Evolve resta disponibile e conserva il suo comportamento.</p>
+   </section>
+   <section className="kaleido-control-block resonance-calibration resonance-density-panel">
     <div className="resonance-calibration-heading">
      <h3>Densità della richiesta attuale</h3>
      <span>{activePreset?"Preset "+activePreset.id:"Esplorazione libera"} ·
