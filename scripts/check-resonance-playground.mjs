@@ -95,10 +95,41 @@ try{
   "Dance must not mutate identity, group, period or palette");
  assert.equal(r.scoreResonance(evolved,danced.pawns).totalEnergy,
   r.scoreResonance(evolved,dancers).totalEnergy);
- assert(danced.afterReward-danced.beforeReward<=0);
- assert(danced.afterReward-danced.beforeReward>=-1);
- assert(danced.afterSymmetry>=danced.beforeSymmetry,
-  "Dance should preserve or increase symmetry");
+ assert(danced.moved>=1,"Dance must visibly move at least one of two Polytrons");
+ assert.deepEqual(danced.pawns.map(p=>p.seal),dancers.map(p=>p.seal));
+ assert(["target","relaxed","fallback"].includes(danced.status));
+ if(danced.status==="target"){
+  assert(danced.afterReward-danced.beforeReward<=0);
+  assert(danced.afterReward-danced.beforeReward>=-1);
+  assert(danced.afterSymmetry>=danced.beforeSymmetry,
+   "A safe Dance should preserve or increase symmetry");
+ }
+ const single=dance.polytronDance(evolved,[dancers[0]],{reach:2});
+ assert.equal(single.moved,1,"A lone Polytron must also move on Evolve");
+ assert.notEqual(single.pawns[0].key,dancers[0].key);
+ assert.equal(single.pawns[0].number,dancers[0].number);
+ assert.equal(single.pawns[0].seal,dancers[0].seal);
+ assert.equal(single.pawns[0].paletteRow,dancers[0].paletteRow);
+ for(const symmetry of ["D6","C6","C3","C2"]){
+  const scenario=k.generateKaleidoscope({
+   radius:2,family:"metatron",symmetry,seed:0,generation:1
+  });
+  const a=scenario.cells.find(c=>c.ring===1);
+  const b=scenario.cells.find(c=>c.ring===2);
+  assert(a&&b);
+  const sample=[
+   {...dancers[0],key:a.key},
+   {...dancers[1],key:b.key}
+  ];
+  const result=dance.polytronDance(scenario,sample,{reach:2});
+  assert(result.moved>0,"Dance must move an ordinary two-Pawn board for "+symmetry);
+  assert.equal(new Set(result.pawns.map(p=>p.key)).size,2);
+  assert.equal(r.scoreResonance(scenario,result.pawns).totalEnergy,
+   r.scoreResonance(scenario,sample).totalEnergy);
+  if(result.status==="target")
+   assert(result.afterReward-result.beforeReward>=-1&&
+    result.afterReward-result.beforeReward<=0);
+ }
  assert.equal(dance.polytronDance(evolved,[],{reach:2}).moved,0);
  const report=d.analyzeResonanceDifficulty(layout,22,{reach:2});
  assert.equal(report.method,"bounded-greedy-estimate");
@@ -165,9 +196,13 @@ try{
   ui.includes("seal:fromHome.seal,name:fromHome.name")&&
   ui.includes("Identità a Home")&&!ui.includes("72 Polytroni"));
  assert(ui.includes("polytronDance(layout,pawns,settings)")&&
-  ui.includes("Conferma modifica")&&ui.includes("editFits")&&
-  ui.includes("Gruppo")&&ui.includes("Periodo"),
-  "Dance and in-place Polytron editor must be present");
+  ui.includes("Conferma modifica di #")&&ui.includes("editFits")&&
+  ui.includes("Gruppo")&&ui.includes("Periodo")&&
+  ui.includes("resonance-board-editor")&&
+  ui.indexOf("resonance-board-editor")<ui.indexOf("resonance-legend"),
+  "The selected Pawn editor must appear immediately beneath the board");
+ assert(css.includes(".resonance-board-editor .resonance-edit-grid select"),
+  "The on-board editor must style editable controls");
  assert(ui.includes("Conferma piazzamento")&&ui.includes("Cancella piazzamento")&&
   ui.includes("Annulla spostamento")&&ui.includes("Annulla richiamo"));
  const cancel=ui.slice(ui.indexOf("const cancelPending=()=>"),
