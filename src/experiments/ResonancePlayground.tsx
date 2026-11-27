@@ -608,7 +608,7 @@ export default function ResonancePlayground({
    <section className="kaleido-control-block resonance-calibration">
     <div className="kaleido-section-top">
      <h2>Laboratorio preset</h2>
-     <strong>6 casi</strong>
+     <strong>{RESONANCE_CALIBRATION_PRESETS.length} casi</strong>
     </div>
     <p>Richieste di riferimento prodotte dal generatore artistico, senza modificarlo.</p>
     <label htmlFor="resonance-calibration-select">Configurazione da confrontare</label>
