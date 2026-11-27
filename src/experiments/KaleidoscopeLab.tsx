@@ -1,6 +1,7 @@
 import {useEffect,useMemo,useState} from "react";
 import {SharedPeriodic3D} from "@/experiments/PolytronPeriodicLab";
 import ResonancePlayground from "@/experiments/ResonancePlayground";
+import ResonanceReviewLab from "@/experiments/ResonanceReviewLab";
 import type {ResonanceCalibrationPreset} from "@/polytron/resonanceCalibration";
 import {gradientPair,LATIN_SOURCES,GREEK_DESTINATIONS} from "@/polytron/gradientPalettes";
 import {rcAxial,rcPolygon} from "@/polytron/rc01Board";
@@ -49,10 +50,10 @@ export default function KaleidoscopeLab(){
  // A preset load remounts ONLY the response lab, ensuring a clean baseline
  // even when a user reloads the same seed at generation 0.
  const [calibrationSession,setCalibrationSession]=useState(0);
- const [mode,setMode]=useState<"generator"|"resonance">(()=>{
+ const [mode,setMode]=useState<"generator"|"resonance"|"review">(()=>{
   if(typeof window==="undefined")return "generator";
-  return new URLSearchParams(window.location.search).get("mode")==="resonance"?
-   "resonance":"generator";
+  const requested=new URLSearchParams(window.location.search).get("mode");
+  return requested==="resonance"||requested==="review"?requested:"generator";
  });
  const [selectedKey,setSelectedKey]=useState<string|null>(null);
  const [showNetwork,setShowNetwork]=useState(true);
@@ -112,7 +113,10 @@ export default function KaleidoscopeLab(){
    <button className={mode==="resonance"?"active":""}
     aria-pressed={mode==="resonance"} onClick={()=>setMode("resonance")}>
     Resonance Playground</button>
-   <small>Due viste dello stesso caleidoscopio · il generatore originale resta intatto</small>
+   <button className={mode==="review"?"active":""}
+    aria-pressed={mode==="review"} onClick={()=>setMode("review")}>
+    Valutazione umana</button>
+   <small>Tre viste dello stesso progetto · generatore artistico invariato</small>
   </div>
   <div style={{display:mode==="generator"?"block":"none"}}>
   <div className="kaleido-layout">
@@ -303,6 +307,7 @@ export default function KaleidoscopeLab(){
     onEvolve={evolve} onGenesis={genesis}
     onLoadPreset={loadCalibrationPreset}/>
   </div>
+  {mode==="review"&&<ResonanceReviewLab/>}
   <footer className="kaleido-footer">
    <strong>Esperimento autonomo, non RC02.</strong> Il generatore usa il
    reticolo esagonale reale, orbite C2/C3/C6/D6, connessioni ispirate al
