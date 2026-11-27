@@ -375,3 +375,26 @@
 .resonance-edit-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .resonance-edit-grid label{display:grid;gap:5px;font-size:11px}
 @media(max-width:700px){.resonance-edit-grid{grid-template-columns:1fr}}
+
+/* Selected-Pawn editor lives directly below the Mutatron, not in a remote card. */
+.resonance-board-editor{
+ margin:0;padding:12px 14px;border:0;border-top:2px solid #9ed5bd;
+ border-bottom:1px solid #678b82;border-radius:0;
+ background:#244c4b;
+}
+.resonance-board-editor .resonance-edit-heading{
+ display:flex;align-items:center;justify-content:space-between;gap:8px;
+}
+.resonance-board-editor .resonance-edit-heading button{
+ border:1px solid #94bfad;border-radius:7px;background:#1a3e45;
+ color:#f1fff0;cursor:pointer;padding:7px 10px;font-size:12px;
+}
+.resonance-board-editor .resonance-edit-grid select,
+.resonance-board-editor .resonance-edit-grid input{
+ width:100%;min-width:0;min-height:40px;padding:8px 9px;
+ background:#14333e;border:1px solid #85b3aa;border-radius:8px;
+ font-size:13px;color:#f5fff7;
+}
+.resonance-board-editor .resonance-confirm{margin:2px 0 0}
+.resonance-board-editor .resonance-edit-grid label{color:#e2f5ee}
+.resonance-selected-guidance{border-left:3px solid #93d4b8;padding:8px 11px;background:#224845;color:#e5fff2!important}
