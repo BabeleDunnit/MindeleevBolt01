@@ -13,14 +13,67 @@ async function load(path,name){
  return import(pathToFileURL(outfile).href);
 }
 try{
- const [k,r,d,names,numbers,dance]=await Promise.all([
+ const [k,r,d,names,numbers,dance,calibration]=await Promise.all([
   load("src/polytron/kaleidoscopeGenerator.ts","generator"),
   load("src/polytron/resonanceField.ts","resonance"),
   load("src/polytron/resonanceDifficulty.ts","difficulty"),
   load("src/polytron/spectralFutures.ts","names"),
   load("src/polytron/politronicNumber.ts","numbers"),
-  load("src/polytron/polytronDance.ts","dance")
+  load("src/polytron/polytronDance.ts","dance"),
+  load("src/polytron/resonanceCalibration.ts","calibration")
  ]);
+ // Calibration presets are ordinary generator recipes; baseline counts
+ // and placement availability must not drift when the game evolves.
+ const presetExpectations=[
+  ["A",2,"metatron","D6",7,12,18],
+  ["B",2,"metatron","D6",0,18,18],
+  ["C",3,"crystal","D6",5,18,36],
+  ["D",3,"crystal","D6",1,36,36],
+  ["E",5,"rosette","D6",55,36,90],
+  ["F",5,"rosette","D6",17,90,90]
+ ];
+ assert.deepEqual(calibration.RESONANCE_CALIBRATION_PRESETS.map(p=>p.id),
+  ["A","B","C","D","E","F"]);
+ for(const [id,radius,family,symmetry,seed,hints,slots] of presetExpectations){
+  const preset=calibration.RESONANCE_CALIBRATION_PRESETS.find(p=>p.id===id);
+  assert(preset);
+  assert.deepEqual(preset.params,{family,symmetry,radius,seed});
+  assert.equal(preset.expectedHints,hints);
+  const target=k.generateKaleidoscope({...preset.params,generation:0});
+  assert.equal(target.tiles.length,hints,"Preset "+id+" generator baseline changed");
+  assert.equal(target.cells.length,slots+1);
+  assert.equal(new Set(target.tiles.map(t=>t.key)).size,hints);
+  assert.deepEqual(
+   k.generateKaleidoscope({...preset.params,generation:0}),
+   target,"Original artistic generator should still be deterministic");
+  assert.equal(calibration.calibrationPresetFor(target.params).id,id);
+  const diagnostic=calibration.inspectResonanceDensity(target,[]);
+  assert.equal(diagnostic.playableCells,slots);
+  assert.equal(diagnostic.hintCells,hints);
+  assert.equal(diagnostic.withoutHintCells,slots-hints);
+  assert.equal(diagnostic.freePlacementCells,slots,
+   "An indizio must never block placement");
+  assert.equal(diagnostic.playerOccupiedCells,0);
+  assert.equal(diagnostic.playersOnHints,0);
+  assert.equal(diagnostic.rings.length,radius);
+  assert.equal(diagnostic.rings.reduce((n,x)=>n+x.slots,0),slots);
+  assert.equal(diagnostic.rings.reduce((n,x)=>n+x.hints,0),hints);
+  assert(Math.abs(diagnostic.hintPercent-100*hints/slots)<1e-8);
+  assert.equal(diagnostic.occupiedOrbits,
+   new Set(target.tiles.map(t=>t.orbit)).size);
+  const playerKey=target.tiles[0].key;
+  const withPlayer=calibration.inspectResonanceDensity(target,[playerKey]);
+  assert.equal(withPlayer.freePlacementCells,slots-1);
+  assert.equal(withPlayer.playersOnHints,1,
+   "A player can occupy a cell that also has a hint");
+  assert.equal(withPlayer.hintCells,hints,
+   "Player moves must not change hint density");
+  const evolved=k.generateKaleidoscope({...target.params,generation:1},target);
+  assert.equal(calibration.calibrationPresetFor(evolved.params).id,id,
+   "The benchmark's recipe identity must survive ordinary Evolve");
+  assert.equal(evolved.params.generation,1);
+ }
+
  const layout=k.generateKaleidoscope({
   radius:2,family:"metatron",symmetry:"C2",seed:137,generation:0
  });
@@ -185,7 +238,21 @@ try{
  const css=await readFile("src/experiments/ResonancePlayground.css","utf8");
  const analyzer=await readFile("src/experiments/ResonanceEconomicsPanel.tsx","utf8");
  const renderer=await readFile("src/experiments/PolytronPeriodicLab.tsx","utf8");
- assert(entry.includes("<ResonancePlayground layout={layout}"));
+ assert(entry.includes("<ResonancePlayground key={calibrationSession} layout={layout}")&&
+  entry.includes("setLayout(generateKaleidoscope({...preset.params,generation:0}))")&&
+  entry.includes("setCalibrationSession(old=>old+1)"),
+  "Preset loading must use the existing generator and remount a clean Playground");
+ assert(ui.includes("Laboratorio preset")&&
+  ui.includes("RESONANCE_CALIBRATION_PRESETS.map")&&
+  ui.includes("onLoadPreset(selectedCalibration)")&&
+  ui.includes("inspectResonanceDensity(")&&
+  ui.includes("density.withoutHintCells")&&
+  ui.includes("density.freePlacementCells")&&
+  ui.includes("density.occupiedOrbits"),
+  "Calibration UI must expose selectable recipes and distinct density measurements");
+ assert(css.includes("resonance-calibration-metrics")&&
+  css.includes("resonance-calibration-rings"),
+  "Density diagnostics should use compact responsive sidebar styles");
  assert(ui.includes("new Worker(")&&ui.includes("resonanceDifficulty.worker.ts"));
  assert(ui.includes("Risonanza locale")&&ui.includes("Armonia strutturale")&&
   ui.includes("Portata di risonanza")&&ui.includes("visual.graphResults.map"));
