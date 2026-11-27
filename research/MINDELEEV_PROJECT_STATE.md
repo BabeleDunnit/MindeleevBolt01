@@ -51,14 +51,14 @@ Orientamenti progettuali acquisiti nelle sessioni di ricerca:
 | Affinità di gruppo | Usare **solo il gruppo effettivo del tile**, mai il gruppo duale | **Implementata** nel campo di risonanza |
 | Polytroni Home ↔ Mutatron | **Nessun costo di acquisto**, nessun rimborso; i trasferimenti conservano l'energia intrinseca | **Implementata** |
 | Evoluzione del Mutatron | **Nessun costo di evoluzione per ora**; eventuale costo legato al raggio è futuro e non deciso | **Implementata** come evolve gratuito |
-| Polytron Dance | Dopo Evolve, cercare disposizione più simmetrica con ricompensa **invariata o lievemente inferiore**, senza fisica/animazione per ora | **Euristica implementata**, risultato estetico e finanziario da misurare |
-| Editor in plancia | Consentire modifica di **gruppo, periodo e numero polytronico** e aggiornare valutazione/capacità energetica | **Implementato** come strumento di laboratorio |
+| Polytron Dance | Dopo Evolve, cercare disposizione più simmetrica con ricompensa **invariata o lievemente inferiore**, senza fisica/animazione per ora | **Euristica corretta** per evitare stasi frequente, con fallback dichiarato; risultato energetico e playtest da misurare |
+| Editor in plancia | Consentire modifica di **gruppo, periodo e numero polytronico** e aggiornare valutazione/capacità energetica | **Implementato** come editor sotto la plancia quando si seleziona un Polytrone; accessibilità visiva corretta, test manuale ancora richiesto |
 | Screensaver energeticamente stabile | Bilancio medio per ciclo circa **zero**, non crescita indefinita | **Obiettivo aperto**, non dimostrato |
 | Decadimento / memoria configurazionale | Considerarli solo dopo aver verificato se la Dance basta | **Ipotesi aperte**, non implementate |
 
 **Situazione energetica esatta:** nella versione attuale `treasury` rappresenta la capacità ENERGY disponibile, `occupiedEnergy` l'energia intrinseca **impegnata** dai Polytroni sulla plancia. Entrata, uscita e spostamento non consumano ENERGY. La modifica diretta della manifestazione con l'editor cambia l'energia intrinseca e ricalcola l'impegno: è un'operazione **di test**, non una meccanica canonica di mutazione gratuita. La **presentazione di una commissione** può ancora aggiungere ENERGY alla `treasury`; il semplice `Evolve` non accredita. Questa asimmetria è parte del problema di accumulo da studiare.
 
-**Dance attuale:** dopo l'evoluzione della richiesta, `polytronDance` esplora un campione deterministico di permutazioni/orbite e riutilizza le funzioni di risonanza condivise col Difficulty Analyzer. Conserva Seal/nome, numero, palette e somma delle energie dei Polytroni. Accetta solo una variazione della **ricompensa teorica** tra `0` e `-1 E`, senza abbassare la simmetria misurata; se non trova una disposizione ammissibile, non sposta nulla. **Non ne deriva** una dimostrazione di rendimento netto nullo dell'intero ciclo.
+**Dance attuale:** dopo l'evoluzione della richiesta, `polytronDance` esplora un campione deterministico di permutazioni/orbite e riutilizza le funzioni di risonanza condivise col Difficulty Analyzer. Conserva Seal/nome, numero, palette e somma delle energie dei Polytroni. **Cerca anzitutto** una variazione della **ricompensa teorica** tra `0` e `-1 E`, senza abbassare la simmetria misurata; esplora esaustivamente le collocazioni per uno/due Polytroni sulle plance piccole e usa ricerca campionata per plance più dense. Se il vincolo è impossibile da soddisfare, una modalità di ripiego privilegia comunque un movimento visibile, dichiarando esplicitamente che la previsione energetica è fuori obiettivo. Nessun movimento accredita ENERGY. **Non ne deriva** una dimostrazione di rendimento netto nullo dell'intero ciclo.
 
 **Difficulty Analyzer:** euristico (ricerca greedy limitata), non ottimo matematico certificato. La portata di risonanza influisce sia sul valutatore sia sull'analisi. Distinguere la sua previsione dal bilancio energetico realmente accreditato.
 
@@ -102,5 +102,8 @@ La presenza di un'ipotesi in una sessione storica **non** implica che sia approv
 A fine sessione significativa aggiornare il documento (tramite PR, rispettando le protezioni di `main`) con: data, branch e commit effettivo, cambiamenti realizzati, test e simulazioni eseguiti, decisioni dell'autore, limiti aperti e prossimo esperimento. Non trasformarlo in una trascrizione completa: per la storia usare gli altri documenti.
 
 ### Changelog
+
+- **2026-11-27 (correzione)** — Segnalazione dell'autore: Dance spesso senza spostamenti, editor difficile da individuare. Corretta ricerca della Dance (per 1–2 Polytroni ricerca esaustiva su raggio piccolo, simmetria visiva, fallback dichiarato) e spostato l'editor immediatamente sotto la plancia. Ampliate le regressioni per verificare spostamenti reali e visibilità dei controlli. Ramo `experiment/kaleidoscope-radius`; verificare lo stato della CI e il deployment prima di dichiarare la modifica pubblicata.
+
 
 - **2026-11-27** — Creazione del registro centrale e dei puntatori alla ricerca; fotografia del Resonance Playground con Dance/editor, affinità per solo gruppo del tile e problema aperto di bilancio ENERGY. **Nessuna nuova regola di gameplay in questo intervento documentale.**
