@@ -51,6 +51,12 @@ export default function KaleidoscopeLab(){
  // A preset load remounts ONLY the response lab, ensuring a clean baseline
  // even when a user reloads the same seed at generation 0.
  const [calibrationSession,setCalibrationSession]=useState(0);
+ // Motion is enabled only in the composition explorer. Respect the user's
+ // OS-level reduced-motion preference on first load, and allow manual override.
+ const [rotateExplorer,setRotateExplorer]=useState(()=>{
+  if(typeof window==="undefined"||typeof window.matchMedia!=="function")return true;
+  return !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+ });
  const [mode,setMode]=useState<"generator"|"resonance"|"explorer"|"review">(()=>{
   if(typeof window==="undefined")return "generator";
   const requested=new URLSearchParams(window.location.search).get("mode");
@@ -93,7 +99,7 @@ export default function KaleidoscopeLab(){
  const focal=position(0,0,radius);
  const familyInfo=FAMILY_LABELS[family];
  return <main className="kaleido-app">
-  <SharedPeriodic3D palette={0} rotate={false}
+  <SharedPeriodic3D palette={0} rotate={mode==="explorer"&&rotateExplorer}
    gradient={{pair:gradientPair(2,4),order:"contrast"}}/>
   <header className="kaleido-header">
    <div>
@@ -311,7 +317,8 @@ export default function KaleidoscopeLab(){
     onEvolve={evolve} onGenesis={genesis}
     onLoadPreset={loadCalibrationPreset}/>
   </div>
-  {mode==="explorer"&&<ResonanceCompositionExplorer/>}
+  {mode==="explorer"&&<ResonanceCompositionExplorer
+   rotatePolytrons={rotateExplorer} onRotatePolytronsChange={setRotateExplorer}/>}
   {mode==="review"&&<ResonanceReviewLab/>}
   <footer className="kaleido-footer">
    <strong>Esperimento autonomo, non RC02.</strong> Il generatore usa il
