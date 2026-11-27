@@ -114,6 +114,19 @@ Orientamenti progettuali acquisiti nelle sessioni di ricerca:
 
 **Verifica:** [GitHub Actions del commit di riferimento](https://github.com/BabeleDunnit/MindeleevBolt01/actions/runs/46032800449); [test dedicati](https://github.com/BabeleDunnit/MindeleevBolt01/blob/experiment/kaleidoscope-radius/scripts/check-resonance-playground.mjs) confrontano i sei conteggi contro il generatore reale, il determinismo, il normale Evolve e la possibilità di collocare un Polytrone sopra un indizio. Il generatore `src/polytron/kaleidoscopeGenerator.ts` e `src/polytron/resonanceField.ts` **non sono stati cambiati**. Da fare: playtest di leggibilità e risposte campione (concentrata, distribuita, simmetrica ma incompatibile) prima di variare i pesi.
 
+### Valutazione umana delle risposte — 27 novembre 2026
+
+**Decisione dell'autore:** rendere valutabili esempi *preconfigurati* di domande e risposte, assegnando due voti separati: **gradevolezza estetica** e **appropriatezza rispetto alla richiesta**. I voti restano nel browser senza DB (localStorage) e si possono esportare/importare in JSON; i giudizi devono essere raccolti **prima** di vedere lo scoring del motore. Solo dopo si potrà valutare un modello di scoring alternativo, anche una **piccola rete neurale**, senza assumere che 36 esempi siano sufficienti a generalizzare.
+
+**Implementato** nel ramo [experiment/kaleidoscope-radius](https://github.com/BabeleDunnit/MindeleevBolt01/tree/experiment/kaleidoscope-radius):
+- [src/polytron/resonanceCalibration.ts](https://github.com/BabeleDunnit/MindeleevBolt01/blob/experiment/kaleidoscope-radius/src/polytron/resonanceCalibration.ts) ora conserva A–F e aggiunge G, H, I per isolare **C6, C3 e C2** rispetto al caso **C (D6)**: stesso Cristalli/raggio 3/seed 5, rispettivamente **24/36**, **24/36**, **26/36** indizi (D6 C = 18/36). **NON** è stato cambiato il generatore artistico.
+- [src/polytron/resonanceReviewCases.ts](https://github.com/BabeleDunnit/MindeleevBolt01/blob/experiment/kaleidoscope-radius/src/polytron/resonanceReviewCases.ts) produce **4 risposte standard per ciascuna delle 9 domande**: 1) tre Polytroni distribuiti a 120°; 2) uno spostato di anello; 3) tre Polytroni raggruppati; 4) stesse posizioni del primo caso, palette diversa. Identico numero di individui, numero polytronico e impegno energetico in ogni confronto; rappresentazioni vere flat-Z della domanda e solide della risposta.
+- [src/experiments/ResonanceReviewLab.tsx](https://github.com/BabeleDunnit/MindeleevBolt01/blob/experiment/kaleidoscope-radius/src/experiments/ResonanceReviewLab.tsx) è una **terza vista** del Kaleidoscope Lab, «Valutazione umana»: due plance affiancate, richiesta già compiuta e risposta con Polytroni preposizionati; voto 0–10 per gradevolezza, voto 0–10 o «non so giudicare» per appropriatezza, note libere. Metodo e qualità del motore sono nascosti sino al salvataggio.
+- [src/polytron/resonanceReviewStorage.ts](https://github.com/BabeleDunnit/MindeleevBolt01/blob/experiment/kaleidoscope-radius/src/polytron/resonanceReviewStorage.ts) definisce un archivio JSON versionato, con validazione rigorosa degli ID **A-1 … I-4**; i voti sono locali per origin/browser e possono andare persi se si cancellano i dati del sito. Importa/esporta JSON per backup, senza server.
+- [GitHub Actions del commit di integrazione](https://github.com/BabeleDunnit/MindeleevBolt01/actions/runs/46041518213): TypeScript, regressioni dei nove preset e 36 risposte, build e deploy. **Verificare il risultato del workflow** prima di dichiarare l'ultima versione pubblicata. Sono ancora necessari controlli visuali e un vero playtest.
+
+**Importante per ricerca ML:** questi 36 confronti (9 domande × 4 risposte) sono un *campione pilota*, **non** sufficiente a concludere che una rete neurale sia un valutatore affidabile. Nessun training o ribilanciamento in questo intervento. Per un eventuale modello prevedere due output distinti e validazione su richieste/seed/simmetrie **mai viste in addestramento**, preferibilmente con confronto a un modello interpretabile e verifiche del PATTO. Le domande sono sempre tile-indizio e i Polytroni appartengono solo alla risposta.
+
 **Design review delle regole punitive — NON approvata, NON implementata.** La funzione `resonanceReward` tronca attualmente il premio a valori `>=0`; una presentazione non può perdere ENERGY. Il Difficulty Analyzer non può trovare payoff negativi con questo modello. Tre direzioni da confrontare: **(A)** ricompense con segno e soglia calibrata alla difficoltà; **(B)** penalità per interferenza/frustrazione delle relazioni locali; **(C)** memoria/potenziale energetico limitato che impedisca il farming degli stessi stati. Un semplice premio con segno (A) o una penalità locale (B) **non garantiscono** da soli che due movimenti dopo Dance non riportino al profitto. La prossima decisione richiede un confronto del Design Team e simulazioni di cicli, conservando l'attuale assenza di costi di acquisto ed evoluzione fino a nuova decisione esplicita.
 
 ## 5. Archivio storico esistente — link, non duplicazioni
@@ -133,6 +146,10 @@ La presenza di un'ipotesi in una sessione storica **non** implica che sia approv
 A fine sessione significativa aggiornare il documento (tramite PR, rispettando le protezioni di `main`) con: data, branch e commit effettivo, cambiamenti realizzati, test e simulazioni eseguiti, decisioni dell'autore, limiti aperti e prossimo esperimento. Non trasformarlo in una trascrizione completa: per la storia usare gli altri documenti.
 
 ### Changelog
+
+- **2026-11-27 (valutazione umana e simmetrie)** — Aggiunta vista con 36 esempi domanda-risposta, giudizi separati estetica/appropriatezza salvati solo in localStorage e JSON, e 3 nuovi preset C6/C3/C2; rete neurale solo come ipotesi da testare con dati raccolti, generatore e scorer invariati.
+
+
 
 - **2026-11-27 (preset di calibrazione)** — Introdotti sei casi A–F e diagnostica della densità degli indizi/effettiva disponibilità delle celle, senza modificare generazione, Analyzer o ENERGY. Restano da testare risposte campione e leggibilità.
 
