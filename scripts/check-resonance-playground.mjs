@@ -243,14 +243,26 @@ try{
   !analyzer.includes("Costo ogni Evolve"));
  const sidebarOpen=ui.indexOf('<aside className="kaleido-controls resonance-sidebar">');
  const sidebarClose=ui.indexOf('  </aside>',sidebarOpen);
- const analyzerOpen=ui.indexOf('<section className="kaleido-control-block resonance-analysis">');
+ const analyzerOpen=ui.indexOf('<section className="kaleido-control-block resonance-analysis resonance-analysis-summary">');
+ const strategiesOpen=ui.indexOf('resonance-analysis-strategies');
+ const frontierOpen=ui.indexOf('resonance-analysis-frontier');
+ const risksOpen=ui.indexOf('resonance-analysis-risks');
  const forecastOpen=ui.indexOf('<section className="kaleido-control-block resonance-forecast">');
  const metricsOpen=ui.indexOf('<section className="kaleido-control-block resonance-metrics">');
  const boardAction=ui.indexOf('className="resonance-board-action-panel"');
  assert(boardAction>0&&boardAction<sidebarOpen,
   "Placement and movement actions must be mounted under the board");
- assert(sidebarClose>sidebarOpen&&analyzerOpen>sidebarClose,
-  "The Difficulty Analyzer must span the full workspace, not a narrow card");
+ assert(analyzerOpen>sidebarOpen&&analyzerOpen<sidebarClose,
+  "Difficulty Analyzer must stay inside the sidebar, not under the Mutatron");
+ assert(strategiesOpen>analyzerOpen&&strategiesOpen<sidebarClose&&
+  frontierOpen>strategiesOpen&&risksOpen>frontierOpen&&risksOpen<sidebarClose,
+  "Summary, strategies, frontier and risks must be four sidebar cards");
+ assert(ui.includes('section="strategies"')&&ui.includes('section="frontier"')&&
+  ui.includes('section="risks"')&&
+  analyzer.includes('section==="strategies"')&&
+  analyzer.includes('section==="frontier"')&&
+  analyzer.includes('section==="risks"'),
+  "All analyzer features must remain available, separated by panels");
  assert(!ui.slice(forecastOpen,metricsOpen).includes('resonance-purchase-actions'),
   "Narrow forecast card should not duplicate the confirmation controls");
  assert(ui.includes("const activeCell=previewKey??hoverKey;")&&
@@ -267,14 +279,15 @@ try{
  assert(css.includes(".resonance-purchase-actions")&&
   css.includes(".resonance-cancel-purchase")&&
   css.includes(".resonance-head-energy")&&
-  css.includes(".resonance-lab>.resonance-analysis")&&
+  css.includes(".resonance-lab .resonance-sidebar>.resonance-analysis")&&
+  !css.includes(".resonance-lab>.resonance-analysis{")&&
   css.includes("@media(max-width:530px)"));
  const economicsCss=await readFile("src/experiments/ResonanceEconomicsPanel.css","utf8");
- assert(economicsCss.includes(".resonance-lab>.resonance-analysis .resonance-econ-scenarios")&&
-  economicsCss.includes("repeat(auto-fit")&&
-  economicsCss.includes("resonance-econ-frontier")&&
-  economicsCss.includes("resonance-econ-risks"),
-  "Difficulty comparison, energy frontier and risks must flow horizontally");
+ assert(economicsCss.includes(".resonance-econ-scenarios")&&
+  economicsCss.includes(".resonance-econ-frontier")&&
+  economicsCss.includes(".resonance-econ-risks")&&
+  css.includes(".resonance-lab .resonance-sidebar .resonance-analysis .resonance-econ-scenarios"),
+  "Analyzer comparisons must fit within separate compact sidebar cards");
  assert(renderer.includes("cell.dataset.kaleidoOpacity")&&
   renderer.includes("renderer.clearDepth()"));
  console.log("PASS Resonance conservation: no buy/move/evolve debits, "+
