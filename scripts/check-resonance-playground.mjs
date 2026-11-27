@@ -376,9 +376,23 @@ try{
  const explorationUi=await readFile("src/experiments/ResonanceCompositionExplorer.tsx","utf8");
  const explorationCss=await readFile("src/experiments/ResonanceCompositionExplorer.css","utf8");
  assert(entry.includes('onClick={()=>setMode("explorer")}')&&
-  entry.includes('mode==="explorer"&&<ResonanceCompositionExplorer/>')&&
+  entry.includes('mode==="explorer"&&<ResonanceCompositionExplorer')&&
   entry.includes('mode==="review"&&<ResonanceReviewLab/>'),
   "Keep the old votes accessible while introducing the explorer tab");
+ assert(entry.includes('rotate={mode==="explorer"&&rotateExplorer}')&&
+  entry.includes('rotatePolytrons={rotateExplorer}')&&
+  entry.includes('onRotatePolytronsChange={setRotateExplorer}')&&
+  entry.includes('prefers-reduced-motion'),
+  "Only the explorer should animate solid Polytrons and respect reduced motion");
+ assert(explorationUi.includes('checked={rotatePolytrons}')&&
+  explorationUi.includes('onRotatePolytronsChange(e.target.checked)')&&
+  explorationUi.includes("tile-indizio fermi e invariati")&&
+  explorationCss.includes(".explorer-rotation-toggle"),
+  "The user must be able to pause the rotation without changing target palettes");
+ assert(renderer.includes('group.rotation.y=rotateRef.current?time*.00034:.42;')&&
+  renderer.includes('if(kind==="solid")')&&
+  renderer.includes('if(kind==="flat-z")'),
+  "Shared 3D renderer must rotate solids while leaving flat-Z hints fixed");
  assert(explorationUi.includes("Nuova origine +1")&&
   explorationUi.includes("Genera nuova coppia")&&
   explorationUi.includes("Varia B partendo da A")&&
