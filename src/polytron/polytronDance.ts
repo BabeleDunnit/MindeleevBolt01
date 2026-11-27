@@ -1,9 +1,13 @@
 /**
- * Polytron Dance for the Kaleidoscope Resonance Playground only.
- * Reuses the same resonance/economics evaluator as Difficulty Analyzer.
- * This is an instantaneous repositioning, NOT a new manifestation.
+ * Polytron Dance · Kaleidoscope Resonance Playground only.
+ *
+ * The Difficulty Analyzer and Dance use the same scoreResonance/reward functions.
+ * Evolve changes the request first; the Dance then moves existing individuals.
+ * The Dance itself never credits the treasury or changes intrinsic energy.
  */
-import {kaleidoOrbits,type KaleidoLayout} from "@/polytron/kaleidoscopeGenerator";
+import {
+ kaleidoOrbits,kaleidoTransform,type KaleidoLayout
+} from "@/polytron/kaleidoscopeGenerator";
 import {
  scoreResonance,resonanceReward,type ResonancePawn,type ResonanceSettings
 } from "@/polytron/resonanceField";
@@ -11,6 +15,9 @@ import {
 export type DanceResult<T extends ResonancePawn>={
  pawns:T[];beforeReward:number;afterReward:number;
  beforeSymmetry:number;afterSymmetry:number;moved:number;
+ beforeVisualSymmetry:number;afterVisualSymmetry:number;
+ /** target = 0/-1 E; relaxed = larger loss; fallback = closest available movement. */
+ status:"target"|"relaxed"|"fallback"|"empty";
 };
 function rng(seed:number):()=>number{
  let state=seed>>>0;
@@ -19,77 +26,136 @@ function rng(seed:number):()=>number{
   return state/4294967296;
  };
 }
-function shuffle<T>(items:readonly T[],random:()=>number):T[]{
- const result=[...items];
- for(let i=result.length-1;i>0;i--){
+function shuffle<T>(input:readonly T[],random:()=>number):T[]{
+ const a=[...input];
+ for(let i=a.length-1;i>0;i--){
   const j=Math.floor(random()*(i+1));
-  [result[i],result[j]]=[result[j],result[i]];
+  [a[i],a[j]]=[a[j],a[i]];
  }
- return result;
+ return a;
 }
-/**
- * Search a set of orbit-aware layouts and accept only a dance whose
- * post-evolution commission reward is unchanged or one unit lower.
- * No seals, manifestations, palettes or intrinsic energies are changed.
- * A failure to find a safe movement keeps the board unchanged.
- */
+function visualSymmetry(layout:KaleidoLayout,keys:readonly string[]):number{
+ if(keys.length<2)return 0;
+ const occupied=new Set(keys);
+ const rotations=layout.params.symmetry==="C2"?[3]:
+  layout.params.symmetry==="C3"?[2,4]:[1,2,3,4,5];
+ const transforms=rotations.map(rotation=>({rotation,mirrored:false}));
+ if(layout.params.symmetry==="D6"){
+  for(let rotation=0;rotation<6;rotation++)
+   transforms.push({rotation,mirrored:true});
+ }
+ let best=0;
+ for(const t of transforms){
+  let matching=0;
+  for(const key of keys){
+   const [q,r]=key.split(",").map(Number);
+   const p=kaleidoTransform({q,r},t.rotation,t.mirrored);
+   if(occupied.has(p.q+","+p.r))matching++;
+  }
+  best=Math.max(best,matching/keys.length);
+ }
+ return 100*best;
+}
 export function polytronDance<T extends ResonancePawn>(
  layout:KaleidoLayout,pawns:readonly T[],settings:ResonanceSettings
 ):DanceResult<T>{
  const original=[...pawns];
- const before=scoreResonance(layout,original,settings);
- const beforeReward=resonanceReward(layout,before.quality);
- const empty: DanceResult<T>={
+ const score=scoreResonance(layout,original,settings);
+ const beforeReward=resonanceReward(layout,score.quality);
+ const originalKeys=original.map(p=>p.key);
+ const beforeVisualSymmetry=visualSymmetry(layout,originalKeys);
+ const unchanged:DanceResult<T>={
   pawns:original,beforeReward,afterReward:beforeReward,
-  beforeSymmetry:before.symmetry,afterSymmetry:before.symmetry,moved:0
+  beforeSymmetry:score.symmetry,afterSymmetry:score.symmetry,
+  beforeVisualSymmetry,afterVisualSymmetry:beforeVisualSymmetry,
+  moved:0,status:"empty"
  };
- if(!pawns.length)return empty;
- const random=rng((layout.params.seed^Math.imul(layout.params.generation+1,2654435761)^
-  Math.imul(pawns.length,2246822519))>>>0);
+ if(!original.length)return unchanged;
  const cells=layout.cells.filter(c=>c.ring>0);
+ if(cells.length<2)return unchanged;
+ const random=rng((layout.params.seed^Math.imul(layout.params.generation+1,2654435761)^
+  Math.imul(original.length,2246822519))>>>0);
  const orbits=kaleidoOrbits(layout.cells,layout.params.symmetry)
-  .filter(o=>o.ring>0);
- const n=pawns.length;
- let best=empty;
- let bestUtility=before.symmetry*100+2;
- const evaluate=(keys:string[])=>{
+  .filter(orbit=>orbit.ring>0);
+ const n=original.length;
+ type Choice={result:DanceResult<T>;rank:number};
+ let target:Choice|null=null,relaxed:Choice|null=null,fallback:Choice|null=null;
+ const originalOccupied=new Set(originalKeys);
+ const evaluate=(keys:readonly string[])=>{
   if(keys.length!==n||new Set(keys).size!==n)return;
-  const shuffled=shuffle(original,random);
-  const trial=shuffled.map((p,i)=>({...p,key:keys[i]}));
-  const moved=trial.filter(p=>original.some(old=>
-   "seal" in p&&"seal" in old?old.seal===p.seal&&old.key!==p.key:
-    old.number===p.number&&old.key!==p.key)).length;
+  const moved=keys.reduce((total,key,i)=>total+(key!==original[i].key?1:0),0);
   if(!moved)return;
-  const score=scoreResonance(layout,trial,settings);
-  const reward=resonanceReward(layout,score.quality);
-  const delta=reward-beforeReward;
-  if(delta>0||delta< -1||score.symmetry+1e-8<before.symmetry)return;
-  // Symmetry dominates; neutral reward is preferable to a one-E penalty.
-  // Small deterministic movement preference breaks equal-score ties.
-  const utility=score.symmetry*100+(delta===0?2:0)+moved/n;
-  if(utility>bestUtility){
-   bestUtility=utility;
-   best={pawns:trial,beforeReward,afterReward:reward,
-    beforeSymmetry:before.symmetry,afterSymmetry:score.symmetry,moved};
+  const trial=original.map((pawn,i)=>({...pawn,key:keys[i]}));
+  const next=scoreResonance(layout,trial,settings);
+  const afterReward=resonanceReward(layout,next.quality);
+  const delta=afterReward-beforeReward;
+  const afterVisualSymmetry=visualSymmetry(layout,keys);
+  const changedPositions=keys.some(key=>!originalOccupied.has(key));
+  const result:DanceResult<T>={
+   pawns:trial,beforeReward,afterReward,
+   beforeSymmetry:score.symmetry,afterSymmetry:next.symmetry,
+   beforeVisualSymmetry,afterVisualSymmetry,moved,status:"target"
+  };
+  // Meaningful change of occupied positions wins ties over swapping identities.
+  const aesthetic=afterVisualSymmetry*10+next.symmetry;
+  const visualBonus=changedPositions?0.25:0;
+  const moveBonus=moved/n*.1;
+  if(delta<=0&&delta>=-1&&next.symmetry+1e-8>=score.symmetry){
+   const rank=aesthetic+(delta===0?.8:0)+visualBonus+moveBonus;
+   if(!target||rank>target.rank)target={result,rank};
+  }else if(delta<0&&next.symmetry+1e-8>=score.symmetry){
+   // Larger losses are allowed only if no near-neutral movement exists.
+   const rank=aesthetic-Math.abs(delta)*2+visualBonus+moveBonus;
+   if(!relaxed||rank>relaxed.rank)
+    relaxed={result:{...result,status:"relaxed"},rank};
   }
+  // Last resort: move visibly while retaining the actual energy of every Pawn.
+  // The UI explicitly reports when the forecast reward constraint could not hold.
+  const rank=aesthetic-Math.abs(delta)*6+
+   (delta>0?-15:0)+visualBonus+moveBonus;
+  if(!fallback||rank>fallback.rank)
+   fallback={result:{...result,status:"fallback"},rank};
  };
- // Include permutations on the same cells: useful when the board is full.
- for(let i=0;i<24;i++)evaluate(original.map(p=>p.key));
- for(let trial=0;trial<280;trial++){
-  const picked:string[]=[];
-  const chosen=new Set<string>();
-  // Fill as many complete symmetry orbits as possible, then residual cells.
-  for(const orbit of shuffle(orbits,random)){
-   if(picked.length+orbit.cells.length>n)continue;
-   if(random()<.18&&trial%4!==0)continue;
-   for(const cell of orbit.cells){picked.push(cell.key);chosen.add(cell.key);}
-   if(picked.length===n)break;
+ // For sparse boards, exhaustively check the complete space of placements.
+ // In particular two Polytrons can form a 180° pair even in a D6 request.
+ if(n===1){
+  for(const cell of cells)evaluate([cell.key]);
+ }else if(n===2&&cells.length<=36){
+  for(const a of cells)for(const b of cells)
+   if(a.key!==b.key)evaluate([a.key,b.key]);
+ }else{
+  // Existing slots can still dance on a full board.
+  for(let i=0;i<36;i++)evaluate(shuffle(originalKeys,random));
+  // Orbit-first candidate generation, followed by local variations.
+  for(let attempt=0;attempt<560;attempt++){
+   const keys:string[]=[];
+   const chosen=new Set<string>();
+   if(attempt%4!==0){
+    for(const orbit of shuffle(orbits,random)){
+     if(keys.length+orbit.cells.length>n)continue;
+     if(attempt%3===0&&random()<.3)continue;
+     for(const cell of orbit.cells){
+      keys.push(cell.key);chosen.add(cell.key);
+     }
+     if(keys.length===n)break;
+    }
+   }
+   for(const cell of shuffle(cells,random)){
+    if(keys.length>=n)break;
+    if(!chosen.has(cell.key)){keys.push(cell.key);chosen.add(cell.key);}
+   }
+   evaluate(shuffle(keys,random));
   }
-  for(const cell of shuffle(cells,random)){
-   if(picked.length>=n)break;
-   if(!chosen.has(cell.key)){picked.push(cell.key);chosen.add(cell.key);}
+  // Local mutations can preserve the score but still shift the pattern.
+  for(let attempt=0;attempt<140;attempt++){
+   const keys=[...originalKeys];
+   const i=Math.floor(random()*n);
+   const destination=cells[Math.floor(random()*cells.length)].key;
+   const other=keys.indexOf(destination);
+   if(other>=0)[keys[i],keys[other]]=[keys[other],keys[i]];
+   else keys[i]=destination;
+   evaluate(keys);
   }
-  evaluate(shuffle(picked,random));
  }
- return best;
+ return (target??relaxed??fallback)?.result??unchanged;
 }
