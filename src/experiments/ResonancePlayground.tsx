@@ -1092,6 +1092,7 @@ export default function ResonancePlayground({
      <h2>Difficulty Analyzer · Strategie</h2>
      <ResonanceEconomicsPanel section="strategies"
       report={difficulty} selectedId={selectedScenarioId}
+      layout={layout} mode={economyMode} baselineQuality={baselineQuality}
       showPlan={showPlan} onSelect={id=>{
        setSelectedScenarioId(id);setShowPlan(true);
       }}
@@ -1101,6 +1102,7 @@ export default function ResonancePlayground({
      <h2>Difficulty Analyzer · Frontiera energetica</h2>
      <ResonanceEconomicsPanel section="frontier"
       report={difficulty} selectedId={selectedScenarioId}
+      layout={layout} mode={economyMode} baselineQuality={baselineQuality}
       showPlan={showPlan} onSelect={id=>{
        setSelectedScenarioId(id);setShowPlan(true);
       }}
@@ -1110,6 +1112,7 @@ export default function ResonancePlayground({
      <h2>Difficulty Analyzer · Rischi e mosse sfavorevoli</h2>
      <ResonanceEconomicsPanel section="risks"
       report={difficulty} selectedId={selectedScenarioId}
+      layout={layout} mode={economyMode} baselineQuality={baselineQuality}
       showPlan={showPlan} onSelect={id=>{
        setSelectedScenarioId(id);setShowPlan(true);
       }}
