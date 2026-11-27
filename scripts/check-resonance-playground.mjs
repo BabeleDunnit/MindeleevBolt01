@@ -266,8 +266,20 @@ try{
  const forecastOpen=ui.indexOf('<section className="kaleido-control-block resonance-forecast">');
  const metricsOpen=ui.indexOf('<section className="kaleido-control-block resonance-metrics">');
  const boardAction=ui.indexOf('className="resonance-board-action-panel"');
- assert(boardAction>0&&boardAction<sidebarOpen,
-  "Placement and movement actions must be mounted under the board");
+ const stageMarkup=ui.slice(boardHeaderOpen,sidebarOpen);
+ const forecastMarkup=ui.slice(forecastOpen,metricsOpen);
+ assert(boardAction>0&&boardAction<sidebarOpen&&
+  stageMarkup.includes('!moveFrom&&candidate&&activePosition')&&
+  stageMarkup.includes('Conferma piazzamento')&&
+  !stageMarkup.includes('Conferma spostamento'),
+  "Board actions are for placement/recall, not for moving a Polytron");
+ assert(forecastMarkup.includes('resonance-move-actions')&&
+  forecastMarkup.includes('Conferma spostamento')&&
+  forecastMarkup.includes('Annulla spostamento')&&
+  forecastMarkup.includes('disabled={!pinnedCandidate||!canPlace}')&&
+  forecastMarkup.includes('onClick={commit}')&&
+  forecastMarkup.includes('onClick={cancelPending}'),
+  "Move confirm and cancel belong in the Polytron movement panel");
  assert(analyzerOpen>sidebarOpen&&analyzerOpen<sidebarClose,
   "Difficulty Analyzer must stay inside the sidebar, not under the Mutatron");
  assert(strategiesOpen>analyzerOpen&&strategiesOpen<sidebarClose&&
@@ -279,8 +291,9 @@ try{
   analyzer.includes('section==="frontier"')&&
   analyzer.includes('section==="risks"'),
   "All analyzer features must remain available, separated by panels");
- assert(!ui.slice(forecastOpen,metricsOpen).includes('resonance-purchase-actions'),
-  "Narrow forecast card should not duplicate the confirmation controls");
+ assert(!forecastMarkup.includes('Conferma piazzamento')&&
+  !forecastMarkup.includes('Conferma richiamo'),
+  "Forecast card must not duplicate placement or Home recall buttons");
  assert(ui.includes("const activeCell=previewKey??hoverKey;")&&
   ui.includes("pinnedCandidate")&&ui.includes("onClick={commit}")&&
   ui.includes("onClick={cancelPending}"),
@@ -298,6 +311,11 @@ try{
   css.includes(".resonance-lab .resonance-sidebar>.resonance-analysis")&&
   !css.includes(".resonance-lab>.resonance-analysis{")&&
   css.includes("@media(max-width:530px)"));
+ assert(css.includes("grid-template-columns:minmax(0,1fr)")&&
+  css.includes("grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr))")&&
+  css.includes("grid-column:1;width:100%;min-width:0;max-width:none")&&
+  css.includes("resonance-forecast .resonance-move-actions"),
+  "The Mutatron header must stretch across its full width with responsive ENERGY cards");
  assert(css.includes("column-width:270px;column-count:3")&&
   css.includes("display:inline-block;vertical-align:top")&&
   css.includes("break-inside:avoid-column")&&
