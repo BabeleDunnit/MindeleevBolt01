@@ -6,7 +6,7 @@ import {rcAxial,rcPolygon} from "@/polytron/rc01Board";
 import type {KaleidoLayout,KaleidoTile} from "@/polytron/kaleidoscopeGenerator";
 import {
  DEFAULT_RESONANCE_SETTINGS,evaluateResonance,
- resonanceEnergy,resonanceReward,resonanceComplexity,scoreResonance,
+ resonanceEnergy,resonanceComplexity,scoreResonance,
  type ResonancePawn,type ResonanceSettings,type ResonanceScore
 } from "@/polytron/resonanceField";
 import type {DifficultyReport} from "@/polytron/resonanceDifficulty";
@@ -70,9 +70,6 @@ export default function ResonancePlayground({
   key:string;pawns:OwnedPolytron[]
  }>(()=>({key:requestKey,pawns:[]}));
  const baselineReady=baseline.key===requestKey;
- const baselineQuality=useMemo(()=>baselineReady?
-  scoreResonance(layout,baseline.pawns,settings).quality:0,
-  [layout,baseline,baselineReady,settings]);
  const [ledger,setLedger]=useState<Array<{
   model:ResonanceEconomyMode;generation:number;
   before:number;after:number;change:number;
@@ -81,6 +78,9 @@ export default function ResonancePlayground({
  const [paletteRow,setPaletteRow]=useState(10);
  const [paletteCol,setPaletteCol]=useState(10);
  const [settings,setSettings]=useState<ResonanceSettings>(DEFAULT_RESONANCE_SETTINGS);
+ const baselineQuality=useMemo(()=>baselineReady?
+  scoreResonance(layout,baseline.pawns,settings).quality:0,
+  [layout,baseline,baselineReady,settings]);
  const [hoverKey,setHoverKey]=useState<string|null>(null);
  const [previewKey,setPreviewKey]=useState<string|null>(null);
  const [moveFrom,setMoveFrom]=useState<string|null>(null);
@@ -413,8 +413,15 @@ export default function ResonancePlayground({
      <div className="resonance-head-energy-cell">
       <small>Saldo ENERGY attuale</small>
       <strong>{treasury} E</strong>
-      <span>Dopo presentazione {treasury+(forecastReward??currentReward)} E
-       {forecastReward!==null?" · con anteprima":""}</span>
+      <span>{!baselineReady?"Dance in corso…":
+       forecastSettlement&&!forecastSettlement.canPresent?
+        "Anteprima: mancano "+forecastSettlement.shortage+" E libere":
+       !settlement.canPresent&&forecastReward===null?
+        "Presentazione: mancano "+settlement.shortage+" E libere":
+        "Dopo presentazione "+
+         (forecastSettlement?.afterTreasury??settlement.afterTreasury??"—")+
+         " E"+(forecastReward!==null?" · con anteprima":"")}
+      </span>
      </div>
      <div className="resonance-head-energy-cell">
       <small>Energia impegnata in plancia</small>
@@ -429,12 +436,15 @@ export default function ResonancePlayground({
       <span>Capacità per altre manifestazioni</span>
      </div>
      <div className="resonance-head-energy-cell">
-      <small>Ricompensa se presenti</small>
-      <strong>+{currentReward} E
-       {forecastReward!==null&&<em> → +{forecastReward} E</em>}</strong>
+      <small>Variazione alla presentazione</small>
+      <strong className={currentReward<0?"resonance-negative":
+       currentReward>0?"resonance-positive":""}>
+       {signedEnergy(currentReward)}
+       {forecastReward!==null&&<em> → {signedEnergy(forecastReward)}</em>}
+      </strong>
       <span className={rewardDelta!==null&&rewardDelta<0?"resonance-negative":rewardDelta!==null&&rewardDelta>0?"resonance-positive":""}>
-       {rewardDelta===null?"Stima attuale, non incassata":
-        "Δ premio "+signed(rewardDelta)+" E · ipotetico"}
+       {rewardDelta===null?"Stima attuale, non ancora applicata":
+        "Δ esito "+signed(rewardDelta)+" E · ipotetico"}
       </span>
      </div>
     </div>
@@ -629,7 +639,7 @@ export default function ResonancePlayground({
     <div className="resonance-board-action-info">
      <b>{fromHome?"Richiama":"Piazza"} Polytrone {candidate.number} in {fromLabel(activePosition)}</b>
      <span>Qualità {fmt(planned.quality)} → {fmt(preview?.quality??planned.quality)}% ·
-      premio +{currentReward} → +{previewReward??currentReward} E
+      esito {signedEnergy(currentReward)} → {signedEnergy(previewReward??currentReward)}
       {marginalReward!==null&&" (Δ "+signed(marginalReward)+" E)"}</span>
     </div>
     {pinnedCandidate?
@@ -664,6 +674,68 @@ export default function ResonancePlayground({
    </div>
   </section>
   <aside className="kaleido-controls resonance-sidebar">
+   <section className="kaleido-control-block resonance-economy-model">
+    <div className="kaleido-section-top">
+     <h2>Economia energetica</h2>
+     <strong>3 modelli</strong>
+    </div>
+    <p>Scegli come la qualità si traduce in guadagni o perdite.
+     Il valutatore di risonanza rimane identico.</p>
+    <label htmlFor="resonance-economy-mode">Modello attivo</label>
+    <select id="resonance-economy-mode" value={economyMode}
+     onChange={e=>changeEconomyMode(
+      e.target.value as ResonanceEconomyMode)}>
+     {RESONANCE_ECONOMY_MODE_IDS.map(model=>
+      <option key={model} value={model}>
+       {RESONANCE_ECONOMY_LABELS[model]}
+      </option>)}
+    </select>
+    <div className="resonance-economy-baseline">
+     <span>Qualità a inizio commissione (dopo Dance)</span>
+     <strong>{baselineReady?fmt(baselineQuality)+"%":"In preparazione…"}</strong>
+    </div>
+    <p className="resonance-economy-explanation">
+     {economyMode==="current"?
+      "Attuale: ricompensa sempre ≥ 0, anche senza migliorare la risposta.":
+      economyMode==="threshold"?
+       "Soglia: sotto "+ECONOMY_THRESHOLD_QUALITY+
+       "% di qualità perdi E; sopra la soglia ne guadagni.":
+       "Miglioramento: guadagni solo se migliori la qualità ricevuta. "+
+       "Senza interventi l'esito è 0 E."}
+    </p>
+    <h3>Stessa risposta · tre esiti teorici</h3>
+    <div className="resonance-economy-comparison">
+     {comparison.map(item=><div key={item.model}
+      className={item.model===economyMode?"is-active":""}>
+      <span>{item.model==="current"?"Attuale":
+       item.model==="threshold"?"Soglia":"Miglioramento"}</span>
+      <strong className={item.change<0?"resonance-negative":
+       item.change>0?"resonance-positive":""}>
+       {signedEnergy(item.change)}
+      </strong>
+     </div>)}
+    </div>
+    <p className="resonance-economy-warning">Cambiare modello
+     <b> riavvia la prova corrente</b>: Polytroni, Home, saldo e
+     storico ripartono dai valori iniziali. Non puoi scegliere a ogni
+     commissione soltanto il modello più favorevole.</p>
+    <p className="resonance-economy-note">Non esistono costi di acquisto,
+     di movimento, di Dance o di Evolve. Una perdita si paga con
+     ENERGY libera: gli individui conservano tutta la loro energia.</p>
+    <details className="resonance-economy-ledger">
+     <summary>Storico delle commissioni · {ledger.length}</summary>
+     {ledger.length?ledger.slice().reverse().map((entry,index)=>
+      <div key={entry.generation+"|"+index}>
+       <span>G{entry.generation} · {fmt(entry.startingQuality)} →
+        {" "}{fmt(entry.finalQuality)}%</span>
+       <strong className={entry.change<0?"resonance-negative":
+        entry.change>0?"resonance-positive":""}>
+        {signedEnergy(entry.change)}</strong>
+       <small>{entry.before} → {entry.after} E</small>
+      </div>):
+      <p>Ancora nessuna commissione presentata.</p>}
+    </details>
+   </section>
    <section className="kaleido-control-block resonance-calibration">
     <div className="kaleido-section-top">
      <h2>Laboratorio preset</h2>
@@ -871,7 +943,7 @@ export default function ResonancePlayground({
         {freeEnergy-candidateEnergy} E</b>
       </div>
       <div className="resonance-forecast-row resonance-net-line">
-       <span>Variazione della ricompensa prevista</span>
+       <span>Variazione dell'esito alla presentazione</span>
        <b className={(marginalReward??0)>=0?"resonance-positive":"resonance-negative"}>
         {marginalReward!==null&&marginalReward>0?"+":""}{marginalReward} E
        </b>
@@ -926,8 +998,11 @@ export default function ResonancePlayground({
       </div>
      </div>)}
     <div className="resonance-forecast-row">
-     <span>Ricompensa per presentare la commissione</span>
-     <b className="resonance-positive">+{currentReward} E</b>
+     <span>Esito della presentazione · {economyMode==="current"?
+      "Attuale":economyMode==="threshold"?"Soglia":"Miglioramento"}</span>
+     <b className={currentReward<0?"resonance-negative":
+      currentReward>0?"resonance-positive":""}>
+      {signedEnergy(currentReward)}</b>
     </div>
     <div className="resonance-forecast-row">
      <span>Energia conservata sulla plancia</span>
@@ -939,10 +1014,17 @@ export default function ResonancePlayground({
     </div>
     <p>Non ci sono costi per gli individui né per Evolve.
      L'energia resta legata a ciascun Polytrone e si libera quando
-     rientra a Home. Solo la presentazione accredita la ricompensa.</p>
+     rientra a Home. Solo la presentazione accredita o addebita ENERGY.</p>
+    {!baselineReady&&<p className="resonance-warning" role="status">
+     La nuova commissione sarà valutabile dopo la Polytron Dance.</p>}
+    {baselineReady&&!settlement.canPresent&&<p className="resonance-warning"
+     role="status">Per presentare questa risposta servono ancora
+     <b> {settlement.shortage} E libere</b> per coprire la perdita
+     di {signedEnergy(currentReward)}. Migliora la risposta oppure
+     richiama qualche Polytrone a Home: la sua energia non va perduta.</p>}
     <button type="button" className="resonance-submit"
-     disabled={claimed} onClick={claim}>
-     Presenta al Mutatron · +{currentReward} E ed Evolve</button>
+     disabled={claimed||!baselineReady||!settlement.canPresent} onClick={claim}>
+     Presenta al Mutatron · {signedEnergy(currentReward)} ed Evolve</button>
     <p>Ogni commissione può essere presentata una sola volta.
      Evolve avvia la Polytron Dance, che conserva l’energia e cerca
      configurazioni simmetriche con resa prevista non positiva.</p>
@@ -958,7 +1040,8 @@ export default function ResonancePlayground({
      {danceInfo.moved===0&&" Nessun movimento ammissibile trovato."}
     </p>}
     <div className="resonance-two-actions">
-     <button type="button" disabled={claimed} onClick={()=>advance(false)}>
+     <button type="button" disabled={claimed||!baselineReady}
+      onClick={()=>advance(false)}>
       Evolve senza presentare · gratuito</button>
      <button type="button" onClick={reset}>Tutti a Home</button>
     </div>
