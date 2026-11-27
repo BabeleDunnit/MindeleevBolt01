@@ -586,12 +586,14 @@ try{
   "Home preserves energy without refund or loss");
  assert(!reset.includes("setTreasury"),
   "Moving all Polytrons Home does not mint energy");
- assert(advance.includes("const reward=submit?currentReward:0")&&
-  advance.includes("if(reward)setTreasury(old=>old+reward)")&&
+ assert(advance.includes("const change=submit?currentReward:0")&&
+  advance.includes("if(submit)")&&
+  advance.includes("setTreasury(old=>old+change)")&&
+  advance.includes("!settlement.canPresent")&&
   !advance.includes("upkeep")&&!advance.includes("resonanceEnergy")&&
   !advance.includes("setTreasury(old=>old-")&&
   advance.includes("onEvolve()"),
-  "Mutatron evolution is free; only an awarded commission earns energy");
+  "Mutatron evolution stays free; a submitted commission alone debits or credits ENERGY");
  assert(ui.includes("committedEnergy+candidateEnergy<=treasury")&&
   ui.includes("freeEnergy=treasury-occupiedEnergy")&&
   ui.includes("Evolve senza presentare · gratuito"),
@@ -600,7 +602,7 @@ try{
   !ui.includes("Costo obbligatorio ad ogni evoluzione")&&
   !ui.includes("Conferma acquisto"));
  assert(analyzer.includes("Energia impegnata")&&
-  analyzer.includes("Ricompensa")&&analyzer.includes("Resa")&&
+  analyzer.includes("Esito")&&analyzer.includes("Resa")&&
   analyzer.includes("lowYieldPlacements")&&
   analyzer.includes("worseningPlacements")&&
   !analyzer.includes("Acquisti iniziali")&&
@@ -664,9 +666,9 @@ try{
   "Click must pin the drop target for reachable on-board confirm/cancel");
  assert(ui.includes("Saldo ENERGY attuale")&&
   ui.includes("Energia impegnata in plancia")&&
-  ui.includes("Ricompensa se presenti")&&
+  ui.includes("Variazione alla presentazione")&&
   ui.includes("forecastReward")&&
-  ui.includes("treasury+(forecastReward??currentReward)")&&
+  ui.includes("settlement.afterTreasury")&&
   ui.includes("forecastCommitted"),
   "Board header must distinguish treasury, committed capacity and predicted reward");
  assert(css.includes(".resonance-purchase-actions")&&
