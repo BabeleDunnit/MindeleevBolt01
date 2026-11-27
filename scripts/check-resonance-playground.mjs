@@ -248,8 +248,10 @@ try{
   ui.includes("inspectResonanceDensity(")&&
   ui.includes("density.withoutHintCells")&&
   ui.includes("density.freePlacementCells")&&
-  ui.includes("density.occupiedOrbits"),
-  "Calibration UI must expose selectable recipes and distinct density measurements");
+  ui.includes("density.occupiedOrbits")&&
+  ui.includes('className="kaleido-control-block resonance-calibration resonance-density-panel"')&&
+  ui.indexOf("resonance-density-panel")>ui.indexOf("onLoadPreset(selectedCalibration)"),
+  "Calibration selector and diagnostics must be separate compact panels");
  assert(css.includes("resonance-calibration-metrics")&&
   css.includes("resonance-calibration-rings"),
   "Density diagnostics should use compact responsive sidebar styles");
