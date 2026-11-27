@@ -664,3 +664,79 @@
 .resonance-calibration-note{
  font-size:10px!important;color:#b3d4d0!important;
 }
+
+/* Three independent commission settlement models (visual laboratory).
+ * These controls never modify the intrinsic Polytron energy. */
+.resonance-economy-model{
+ display:grid!important;gap:8px;align-content:start;
+ border-color:#698d7d!important;
+}
+.resonance-economy-model .kaleido-section-top{gap:7px}
+.resonance-economy-model>.kaleido-section-top strong{
+ font-size:13px;color:#e4ddb0;white-space:nowrap;
+}
+.resonance-economy-model>p{margin:0!important;font-size:11px!important}
+.resonance-economy-model>label{font-weight:750;font-size:11px}
+.resonance-economy-model>select{margin:0;min-height:40px}
+.resonance-economy-model h3{
+ font-size:12px;margin:6px 0 0;color:#e6eedb;
+}
+.resonance-economy-baseline{
+ display:grid;gap:5px;padding:8px 10px;
+ background:#203f46;border:1px solid #47737c;border-radius:8px;
+}
+.resonance-economy-baseline span{
+ font-size:10px;color:#b8d5d4;line-height:1.45;
+}
+.resonance-economy-baseline strong{
+ font-size:17px;color:#ecd99f;font-variant-numeric:tabular-nums;
+}
+.resonance-economy-comparison{
+ display:grid;gap:5px;
+}
+.resonance-economy-comparison>div{
+ display:flex;align-items:center;justify-content:space-between;
+ gap:9px;padding:7px 9px;border-radius:8px;
+ background:#183946;border:1px solid #345f6a;
+}
+.resonance-economy-comparison>div.is-active{
+ background:#245047;border-color:#99d5ab;
+}
+.resonance-economy-comparison span{font-size:11px;color:#cee2dd}
+.resonance-economy-comparison strong{
+ font-size:14px;font-variant-numeric:tabular-nums;
+}
+.resonance-economy-model .resonance-economy-warning{
+ color:#e7c7a6!important;
+}
+.resonance-economy-model .resonance-economy-note{
+ color:#a5c9c4!important;
+}
+.resonance-economy-ledger{
+ border-top:1px solid #3b6973;padding-top:8px;
+}
+.resonance-economy-ledger summary{
+ cursor:pointer;font-size:11px;color:#d4ecd9;
+}
+.resonance-economy-ledger>div{
+ display:flex;gap:6px;align-items:center;flex-wrap:wrap;
+ border-top:1px solid #2e525e;padding:5px 0;
+ font-size:10px;color:#b6d2d0;
+}
+.resonance-economy-ledger strong{
+ margin-left:auto;font-variant-numeric:tabular-nums;
+}
+.resonance-economy-ledger small{
+ color:#c2d5d0;font-variant-numeric:tabular-nums;
+}
+.resonance-economy-ledger>p{font-size:11px}
+.resonance-head-energy-cell strong.resonance-negative,
+.resonance-forecast-row b.resonance-negative,
+.resonance-economy-model strong.resonance-negative{
+ color:#ffb1a2;
+}
+.resonance-head-energy-cell strong.resonance-positive,
+.resonance-forecast-row b.resonance-positive,
+.resonance-economy-model strong.resonance-positive{
+ color:#b5edcb;
+}
